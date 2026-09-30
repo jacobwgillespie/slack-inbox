@@ -12,8 +12,9 @@ const VIEW_LABELS: Record<View, string> = {
 export function Header() {
   const counts = useViewCounts()
   const view = useStore((state) => state.view)
-  const scanning = useStore((state) => state.scanning)
-  const progress = useStore((state) => state.scanProgress)
+  const sync = useStore((state) => state.sync)
+  const scanning = Boolean(sync?.running)
+  const showProgress = scanning && (Boolean(sync?.total) || !sync?.lastCompletedAt)
   const { setView, refresh, toggleHelp } = useStore.getState()
 
   return (
@@ -33,14 +34,19 @@ export function Header() {
         ))}
       </nav>
       <div className="header-tools">
-        {scanning && (
+        {sync?.error && !scanning && (
+          <span className="scan-status scan-error" title={sync.error.message}>
+            Sync failed: {sync.error.code}
+          </span>
+        )}
+        {showProgress && (
           <span className="scan-status">
-            {progress.total ? `Checking ${progress.done} of ${progress.total}` : 'Checking conversations'}
+            {sync?.total ? `Syncing ${sync.done} of ${sync.total}` : 'Syncing'}
           </span>
         )}
         <button
           className={`icon-button${scanning ? ' spinning' : ''}`}
-          onClick={() => void refresh()}
+          onClick={refresh}
           disabled={scanning}
           title="Refresh (Shift+R)"
         >

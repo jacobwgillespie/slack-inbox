@@ -4,13 +4,13 @@ import { HelpOverlay } from './components/HelpOverlay'
 import { ItemList } from './components/ItemList'
 import { SetupScreen } from './components/SetupScreen'
 import { Toast } from './components/Toast'
-import { useAutoRefresh, useKeyboardShortcuts, useSelectionRepair } from './hooks'
+import { useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
 import { useStore } from './store'
 
 export function App() {
   const status = useStore((state) => state.status)
   const helpOpen = useStore((state) => state.helpOpen)
-  useAutoRefresh()
+  useInboxSync()
   useKeyboardShortcuts()
   useSelectionRepair()
 

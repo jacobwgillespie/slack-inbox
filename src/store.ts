@@ -1,21 +1,9 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { LocalApiError, localApi } from './api'
 import { permalink } from './format'
-import { SlackError } from './slack/api'
-import {
-  compareTs,
-  fetchCustomEmoji,
-  fetchSession,
-  fetchThreadReplies,
-  fetchUser,
-  fetchUsers,
-  markRead,
-  maxTs,
-  postMessage,
-  precedingTs,
-  scanInbox,
-} from './slack/inbox'
-import type { Conversation, InboxItem, LaterItem, Message, Session, User } from './slack/types'
+import { compareTs, maxTs, precedingTs } from './slack/timestamps'
+import type { InboxItem, InboxPayload, LaterItem, Message, Session, SyncStatus, User } from './slack/types'
 
 export type View = 'important' | 'other' | 'later' | 'muted'
 export const VIEWS: View[] = ['important', 'other', 'later', 'muted']
@@ -29,25 +17,22 @@ interface Toast {
   undo?: () => void
 }
 
-interface ScanProgress {
-  done: number
-  total: number
+interface LocalCursor {
+  ts: string
+  expiresAt: number
 }
 
 type ThreadState = Message[] | 'loading'
 
 export interface InboxState {
   status: 'loading' | 'ready' | 'error'
-  error?: SlackError | Error
+  error?: LocalApiError
   session?: Session
-  scanning: boolean
-  scanProgress: ScanProgress
-  lastScanAt: number
+  sync?: SyncStatus
   users: Record<string, User>
-  usersLoaded: boolean
   emoji: Record<string, string>
   items: Record<string, InboxItem>
-  cursors: Record<string, string>
+  cursors: Record<string, LocalCursor>
   later: Record<string, LaterItem>
   muted: Record<string, true>
   view: View
@@ -61,8 +46,9 @@ export interface InboxState {
   helpOpen: boolean
   composerFocusRequest: number
 
-  refresh: () => Promise<void>
-  requestUser: (id: string) => void
+  load: () => Promise<void>
+  loadEmoji: () => Promise<void>
+  refresh: () => void
   setView: (view: View) => void
   cycleView: (delta: number) => void
   select: (id: string | undefined) => void
@@ -159,7 +145,7 @@ const resilientLocalStorage = {
 
 let toastCounter = 0
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-const pendingUsers = new Set<string>()
+const CURSOR_LIFETIME = 2 * 60 * 1000
 
 export const useStore = create<InboxState>()(
   persist(
@@ -178,7 +164,7 @@ export const useStore = create<InboxState>()(
       }
 
       const syncReadCursor = (channel: string, ts: string) => {
-        markRead(channel, ts).catch(reportError)
+        localApi.markRead(channel, ts).catch(reportError)
       }
 
       const targetIds = (): string[] => {
@@ -226,7 +212,7 @@ export const useStore = create<InboxState>()(
         const previousCursors = Object.fromEntries(ids.map((id) => [id, state.cursors[id]]))
         const cursors = { ...state.cursors }
         for (const item of items) {
-          cursors[item.conversation.id] = latestTs(item)
+          cursors[item.conversation.id] = { ts: latestTs(item), expiresAt: Date.now() + CURSOR_LIFETIME }
           syncReadCursor(item.conversation.id, latestTs(item))
         }
         return {
@@ -252,24 +238,32 @@ export const useStore = create<InboxState>()(
         }
       }
 
-      const applyScanResult = (conversation: Conversation, lastRead: string, messages: Message[]) => {
+      const applyInbox = (payload: InboxPayload) => {
         set((state) => {
-          const cursor = maxTs(lastRead, state.cursors[conversation.id])
-          const unread = messages.filter((message) => compareTs(message.ts, cursor) > 0)
-          const items = { ...state.items }
-          if (unread.length) items[conversation.id] = { conversation, messages: unread }
-          else delete items[conversation.id]
-          return { items }
+          const now = Date.now()
+          const cursors = Object.fromEntries(Object.entries(state.cursors).filter(([, cursor]) => cursor.expiresAt > now))
+          const items: Record<string, InboxItem> = {}
+          for (const item of payload.items) {
+            const cursor = maxTs(cursors[item.conversation.id]?.ts)
+            const messages = item.messages.filter((message) => compareTs(message.ts, cursor) > 0)
+            if (messages.length) items[item.conversation.id] = { ...item, messages }
+          }
+          const status = payload.session ? 'ready' : payload.sync.error ? 'error' : 'loading'
+          return {
+            status,
+            error: payload.sync.error && !payload.session ? new LocalApiError(payload.sync.error) : undefined,
+            session: payload.session,
+            sync: payload.sync,
+            users: { ...state.users, ...payload.users },
+            items,
+            cursors,
+          }
         })
       }
 
       return {
         status: 'loading',
-        scanning: false,
-        scanProgress: { done: 0, total: 0 },
-        lastScanAt: 0,
         users: {},
-        usersLoaded: false,
         emoji: {},
         items: {},
         cursors: {},
@@ -282,46 +276,28 @@ export const useStore = create<InboxState>()(
         helpOpen: false,
         composerFocusRequest: 0,
 
-        refresh: async () => {
-          if (get().scanning) return
-          set({ scanning: true, scanProgress: { done: 0, total: 0 } })
+        load: async () => {
           try {
-            let session = get().session
-            if (!session) {
-              session = await fetchSession()
-              set({ session })
-              fetchUsers()
-                .then((users) => set((state) => ({ users: { ...users, ...state.users }, usersLoaded: true })))
-                .catch((error) => {
-                  set({ usersLoaded: true })
-                  reportError(error)
-                })
-              fetchCustomEmoji()
-                .then((emoji) => set({ emoji }))
-                .catch(() => undefined)
-            }
-            await scanInbox(session.userId, {
-              onStart: (total) => set({ status: 'ready', scanProgress: { done: 0, total } }),
-              onResult: applyScanResult,
-              onProgress: () =>
-                set((state) => ({ scanProgress: { ...state.scanProgress, done: state.scanProgress.done + 1 } })),
-            })
-            set({ lastScanAt: Date.now() })
+            applyInbox(await localApi.inbox())
           } catch (error) {
-            if (get().status === 'ready') reportError(error)
-            else set({ status: 'error', error: error instanceof Error ? error : new Error(String(error)) })
-          } finally {
-            set({ scanning: false })
+            if (get().status === 'ready') return
+            set({
+              status: 'error',
+              error:
+                error instanceof LocalApiError
+                  ? error
+                  : new LocalApiError({ code: 'server_unreachable', message: String(error) }),
+            })
           }
         },
 
-        requestUser: (id) => {
-          const state = get()
-          if (!state.usersLoaded || state.users[id] || pendingUsers.has(id)) return
-          pendingUsers.add(id)
-          fetchUser(id)
-            .then((user) => set((current) => ({ users: { ...current.users, [id]: user } })))
-            .catch(() => undefined)
+        loadEmoji: async () => {
+          const emoji = await localApi.emoji().catch(() => undefined)
+          if (emoji) set({ emoji })
+        },
+
+        refresh: () => {
+          localApi.sync().catch(reportError)
         },
 
         setView: (view) => {
@@ -485,7 +461,7 @@ export const useStore = create<InboxState>()(
           const item = currentItem(state)
           if (!item || !text.trim()) return false
           try {
-            await postMessage(item.conversation.id, text, state.threadTarget)
+            await localApi.postMessage(item.conversation.id, text, state.threadTarget)
           } catch (error) {
             reportError(error)
             return false
@@ -508,8 +484,14 @@ export const useStore = create<InboxState>()(
             return
           }
           set({ threads: { ...state.threads, [key]: 'loading' } })
-          fetchThreadReplies(item.conversation.id, targetTs)
-            .then((replies) => set((current) => ({ threads: { ...current.threads, [key]: replies } })))
+          localApi
+            .threadReplies(item.conversation.id, targetTs)
+            .then(({ messages, users }) =>
+              set((current) => ({
+                threads: { ...current.threads, [key]: messages },
+                users: { ...current.users, ...users },
+              })),
+            )
             .catch((error) => {
               set((current) => ({ threads: omit(current.threads, [key]) }))
               reportError(error)
@@ -536,8 +518,6 @@ export const useStore = create<InboxState>()(
       version: 1,
       storage: createJSONStorage(() => resilientLocalStorage),
       partialize: (state) => ({
-        items: state.items,
-        cursors: state.cursors,
         later: state.later,
         muted: state.muted,
         view: state.view,

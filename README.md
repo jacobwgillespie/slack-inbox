@@ -19,11 +19,23 @@ A keyboard-driven inbox for unread Slack messages. Each conversation with unread
    pnpm dev
    ```
 
-The token stays on your computer. The Vite server forwards requests from `/api/*` to `https://slack.com/api/*` and adds the token to each request. The browser never receives the token. For this reason the app only runs through `pnpm dev` or `pnpm preview`, not as static files.
+The app needs Node.js 22.13 or later.
+
+## How it works
+
+The Vite server runs a sync process that copies your Slack data into a local SQLite database at `data/slack.sqlite`. The browser reads the inbox from this database and never calls Slack directly. Your token stays in the server.
+
+- Users, custom emoji, and the list of conversations refresh once an hour.
+- Unread state refreshes every 30 seconds with a session token, or continuously with a user token.
+- Message history is fetched only for conversations that have new messages.
+- When you mark a conversation as read or send a reply, the server updates Slack and the database.
+- The server tells the browser when data changes, so the inbox updates without a reload.
+
+Because the server does this work, the app only runs through `pnpm dev` or `pnpm preview`, not as static files. To start again with an empty database, stop the server and delete the `data` directory. To store the database somewhere else, set `SLACK_DATABASE_PATH` in `.env.local`.
 
 ## Faster scans with a session token (optional)
 
-With a user token, Slack does not report which conversations are unread. The app must call `conversations.info` once for each conversation, and Slack allows about 50 of these calls each minute. If you belong to 600 conversations, each scan takes about 12 minutes. The app saves the last result in the browser, so it shows the inbox at once and updates it as the scan runs.
+With a user token, Slack does not report which conversations are unread. The app must call `conversations.info` once for each conversation, and Slack allows about 50 of these calls each minute. If you belong to 600 conversations, each scan takes about 12 minutes. The inbox shows the last result from the database while the scan runs.
 
 A browser session token lets the app ask Slack for all unread conversations in one request (`client.counts`). A scan then takes a few seconds.
 
@@ -91,4 +103,3 @@ Sending a reply also marks the conversation as read.
 - Slack mutes are not visible through the API. Use `M` to mute conversations in this app.
 - The app loads up to 100 unread messages for each conversation.
 - With a user token, each scan checks every conversation you belong to, which takes minutes in a large workspace. Direct messages are checked first. See [Faster scans with a session token](#faster-scans-with-a-session-token-optional).
-- The app refreshes every 5 minutes and when the window regains focus.

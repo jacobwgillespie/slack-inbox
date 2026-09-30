@@ -1,4 +1,3 @@
-import { SlackError } from '../slack/api'
 import { useStore } from '../store'
 
 const AUTH_ERRORS = new Set(['not_authed', 'invalid_auth', 'token_revoked', 'token_expired', 'account_inactive'])
@@ -6,14 +5,13 @@ const AUTH_ERRORS = new Set(['not_authed', 'invalid_auth', 'token_revoked', 'tok
 export function SetupScreen() {
   const error = useStore((state) => state.error)
   const refresh = useStore((state) => state.refresh)
-  const code = error instanceof SlackError ? error.code : undefined
-  const needsToken = code !== undefined && AUTH_ERRORS.has(code)
+  const needsToken = error !== undefined && AUTH_ERRORS.has(error.code)
 
   return (
     <main className="setup">
       <h1>{needsToken ? 'Connect Slack' : 'Could not load Slack'}</h1>
       {error && <p className="setup-error">{error.message}</p>}
-      {error instanceof SlackError && error.needed && (
+      {error?.needed && (
         <p>
           The token is missing the <code>{error.needed}</code> scope. Add it to the Slack app and reinstall the app.
         </p>
@@ -30,7 +28,7 @@ export function SetupScreen() {
         </li>
         <li>Restart the development server.</li>
       </ol>
-      <button className="button primary" onClick={() => void refresh()}>
+      <button className="button primary" onClick={refresh}>
         Try again
       </button>
     </main>

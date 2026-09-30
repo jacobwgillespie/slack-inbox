@@ -63,3 +63,33 @@ export interface InboxItem {
 export interface LaterItem extends InboxItem {
   savedAt: number
 }
+
+export type CredentialMode = 'session' | 'user' | 'none'
+
+export interface SyncError {
+  code: string
+  message: string
+  needed?: string
+}
+
+export interface SyncStatus {
+  mode: CredentialMode
+  running: boolean
+  done: number
+  total: number
+  lastCompletedAt?: number
+  error?: SyncError
+}
+
+export interface InboxPayload {
+  version: number
+  session?: Session
+  sync: SyncStatus
+  items: InboxItem[]
+  users: Record<string, User>
+}
+
+export interface ThreadPayload {
+  messages: Message[]
+  users: Record<string, User>
+}

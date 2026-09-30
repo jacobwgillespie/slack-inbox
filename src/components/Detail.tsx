@@ -84,16 +84,12 @@ function MessageView({ channel, message, continued }: { channel: string; message
   const session = useStore((state) => state.session)
   const focused = useStore((state) => state.mode === 'reading' && state.focusedTs === message.ts)
   const thread = useStore((state) => state.threads[threadKey(channel, message.ts)])
-  const { focusMessage, toggleThread, replyInThread, requestUser } = useStore.getState()
+  const { focusMessage, toggleThread, replyInThread } = useStore.getState()
   const ref = useRef<HTMLElement>(null)
 
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
   }, [focused])
-
-  useEffect(() => {
-    if (message.user) requestUser(message.user)
-  }, [message.user, requestUser])
 
   const name = authorName(message, context.users)
   const className = ['message', continued && 'continued', focused && 'focused'].filter(Boolean).join(' ')
@@ -200,12 +196,7 @@ function MessageView({ channel, message, continued }: { channel: string; message
 
 function ThreadReply({ message, continued }: { message: Message; continued: boolean }) {
   const context = useFormatContext()
-  const requestUser = useStore((state) => state.requestUser)
   const name = authorName(message, context.users)
-
-  useEffect(() => {
-    if (message.user) requestUser(message.user)
-  }, [message.user, requestUser])
 
   return (
     <div className={`thread-reply${continued ? ' continued' : ''}`}>

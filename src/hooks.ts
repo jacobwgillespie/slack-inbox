@@ -1,10 +1,8 @@
 import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { subscribeToChanges } from './api'
 import type { FormatContext } from './format'
 import { computeCounts, computeVisible, currentItem, useStore, VIEWS, type InboxState } from './store'
-
-const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000
-const FOCUS_REFRESH_THRESHOLD = 60 * 1000
 
 export function useFormatContext(): FormatContext {
   return useStore(useShallow((state) => ({ users: state.users, emoji: state.emoji })))
@@ -54,7 +52,7 @@ const BINDINGS: Record<string, Binding> = {
   t: (state) => state.replyInThread(),
   u: (state) => state.openInSlack(),
   z: (state) => state.undo(),
-  R: (state) => void state.refresh(),
+  R: (state) => state.refresh(),
   Tab: (state, event) => state.cycleView(event.shiftKey ? -1 : 1),
   '?': (state) => state.toggleHelp(),
   ...Object.fromEntries(VIEWS.map((view, index) => [String(index + 1), (state: InboxState) => state.setView(view)])),
@@ -80,22 +78,29 @@ export function useKeyboardShortcuts() {
   }, [])
 }
 
-export function useAutoRefresh() {
+export function useInboxSync() {
   useEffect(() => {
-    const refresh = () => void useStore.getState().refresh()
-    const refreshIfStale = () => {
-      if (document.visibilityState !== 'visible') return
-      if (Date.now() - useStore.getState().lastScanAt > FOCUS_REFRESH_THRESHOLD) refresh()
+    const { load, loadEmoji } = useStore.getState()
+    let loading = false
+    let stale = false
+    const reload = async () => {
+      if (loading) {
+        stale = true
+        return
+      }
+      loading = true
+      do {
+        stale = false
+        await load()
+      } while (stale)
+      loading = false
     }
-    refresh()
-    const interval = setInterval(refresh, AUTO_REFRESH_INTERVAL)
-    window.addEventListener('focus', refreshIfStale)
-    document.addEventListener('visibilitychange', refreshIfStale)
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('focus', refreshIfStale)
-      document.removeEventListener('visibilitychange', refreshIfStale)
-    }
+    void loadEmoji()
+    void reload()
+    return subscribeToChanges(() => {
+      void reload()
+      if (!Object.keys(useStore.getState().emoji).length) void loadEmoji()
+    })
   }, [])
 }
 

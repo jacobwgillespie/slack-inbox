@@ -53,7 +53,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const selected = useStore((state) => state.selectedId === id)
   const checked = useStore((state) => Boolean(state.checked[id]))
   const reading = useStore((state) => state.mode === 'reading')
-  const { select, open, markDone, saveForLater, toggleMute, toggleChecked, requestUser } = useStore.getState()
+  const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = useStore.getState()
   const ref = useRef<HTMLLIElement>(null)
 
   const latest = item.messages[item.messages.length - 1]
@@ -64,11 +64,6 @@ function ItemRow({ item }: { item: InboxItem }) {
   useEffect(() => {
     if (selected) ref.current?.scrollIntoView({ block: 'nearest' })
   }, [selected])
-
-  useEffect(() => {
-    if (item.conversation.userId) requestUser(item.conversation.userId)
-    if (latest?.user) requestUser(latest.user)
-  }, [item.conversation.userId, latest?.user, requestUser])
 
   const onClick = (event: MouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey) toggleChecked(id)

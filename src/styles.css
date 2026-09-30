@@ -166,6 +166,10 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+.scan-error {
+  color: var(--danger);
+}
+
 .icon-button {
   display: grid;
   place-items: center;
