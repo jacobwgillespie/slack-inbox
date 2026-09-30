@@ -22,7 +22,7 @@ For each message in the batch, call classify_message exactly once. Give a short 
 
 The memories list holds rules you saved earlier. Follow them. They take priority over the general guidance above.
 
-The corrections list shows messages where the person changed your classification. Look for the pattern behind each correction. Save a memory when you learn a general rule, for example "Messages from the deploy bot in #releases are other unless a deploy failed." Keep memories short and general. Update or delete a memory instead of saving a duplicate or a contradicting one. Do not save a memory for a single message.
+The corrections list shows messages where the person changed your classification. For each correction, decide what preference it shows, such as a channel, a sender, or a kind of message the person cares about more or less than you expected. Save a memory that states that preference as a rule for future messages, for example "Messages in #announcements are important." or "Successful deploy notifications are other; failed deploys are important." Use query_database if you need more context to find the rule. Keep memories short and general. Update or delete a memory instead of saving a duplicate or a contradicting one. Do not save a memory that only describes one specific message.
 
 You can use query_database for more context, for example earlier messages in the same conversation or how the person classified similar messages. Use it only when the batch does not give you enough information. When every message is classified and your memories are up to date, reply with a short summary and stop.`
 
