@@ -90,6 +90,15 @@ export function localApi(engine: SyncEngine) {
       await engine.markRead(requireString(body.channel, 'channel'), requireString(body.ts, 'ts'))
       sendJson(response, 200, { ok: true })
     },
+    'POST /local/thread/mark': async (request, response) => {
+      const body = await readJson(request)
+      await engine.markThreadRead(
+        requireString(body.channel, 'channel'),
+        requireString(body.threadTs, 'threadTs'),
+        requireString(body.ts, 'ts'),
+      )
+      sendJson(response, 200, { ok: true })
+    },
     'POST /local/later': async (request, response) => {
       sendJson(response, 200, await engine.saveForLater(...readReference(await readJson(request))))
     },

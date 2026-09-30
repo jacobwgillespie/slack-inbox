@@ -92,9 +92,15 @@ function ItemRow({ item }: { item: InboxItem }) {
         <div className="item-heading">
           <span className="item-title">{label}</span>
           {item.messages.length > 1 && <span className="item-count">{item.messages.length}</span>}
+          {item.thread && <span className="item-flag item-flag-thread">Thread</span>}
           {mentioned && <span className="item-flag">Mention</span>}
           <time className="item-time">{formatListTime(latestTs(item))}</time>
         </div>
+        {item.thread && (
+          <p className="item-context">
+            {authorName(item.thread.root, context.users)}: {messageSummary(item.thread.root, context)}
+          </p>
+        )}
         {latest && (
           <p className="item-preview">
             {item.conversation.kind !== 'dm' && <span className="item-author">{authorName(latest, context.users)}: </span>}
@@ -108,9 +114,11 @@ function ItemRow({ item }: { item: InboxItem }) {
             <button title="Save for later (L)" onClick={action(saveForLater)}>
               <ClockIcon />
             </button>
-            <button title={view === 'muted' ? 'Unmute (M)' : 'Mute (M)'} onClick={action(toggleMute)}>
-              <MuteIcon />
-            </button>
+            {!item.thread && (
+              <button title={view === 'muted' ? 'Unmute (M)' : 'Mute (M)'} onClick={action(toggleMute)}>
+                <MuteIcon />
+              </button>
+            )}
           </>
         )}
       </div>

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { authorName, conversationLabel } from '../format'
 import { useFormatContext } from '../hooks'
-import { useStore } from '../store'
+import { findMessage, threadTargetFor, useStore } from '../store'
 import type { InboxItem } from '../slack/types'
 
 export function Composer({ item }: { item: InboxItem }) {
@@ -26,9 +26,10 @@ export function Composer({ item }: { item: InboxItem }) {
     element.style.height = `${Math.min(element.scrollHeight, 240)}px`
   }, [text])
 
-  const threadParent = threadTarget ? item.messages.find((message) => message.ts === threadTarget) : undefined
+  const replyThread = threadTargetFor(item, threadTarget)
+  const threadParent = replyThread ? findMessage(item, replyThread) : undefined
   const label = conversationLabel(item.conversation, context.users, session)
-  const placeholder = threadTarget ? 'Reply in thread' : `Message ${label}`
+  const placeholder = replyThread ? 'Reply in thread' : `Message ${label}`
 
   const submit = async () => {
     if (sending || !text.trim()) return
@@ -60,12 +61,14 @@ export function Composer({ item }: { item: InboxItem }) {
         void submit()
       }}
     >
-      {threadTarget && (
+      {replyThread && (
         <div className="composer-context">
           Replying in thread{threadParent ? ` to ${authorName(threadParent, context.users)}` : ''}
-          <button type="button" className="link-button" onClick={clearThreadTarget}>
-            Cancel
-          </button>
+          {threadTarget && !item.thread && (
+            <button type="button" className="link-button" onClick={clearThreadTarget}>
+              Cancel
+            </button>
+          )}
         </div>
       )}
       <div className="composer-row">

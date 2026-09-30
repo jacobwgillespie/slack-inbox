@@ -12,6 +12,7 @@ import type {
 } from '../src/slack/types.ts'
 import type { Database, StoredConversation } from './database.ts'
 import { Preferences } from './preferences.ts'
+import { Threads } from './threads.ts'
 import { RealtimeConnection, type RealtimeEvent } from './realtime.ts'
 import { SlackError, type SlackClient } from './slack-client.ts'
 import {
@@ -85,6 +86,7 @@ export class SyncEngine {
   private readonly requestedUsers = new Set<string>()
   private readonly realtime?: RealtimeConnection
   private readonly preferences: Preferences
+  private readonly threads?: Threads
 
   constructor(
     private readonly database: Database,
@@ -95,6 +97,12 @@ export class SyncEngine {
     this.session = database.getMetadata<Session>('session')
     this.preferences = new Preferences(database, client, mode === 'session', () => this.changed())
     if (mode === 'session') {
+      this.threads = new Threads(
+        database,
+        client,
+        () => this.changed(),
+        () => this.requestSync(),
+      )
       this.realtime = new RealtimeConnection(client, {
         onEvent: (event) => this.handleRealtimeEvent(event),
         onStateChange: (realtime) => this.setStatus({ realtime }),
@@ -142,7 +150,12 @@ export class SyncEngine {
   }
 
   inbox(): InboxPayload {
-    const items = this.session ? this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT) : []
+    const items = this.session
+      ? [
+          ...this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT),
+          ...(this.threads ? this.database.threadInbox(this.session.userId) : []),
+        ]
+      : []
     const later = this.preferences.later()
     const ids = referencedUserIds([...items, ...later])
     const users = this.database.usersById(ids)
@@ -157,6 +170,11 @@ export class SyncEngine {
       preferenceSource: this.preferences.source,
       users,
     }
+  }
+
+  async markThreadRead(channel: string, threadTs: string, ts: string) {
+    if (!this.threads) throw new SlackError('subscriptions.thread.mark', 'not_allowed_token_type')
+    await this.threads.markRead(channel, threadTs, ts)
   }
 
   saveForLater(channel: string, ts: string) {
@@ -231,6 +249,8 @@ export class SyncEngine {
       this.database.upsertUser(toUser(event.user as RawUser))
     } else if (MEMBERSHIP_EVENTS.has(event.type)) {
       this.invalidateDirectory('conversations')
+    } else if (this.threads?.handleEvent(event)) {
+      return
     } else if (event.type === 'pref_change' && event.name === 'all_notifications_prefs') {
       this.preferences.applyNotificationPreferences(event.value)
       return
@@ -292,6 +312,7 @@ export class SyncEngine {
       await this.refreshDirectory('conversations')
       if (this.status.mode === 'session') await this.syncWithCounts()
       else await this.syncWithConversationInfo()
+      await this.threads?.sync().catch((error) => console.warn('Could not sync threads', error))
       await this.preferences.sync().catch((error) => console.warn('Could not sync Later and mute settings', error))
       await this.refreshDirectory('users')
       await this.refreshDirectory('emoji').catch(() => undefined)

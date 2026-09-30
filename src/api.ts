@@ -33,6 +33,8 @@ export const localApi = {
   emoji: () => request<Record<string, string>>('/local/emoji'),
   sync: () => post('/local/sync'),
   markRead: (channel: string, ts: string) => post('/local/mark', { channel, ts }),
+  markThreadRead: (channel: string, threadTs: string, ts: string) =>
+    post('/local/thread/mark', { channel, threadTs, ts }),
   postMessage: (channel: string, text: string, threadTs?: string) => post('/local/post', { channel, text, threadTs }),
   saveForLater: (channel: string, ts: string) => post<{ created: boolean }>('/local/later', { channel, ts }),
   completeLater: (channel: string, ts: string) => post('/local/later/complete', { channel, ts }),

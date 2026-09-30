@@ -98,8 +98,20 @@ export function mentionsSelf(item: InboxItem, session?: Session): boolean {
 }
 
 export function isImportant(item: InboxItem, session?: Session): boolean {
+  if (item.thread) return true
   return item.conversation.kind === 'dm' || item.conversation.kind === 'group' || mentionsSelf(item, session)
 }
+
+export function threadTargetFor(item: InboxItem, threadTarget?: string): string | undefined {
+  return threadTarget ?? item.thread?.ts
+}
+
+export function findMessage(item: InboxItem, ts: string): Message | undefined {
+  return item.thread?.root.ts === ts ? item.thread.root : item.messages.find((message) => message.ts === ts)
+}
+
+const isMutedChannelItem = (item: InboxItem, muted: Record<string, true>) =>
+  !item.thread && Boolean(muted[item.conversation.id])
 
 const byLatest = (a: InboxItem, b: InboxItem) => compareTs(latestTs(b), latestTs(a))
 const bySavedAt = (a: LaterItem, b: LaterItem) => b.savedAt - a.savedAt
@@ -110,12 +122,12 @@ export function computeVisible(state: VisibleSource): InboxItem[] {
     case 'later':
       return Object.values(state.later).sort(bySavedAt)
     case 'muted':
-      return inbox.filter((item) => state.muted[item.conversation.id]).sort(byLatest)
+      return inbox.filter((item) => isMutedChannelItem(item, state.muted)).sort(byLatest)
     case 'important':
     case 'other': {
       const important = state.view === 'important'
       return inbox
-        .filter((item) => !state.muted[item.conversation.id] && isImportant(item, state.session) === important)
+        .filter((item) => !isMutedChannelItem(item, state.muted) && isImportant(item, state.session) === important)
         .sort(byLatest)
     }
   }
@@ -271,6 +283,11 @@ export const useStore = create<InboxState>()(
         })
       }
 
+      const syncReadPosition = (item: InboxItem, ts: string) => {
+        if (item.thread) run(localApi.markThreadRead(item.conversation.id, item.thread.ts, ts))
+        else run(localApi.markRead(item.conversation.id, ts))
+      }
+
       const clearFromInbox = (items: InboxItem[]) => {
         const state = get()
         const ids = items.map((item) => item.id)
@@ -278,7 +295,7 @@ export const useStore = create<InboxState>()(
         const cursors = { ...state.cursors }
         for (const item of items) {
           cursors[item.id] = override(latestTs(item))
-          run(localApi.markRead(item.conversation.id, latestTs(item)))
+          syncReadPosition(item, latestTs(item))
         }
         set({ items: omit(state.items, ids), cursors })
         return () => {
@@ -296,7 +313,7 @@ export const useStore = create<InboxState>()(
           reselect(ids)
           for (const item of items) {
             const first = item.messages[0]
-            if (first) run(localApi.markRead(item.conversation.id, precedingTs(first.ts)))
+            if (first) syncReadPosition(item, precedingTs(first.ts))
           }
         }
       }
@@ -508,16 +525,21 @@ export const useStore = create<InboxState>()(
           const state = get()
           if (!ids.length || state.view === 'later') return
           const muting = state.view !== 'muted'
-          const channels = ids.map((id) => state.items[id]?.conversation.id).filter((id) => id !== undefined)
+          const targets = ids
+            .map((id) => state.items[id])
+            .filter((item): item is InboxItem => item !== undefined && !item.thread)
+          if (!targets.length) return
+          const targetIds = targets.map((item) => item.id)
+          const channels = targets.map((item) => item.conversation.id)
           const apply = (muted: boolean) => {
             setMuteOverrides(channels, muted)
             for (const channel of channels) run(localApi.setMuted(channel, muted))
           }
-          removeAndAdvance(ids, () => apply(muting))
+          removeAndAdvance(targetIds, () => apply(muting))
           showToast(`${muting ? 'Muted' : 'Unmuted'} ${pluralize(channels.length, 'conversation')}`, {
             undo: () => {
               apply(!muting)
-              reselect(ids)
+              reselect(targetIds)
             },
           })
         },
@@ -539,7 +561,7 @@ export const useStore = create<InboxState>()(
           const item = currentItem(state)
           if (!item) return
           const targetTs = ts ?? (state.mode === 'reading' ? state.focusedTs : undefined) ?? latestTs(item)
-          const message = item.messages.find((candidate) => candidate.ts === targetTs)
+          const message = findMessage(item, targetTs)
           set({
             threadTarget: message?.thread_ts ?? targetTs,
             composerFocusRequest: state.composerFocusRequest + 1,
@@ -553,7 +575,7 @@ export const useStore = create<InboxState>()(
           const item = currentItem(state)
           if (!item || !text.trim()) return false
           try {
-            await localApi.postMessage(item.conversation.id, text, state.threadTarget)
+            await localApi.postMessage(item.conversation.id, text, threadTargetFor(item, state.threadTarget))
           } catch (error) {
             reportError(error)
             return false
@@ -568,7 +590,7 @@ export const useStore = create<InboxState>()(
           const item = currentItem(state)
           const targetTs = ts ?? state.focusedTs
           if (!item || !targetTs) return
-          const message = item.messages.find((candidate) => candidate.ts === targetTs)
+          const message = findMessage(item, targetTs)
           if (!message?.reply_count) return
           const key = threadKey(item.conversation.id, targetTs)
           if (state.threads[key]) {

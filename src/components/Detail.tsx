@@ -11,12 +11,18 @@ import {
 } from '../format'
 import { useCurrentItem, useFormatContext } from '../hooks'
 import { threadKey, useStore } from '../store'
-import type { Message } from '../slack/types'
+import type { InboxItem, Message } from '../slack/types'
 import { Avatar } from './Avatar'
 import { Composer } from './Composer'
 import { CheckIcon, ClockIcon, ExternalIcon, MuteIcon, ThreadIcon } from './Icons'
 
 const KIND_LABELS = { channel: 'Channel', private: 'Private channel', dm: 'Direct message', group: 'Group message' }
+
+function unreadSummary(item: InboxItem): string {
+  const count = item.messages.length
+  if (item.thread) return `${count} new ${count === 1 ? 'reply' : 'replies'}`
+  return `${count} unread`
+}
 
 export function Detail() {
   const item = useCurrentItem()
@@ -42,8 +48,8 @@ export function Detail() {
         <div>
           <h2>{conversationLabel(item.conversation, context.users, session)}</h2>
           <p className="muted">
-            {KIND_LABELS[item.conversation.kind]} ·{' '}
-            {view === 'later' ? 'Saved for later' : `${item.messages.length} unread`}
+            {item.thread ? 'Thread' : KIND_LABELS[item.conversation.kind]} ·{' '}
+            {view === 'later' ? 'Saved for later' : unreadSummary(item)}
           </p>
         </div>
         <div className="detail-actions">
@@ -55,9 +61,11 @@ export function Detail() {
               <button className="button" onClick={() => saveForLater([id])} title="L">
                 <ClockIcon /> Later
               </button>
-              <button className="button" onClick={() => toggleMute([id])} title="M">
-                <MuteIcon /> {view === 'muted' ? 'Unmute' : 'Mute'}
-              </button>
+              {!item.thread && (
+                <button className="button" onClick={() => toggleMute([id])} title="M">
+                  <MuteIcon /> {view === 'muted' ? 'Unmute' : 'Mute'}
+                </button>
+              )}
             </>
           )}
           <button className="button" onClick={openInSlack} title="U">
@@ -66,6 +74,14 @@ export function Detail() {
         </div>
       </header>
       <div className="message-list">
+        {item.thread && (
+          <>
+            <MessageView channel={item.conversation.id} message={item.thread.root} continued={false} />
+            <div className="thread-divider">
+              {item.messages.length} new {item.messages.length === 1 ? 'reply' : 'replies'}
+            </div>
+          </>
+        )}
         {item.messages.map((message, index) => (
           <MessageView
             key={message.ts}

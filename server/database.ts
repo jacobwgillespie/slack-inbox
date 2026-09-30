@@ -36,6 +36,12 @@ const SCHEMA = `
     PRIMARY KEY (conversation_id, ts)
   );
   CREATE INDEX IF NOT EXISTS messages_by_thread ON messages (conversation_id, thread_ts);
+  CREATE TABLE IF NOT EXISTS threads (
+    conversation_id TEXT NOT NULL,
+    thread_ts TEXT NOT NULL,
+    last_read TEXT NOT NULL,
+    PRIMARY KEY (conversation_id, thread_ts)
+  );
   CREATE TABLE IF NOT EXISTS saved_items (
     conversation_id TEXT NOT NULL,
     ts TEXT NOT NULL,
@@ -57,6 +63,19 @@ export interface SavedItemRecord extends SavedItemReference {
 export interface LaterResult {
   items: LaterItem[]
   missing: SavedItemReference[]
+}
+
+export interface ThreadRecord {
+  channel: string
+  threadTs: string
+  lastRead: string
+}
+
+interface ThreadInboxRow {
+  conversation: string
+  root: string
+  message: string
+  thread_ts: string
 }
 
 interface LaterRow {
@@ -127,7 +146,7 @@ export class Database {
 
   clearWorkspace() {
     this.transaction(() => {
-      for (const table of ['metadata', 'users', 'emoji', 'conversations', 'messages', 'saved_items']) {
+      for (const table of ['metadata', 'users', 'emoji', 'conversations', 'messages', 'saved_items', 'threads']) {
         this.db.exec(`DELETE FROM ${table}`)
       }
     })
@@ -310,6 +329,83 @@ export class Database {
       })
     }
     return result
+  }
+
+  setThread({ channel, threadTs, lastRead }: ThreadRecord) {
+    this.db
+      .prepare(
+        `INSERT INTO threads (conversation_id, thread_ts, last_read) VALUES (?, ?, ?)
+         ON CONFLICT (conversation_id, thread_ts) DO UPDATE SET last_read = excluded.last_read`,
+      )
+      .run(channel, threadTs, lastRead)
+  }
+
+  setThreadLastRead(channel: string, threadTs: string, lastRead: string) {
+    this.db
+      .prepare('UPDATE threads SET last_read = ? WHERE conversation_id = ? AND thread_ts = ?')
+      .run(lastRead, channel, threadTs)
+  }
+
+  deleteThread(channel: string, threadTs: string) {
+    this.db.prepare('DELETE FROM threads WHERE conversation_id = ? AND thread_ts = ?').run(channel, threadTs)
+  }
+
+  hasThread(channel: string, threadTs: string): boolean {
+    return (
+      this.db.prepare('SELECT 1 FROM threads WHERE conversation_id = ? AND thread_ts = ?').get(channel, threadTs) !==
+      undefined
+    )
+  }
+
+  applyThreadView(threads: ThreadRecord[], messages: [channel: string, message: Message][], complete: boolean) {
+    this.transaction(() => {
+      for (const thread of threads) this.setThread(thread)
+      for (const [channel, message] of messages) this.insertMessages(channel, [message])
+      if (!complete) return
+      const returned = new Set(threads.map((thread) => `${thread.channel}:${thread.threadTs}`))
+      const rows = this.db.prepare('SELECT conversation_id, thread_ts FROM threads').all() as {
+        conversation_id: string
+        thread_ts: string
+      }[]
+      const markRead = this.db.prepare(
+        `UPDATE threads SET last_read = COALESCE(
+           (SELECT MAX(ts) FROM messages WHERE conversation_id = threads.conversation_id AND thread_ts = threads.thread_ts),
+           last_read)
+         WHERE conversation_id = ? AND thread_ts = ?`,
+      )
+      for (const row of rows) {
+        if (!returned.has(`${row.conversation_id}:${row.thread_ts}`)) markRead.run(row.conversation_id, row.thread_ts)
+      }
+    })
+  }
+
+  threadInbox(selfId: string): InboxItem[] {
+    const rows = this.db
+      .prepare(
+        `SELECT c.data AS conversation, root.data AS root, m.data AS message, t.thread_ts
+         FROM threads t
+         JOIN conversations c ON c.id = t.conversation_id
+         JOIN messages root ON root.conversation_id = t.conversation_id AND root.ts = t.thread_ts
+         JOIN messages m ON m.conversation_id = t.conversation_id AND m.thread_ts = t.thread_ts AND m.ts <> t.thread_ts
+         WHERE m.ts > t.last_read AND COALESCE(m.user_id, '') <> ?
+         ORDER BY t.conversation_id, t.thread_ts, m.ts`,
+      )
+      .all(selfId) as unknown as ThreadInboxRow[]
+
+    const items = new Map<string, InboxItem>()
+    for (const row of rows) {
+      const conversation = JSON.parse(row.conversation) as Conversation
+      const id = `thread:${conversation.id}:${row.thread_ts}`
+      const item = items.get(id) ?? {
+        id,
+        conversation,
+        messages: [],
+        thread: { ts: row.thread_ts, root: JSON.parse(row.root) as Message },
+      }
+      item.messages.push(JSON.parse(row.message) as Message)
+      items.set(id, item)
+    }
+    return [...items.values()]
   }
 
   hasAnyConversation(id: string): boolean {

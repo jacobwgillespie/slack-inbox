@@ -63,19 +63,21 @@ When a session token is set, the app uses it instead of `SLACK_USER_TOKEN`.
 
 Before you use a session token, know that:
 
-- `client.counts`, `saved.*`, and `users.prefs.*` are not documented Slack APIs, and `rtm.connect` is deprecated for Slack apps. Slack can change or block any of them at any time.
+- `client.counts`, `subscriptions.thread.*`, `saved.*`, and `users.prefs.*` are not documented Slack APIs, and `rtm.connect` is deprecated for Slack apps. Slack can change or block any of them at any time.
 - The token has full access to your account, not only the scopes in the manifest. Keep `.env.local` private.
 - The token stops working when you sign out of that browser session. You must then copy new values.
 - Your workspace's security policy may not allow this.
 
 ## Views
 
-| View      | Contents                                                              |
-| --------- | --------------------------------------------------------------------- |
-| Important | Direct messages, group messages, and channels that mention you        |
-| Other     | All other channels with unread messages                               |
-| Later     | Messages in your Slack **Later** list                                 |
-| Muted     | Muted conversations that have unread messages                         |
+| View      | Contents                                                                           |
+| --------- | ---------------------------------------------------------------------------------- |
+| Important | Direct messages, group messages, channels that mention you, and threads you follow |
+| Other     | All other channels with unread messages                                            |
+| Later     | Messages in your Slack **Later** list                                              |
+| Muted     | Muted conversations that have unread messages                                      |
+
+With a session token, each thread you follow that has unread replies appears in Important as its own row. The row shows the thread's first message and the unread replies. Pressing `E` marks the thread as read in Slack, and `R` replies in the thread. Muting a channel does not hide its threads, which matches Slack's Threads view.
 
 With a session token, Later and Muted use your Slack settings:
 
@@ -107,6 +109,6 @@ Sending a reply also marks the conversation as read.
 
 ## Limits
 
-- Slack's API does not report unread thread replies, so the inbox shows unread top-level messages only.
+- Unread replies in threads you follow need a session token. With only a user token, the inbox shows unread top-level messages only. You can still expand threads and reply in them.
 - The app loads up to 100 unread messages for each conversation.
 - With a user token, each scan checks every conversation you belong to, which takes minutes in a large workspace. Direct messages are checked first. See [Faster scans with a session token](#faster-scans-with-a-session-token-optional).

@@ -55,10 +55,16 @@ export interface Session {
   url: string
 }
 
+export interface ThreadContext {
+  ts: string
+  root: Message
+}
+
 export interface InboxItem {
   id: string
   conversation: Conversation
   messages: Message[]
+  thread?: ThreadContext
 }
 
 export interface LaterItem extends InboxItem {
