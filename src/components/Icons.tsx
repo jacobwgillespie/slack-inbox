@@ -85,3 +85,15 @@ export const ThreadIcon = () => (
     <path d="M4 5h16v10H9l-5 4z" />
   </Icon>
 )
+
+export const ArrowUpIcon = () => (
+  <Icon>
+    <path d="M12 19V5M5 12l7-7 7 7" />
+  </Icon>
+)
+
+export const ArrowLeftIcon = () => (
+  <Icon>
+    <path d="M19 12H5M12 5l-7 7 7 7" />
+  </Icon>
+)

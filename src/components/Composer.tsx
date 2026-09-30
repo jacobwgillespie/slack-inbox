@@ -3,6 +3,7 @@ import { authorName, conversationLabel } from '../format'
 import { useFormatContext } from '../hooks'
 import { findMessage, threadTargetFor, useStore } from '../store'
 import type { InboxItem } from '../slack/types'
+import { ArrowUpIcon } from './Icons'
 
 export function Composer({ item }: { item: InboxItem }) {
   const [text, setText] = useState('')
@@ -77,12 +78,19 @@ export function Composer({ item }: { item: InboxItem }) {
           rows={1}
           value={text}
           placeholder={placeholder}
+          aria-label={placeholder}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           disabled={sending}
         />
-        <button className="button primary" type="submit" disabled={sending || !text.trim()}>
-          {sending ? 'Sending' : 'Send'}
+        <button
+          className="send-button"
+          type="submit"
+          disabled={sending || !text.trim()}
+          aria-label={sending ? 'Sending' : 'Send message'}
+          title="Send message (Enter)"
+        >
+          <ArrowUpIcon />
         </button>
       </div>
       <p className="composer-hint">Enter sends and marks the conversation read · Shift+Enter adds a line · Esc cancels</p>

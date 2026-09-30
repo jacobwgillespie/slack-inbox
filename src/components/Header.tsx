@@ -19,7 +19,28 @@ export function Header() {
 
   return (
     <header className="header">
-      <div className="brand">Inbox</div>
+      <div className="sidebar-heading">
+        <div className="brand">Inbox</div>
+        <div className="header-tools">
+          <button
+            className={`icon-button${scanning ? ' spinning' : ''}`}
+            onClick={refresh}
+            disabled={scanning}
+            title="Refresh (Shift+R)"
+            aria-label="Refresh"
+          >
+            <RefreshIcon />
+          </button>
+          <button
+            className="icon-button"
+            onClick={toggleHelp}
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            ?
+          </button>
+        </div>
+      </div>
       <nav className="tabs" aria-label="Views">
         {VIEWS.map((candidate, index) => (
           <button
@@ -27,13 +48,14 @@ export function Header() {
             className={`tab${candidate === view ? ' active' : ''}`}
             onClick={() => setView(candidate)}
             title={`${index + 1}`}
+            aria-pressed={candidate === view}
           >
             {VIEW_LABELS[candidate]}
             <span className="tab-count">{counts[candidate]}</span>
           </button>
         ))}
       </nav>
-      <div className="header-tools">
+      <div className="sync-status" role="status">
         {sync?.error && !scanning && (
           <span className="scan-status scan-error" title={sync.error.message}>
             Sync failed: {sync.error.code}
@@ -58,17 +80,6 @@ export function Header() {
             {sync?.total ? `Syncing ${sync.done} of ${sync.total}` : 'Syncing'}
           </span>
         )}
-        <button
-          className={`icon-button${scanning ? ' spinning' : ''}`}
-          onClick={refresh}
-          disabled={scanning}
-          title="Refresh (Shift+R)"
-        >
-          <RefreshIcon />
-        </button>
-        <button className="icon-button" onClick={toggleHelp} title="Keyboard shortcuts (?)">
-          ?
-        </button>
       </div>
     </header>
   )

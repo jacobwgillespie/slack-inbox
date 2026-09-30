@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import {
   authorAvatar,
   authorName,
@@ -12,11 +12,25 @@ import {
 import { useCurrentItem, useFormatContext } from '../hooks'
 import { threadKey, useStore } from '../store'
 import type { Classification, InboxItem, Message } from '../slack/types'
-import { Avatar } from './Avatar'
+import { Avatar, ConversationIcon } from './Avatar'
 import { Composer } from './Composer'
-import { CheckIcon, ClockIcon, ExternalIcon, MuteIcon, SwapIcon, ThreadIcon } from './Icons'
+import { ArrowLeftIcon, CheckIcon, ClockIcon, ExternalIcon, MuteIcon, SwapIcon, ThreadIcon } from './Icons'
 
 const KIND_LABELS = { channel: 'Channel', private: 'Private channel', dm: 'Direct message', group: 'Group message' }
+
+function messageDay(ts: string): string {
+  const date = new Date(Number(ts) * 1000)
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  today.setDate(today.getDate() - 1)
+  if (date.toDateString() === today.toDateString()) return 'Yesterday'
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() === currentYear ? undefined : 'numeric',
+  })
+}
 
 function unreadSummary(item: InboxItem): string {
   const count = item.messages.length
@@ -41,40 +55,73 @@ export function Detail() {
   }
 
   const { id } = item
+  const label = conversationLabel(item.conversation, context.users, session)
+  const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
 
   return (
     <section className={`detail${reading ? ' reading' : ''}`} aria-label="Conversation">
       <header className="detail-header">
-        <div>
-          <h2>{conversationLabel(item.conversation, context.users, session)}</h2>
+        <button
+          className="icon-button mobile-back"
+          onClick={() => useStore.setState({ mode: 'list', threadTarget: undefined })}
+          aria-label="Back to conversations"
+          title="Back to conversations"
+        >
+          <ArrowLeftIcon />
+        </button>
+        <div className="conversation-heading">
+          <div className="conversation-pill">
+            <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
+            <h2>{label}</h2>
+          </div>
           <p className="muted">
             {item.thread ? 'Thread' : KIND_LABELS[item.conversation.kind]} ·{' '}
             {view === 'later' ? 'Saved for later' : unreadSummary(item)}
           </p>
         </div>
         <div className="detail-actions">
-          <button className="button" onClick={() => markDone([id])} title="E">
-            <CheckIcon /> {view === 'later' ? 'Complete' : 'Mark read'}
+          <button
+            className="icon-button"
+            onClick={() => markDone([id])}
+            title={view === 'later' ? 'Complete (E)' : 'Mark read (E)'}
+            aria-label={view === 'later' ? 'Complete' : 'Mark read'}
+          >
+            <CheckIcon />
           </button>
           {view !== 'later' && (
             <>
-              <button className="button" onClick={() => saveForLater([id])} title="L">
-                <ClockIcon /> Later
+              <button
+                className="icon-button"
+                onClick={() => saveForLater([id])}
+                title="Save for later (L)"
+                aria-label="Save for later"
+              >
+                <ClockIcon />
               </button>
               {!item.thread && view !== 'muted' && (
-                <button className="button" onClick={() => recategorize([id])} title="C">
-                  <SwapIcon /> {view === 'important' ? 'Move to Other' : 'Move to Important'}
+                <button
+                  className="icon-button"
+                  onClick={() => recategorize([id])}
+                  title={`${view === 'important' ? 'Move to Other' : 'Move to Important'} (C)`}
+                  aria-label={view === 'important' ? 'Move to Other' : 'Move to Important'}
+                >
+                  <SwapIcon />
                 </button>
               )}
               {!item.thread && (
-                <button className="button" onClick={() => toggleMute([id])} title="M">
-                  <MuteIcon /> {view === 'muted' ? 'Unmute' : 'Mute'}
+                <button
+                  className="icon-button"
+                  onClick={() => toggleMute([id])}
+                  title={`${view === 'muted' ? 'Unmute' : 'Mute'} (M)`}
+                  aria-label={view === 'muted' ? 'Unmute' : 'Mute'}
+                >
+                  <MuteIcon />
                 </button>
               )}
             </>
           )}
-          <button className="button" onClick={openInSlack} title="U">
-            <ExternalIcon /> Slack
+          <button className="icon-button" onClick={openInSlack} title="Open in Slack (U)" aria-label="Open in Slack">
+            <ExternalIcon />
           </button>
         </div>
       </header>
@@ -87,14 +134,21 @@ export function Detail() {
             </div>
           </>
         )}
-        {item.messages.map((message, index) => (
-          <MessageView
-            key={message.ts}
-            channel={item.conversation.id}
-            message={message}
-            continued={isSameAuthorGroup(item.messages[index - 1], message)}
-          />
-        ))}
+        {item.messages.map((message, index) => {
+          const previous = item.messages[index - 1]
+          return (
+            <Fragment key={message.ts}>
+              {(!previous || messageDay(previous.ts) !== messageDay(message.ts)) && (
+                <div className="date-divider">{messageDay(message.ts)}</div>
+              )}
+              <MessageView
+                channel={item.conversation.id}
+                message={message}
+                continued={isSameAuthorGroup(previous, message)}
+              />
+            </Fragment>
+          )
+        })}
       </div>
       <Composer key={id} item={item} />
     </section>
@@ -114,36 +168,28 @@ function MessageView({ channel, message, continued }: { channel: string; message
   }, [focused])
 
   const name = authorName(message, context.users)
-  const className = ['message', continued && 'continued', focused && 'focused'].filter(Boolean).join(' ')
+  const own = Boolean(session && message.user === session.userId)
+  const className = ['message', continued && 'continued', focused && 'focused', own && 'message-own'].filter(Boolean).join(' ')
 
   return (
     <article ref={ref} className={className} onClick={() => focusMessage(message.ts)}>
-      <div className="message-gutter">
-        {continued ? (
-          <time className="message-gutter-time">{formatMessageTime(message.ts)}</time>
-        ) : (
-          <Avatar url={authorAvatar(message, context.users)} name={name} />
-        )}
-      </div>
       <div className="message-body">
-        {!continued && (
-          <header className="message-header">
-            <span className="message-author">{name}</span>
-            {session ? (
-              <a
-                className="message-time"
-                href={permalink(session, channel, message.ts)}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(event) => event.stopPropagation()}
-              >
-                {formatMessageTime(message.ts)}
-              </a>
-            ) : (
-              <time className="message-time">{formatMessageTime(message.ts)}</time>
-            )}
-          </header>
-        )}
+        <header className="message-header">
+          {!continued && <span className="message-author">{name}</span>}
+          {session ? (
+            <a
+              className="message-time"
+              href={permalink(session, channel, message.ts)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {formatMessageTime(message.ts)}
+            </a>
+          ) : (
+            <time className="message-time">{formatMessageTime(message.ts)}</time>
+          )}
+        </header>
         <div className="mrkdwn">{renderMrkdwn(message.text, context)}</div>
         {message.attachments?.map((attachment, index) => (
           <div key={index} className="attachment">
