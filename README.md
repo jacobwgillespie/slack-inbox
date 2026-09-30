@@ -21,6 +21,8 @@ A keyboard-driven inbox for unread Slack messages. Each conversation with unread
 
 The app needs Node.js 22.13 or later.
 
+A native macOS prototype built with GPUI is in [`gpui/`](gpui/README.md). It works on its own, without this web app.
+
 ## How it works
 
 The Vite server runs a sync process that copies your Slack data into a local SQLite database at `data/slack.sqlite`. The browser reads the inbox from this database and never calls Slack directly. Your token stays in the server.
