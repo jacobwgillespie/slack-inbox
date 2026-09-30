@@ -9,7 +9,7 @@ import { CheckIcon, ClockIcon, MuteIcon } from './Icons'
 const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
   important: { title: 'All caught up', detail: 'No unread direct messages or mentions.' },
   other: { title: 'Nothing else unread', detail: 'Every channel is read.' },
-  later: { title: 'Nothing saved', detail: 'Press L on a conversation to keep it here.' },
+  later: { title: 'Nothing saved', detail: 'Press L on a conversation, or save a message for later in Slack.' },
   muted: { title: 'No muted unreads', detail: 'Muted conversations with unread messages appear here.' },
 }
 
@@ -38,7 +38,7 @@ export function ItemList() {
     <section className="item-list" aria-label="Conversations">
       <ul>
         {items.map((item) => (
-          <ItemRow key={item.conversation.id} item={item} />
+          <ItemRow key={item.id} item={item} />
         ))}
       </ul>
     </section>
@@ -46,7 +46,7 @@ export function ItemList() {
 }
 
 function ItemRow({ item }: { item: InboxItem }) {
-  const { id } = item.conversation
+  const { id } = item
   const context = useFormatContext()
   const session = useStore((state) => state.session)
   const view = useStore((state) => state.view)
@@ -82,7 +82,7 @@ function ItemRow({ item }: { item: InboxItem }) {
     <li ref={ref} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
       <button
         className="done-button"
-        title={view === 'later' ? 'Remove from Later (E)' : 'Mark as read (E)'}
+        title={view === 'later' ? 'Mark complete (E)' : 'Mark as read (E)'}
         onClick={action((ids) => markDone(ids))}
       >
         <CheckIcon />

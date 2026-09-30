@@ -56,13 +56,17 @@ export interface Session {
 }
 
 export interface InboxItem {
+  id: string
   conversation: Conversation
   messages: Message[]
 }
 
 export interface LaterItem extends InboxItem {
+  ts: string
   savedAt: number
 }
+
+export type PreferenceSource = 'slack' | 'local'
 
 export type CredentialMode = 'session' | 'user' | 'none'
 
@@ -89,7 +93,20 @@ export interface InboxPayload {
   session?: Session
   sync: SyncStatus
   items: InboxItem[]
+  later: LaterItem[]
+  muted: string[]
+  preferenceSource: PreferenceSource
   users: Record<string, User>
+}
+
+export interface SavedItemReference {
+  channel: string
+  ts: string
+}
+
+export interface LegacyPreferences {
+  later: SavedItemReference[]
+  muted: string[]
 }
 
 export interface ThreadPayload {

@@ -2,8 +2,18 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { LocalApiError, localApi } from './api'
 import { permalink } from './format'
+import { captureLegacyPreferences, clearLegacyPreferences } from './legacy-preferences'
 import { compareTs, maxTs, precedingTs } from './slack/timestamps'
-import type { InboxItem, InboxPayload, LaterItem, Message, Session, SyncStatus, User } from './slack/types'
+import type {
+  InboxItem,
+  InboxPayload,
+  LaterItem,
+  Message,
+  PreferenceSource,
+  Session,
+  SyncStatus,
+  User,
+} from './slack/types'
 
 export type View = 'important' | 'other' | 'later' | 'muted'
 export const VIEWS: View[] = ['important', 'other', 'later', 'muted']
@@ -17,8 +27,8 @@ interface Toast {
   undo?: () => void
 }
 
-interface LocalCursor {
-  ts: string
+interface Override<T> {
+  value: T
   expiresAt: number
 }
 
@@ -29,12 +39,15 @@ export interface InboxState {
   error?: LocalApiError
   session?: Session
   sync?: SyncStatus
+  preferenceSource?: PreferenceSource
   users: Record<string, User>
   emoji: Record<string, string>
   items: Record<string, InboxItem>
-  cursors: Record<string, LocalCursor>
   later: Record<string, LaterItem>
   muted: Record<string, true>
+  cursors: Record<string, Override<string>>
+  laterOverrides: Record<string, Override<LaterItem | undefined>>
+  muteOverrides: Record<string, Override<boolean>>
   view: View
   mode: Mode
   selectedId?: string
@@ -73,6 +86,9 @@ export interface InboxState {
 
 type VisibleSource = Pick<InboxState, 'items' | 'later' | 'muted' | 'view' | 'session'>
 
+const OVERRIDE_LIFETIME = 2 * 60 * 1000
+const TOAST_DURATION = 7000
+
 export const latestTs = (item: InboxItem) => item.messages[item.messages.length - 1]?.ts ?? '0'
 export const threadKey = (channel: string, ts: string) => `${channel}:${ts}`
 
@@ -86,12 +102,13 @@ export function isImportant(item: InboxItem, session?: Session): boolean {
 }
 
 const byLatest = (a: InboxItem, b: InboxItem) => compareTs(latestTs(b), latestTs(a))
+const bySavedAt = (a: LaterItem, b: LaterItem) => b.savedAt - a.savedAt
 
 export function computeVisible(state: VisibleSource): InboxItem[] {
   const inbox = Object.values(state.items)
   switch (state.view) {
     case 'later':
-      return Object.values(state.later).sort(byLatest)
+      return Object.values(state.later).sort(bySavedAt)
     case 'muted':
       return inbox.filter((item) => state.muted[item.conversation.id]).sort(byLatest)
     case 'important':
@@ -122,13 +139,28 @@ function omit<T>(record: Record<string, T>, keys: string[]): Record<string, T> {
   return copy
 }
 
-function mergeMessages(existing: Message[] = [], incoming: Message[]): Message[] {
-  const byTs = new Map([...existing, ...incoming].map((message) => [message.ts, message]))
-  return [...byTs.values()].sort((a, b) => compareTs(a.ts, b.ts))
+function activeOverrides<T>(overrides: Record<string, Override<T>>, now: number): Record<string, Override<T>> {
+  return Object.fromEntries(Object.entries(overrides).filter(([, override]) => override.expiresAt > now))
+}
+
+function override<T>(value: T): Override<T> {
+  return { value, expiresAt: Date.now() + OVERRIDE_LIFETIME }
 }
 
 function pluralize(count: number, noun: string) {
   return count === 1 ? `1 ${noun}` : `${count} ${noun}s`
+}
+
+function toLaterItem(item: InboxItem): LaterItem | undefined {
+  const message = item.messages[item.messages.length - 1]
+  if (!message) return undefined
+  return {
+    id: `${item.conversation.id}:${message.ts}`,
+    conversation: item.conversation,
+    messages: [message],
+    ts: message.ts,
+    savedAt: Date.now(),
+  }
 }
 
 const resilientLocalStorage = {
@@ -143,9 +175,9 @@ const resilientLocalStorage = {
   removeItem: (key: string) => localStorage.removeItem(key),
 }
 
+let legacyPreferences = captureLegacyPreferences()
 let toastCounter = 0
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-const CURSOR_LIFETIME = 2 * 60 * 1000
 
 export const useStore = create<InboxState>()(
   persist(
@@ -156,20 +188,20 @@ export const useStore = create<InboxState>()(
         set({ toast: { id, message, tone: options.tone ?? 'info', undo: options.undo } })
         toastTimer = setTimeout(() => {
           if (get().toast?.id === id) set({ toast: undefined })
-        }, 7000)
+        }, TOAST_DURATION)
       }
 
       const reportError = (error: unknown) => {
         showToast(error instanceof Error ? error.message : String(error), { tone: 'error' })
       }
 
-      const syncReadCursor = (channel: string, ts: string) => {
-        localApi.markRead(channel, ts).catch(reportError)
+      const run = (request: Promise<unknown>) => {
+        request.catch(reportError)
       }
 
       const targetIds = (): string[] => {
         const state = get()
-        const visibleIds = new Set(computeVisible(state).map((item) => item.conversation.id))
+        const visibleIds = new Set(computeVisible(state).map((item) => item.id))
         const checked = Object.keys(state.checked).filter((id) => visibleIds.has(id))
         if (checked.length) return checked
         return state.selectedId && visibleIds.has(state.selectedId) ? [state.selectedId] : []
@@ -177,7 +209,7 @@ export const useStore = create<InboxState>()(
 
       const selectionAfterRemoval = (ids: string[]) => {
         const state = get()
-        const visible = computeVisible(state).map((item) => item.conversation.id)
+        const visible = computeVisible(state).map((item) => item.id)
         const removed = new Set(ids)
         const index = Math.max(0, visible.indexOf(state.selectedId ?? ''))
         return (
@@ -189,9 +221,9 @@ export const useStore = create<InboxState>()(
         )
       }
 
-      const selectionPatch = (id: string | undefined, items = get().items, later = get().later) => {
+      const selectionPatch = (id: string | undefined) => {
         const state = get()
-        const item = id ? (state.view === 'later' ? later[id] : items[id]) : undefined
+        const item = id ? (state.view === 'later' ? state.later[id] : state.items[id]) : undefined
         return {
           selectedId: id,
           focusedTs: item?.messages[0]?.ts,
@@ -200,65 +232,135 @@ export const useStore = create<InboxState>()(
         }
       }
 
+      const removeAndAdvance = <T>(ids: string[], apply: () => T): T => {
+        const nextId = selectionAfterRemoval(ids)
+        const result = apply()
+        set({ checked: {}, ...selectionPatch(nextId) })
+        return result
+      }
+
       const reselect = (ids: string[]) => {
-        const visible = new Set(computeVisible(get()).map((item) => item.conversation.id))
+        const visible = new Set(computeVisible(get()).map((item) => item.id))
         const id = ids.find((candidate) => visible.has(candidate))
         if (id) set(selectionPatch(id))
       }
 
+      const setLaterOverrides = (entries: [string, LaterItem | undefined][]) => {
+        set((state) => {
+          const laterOverrides = { ...state.laterOverrides }
+          const later = { ...state.later }
+          for (const [id, item] of entries) {
+            laterOverrides[id] = override(item)
+            if (item) later[id] = item
+            else delete later[id]
+          }
+          return { laterOverrides, later }
+        })
+      }
+
+      const setMuteOverrides = (ids: string[], muted: boolean) => {
+        set((state) => {
+          const muteOverrides = { ...state.muteOverrides }
+          const nextMuted = { ...state.muted }
+          for (const id of ids) {
+            muteOverrides[id] = override(muted)
+            if (muted) nextMuted[id] = true
+            else delete nextMuted[id]
+          }
+          return { muteOverrides, muted: nextMuted }
+        })
+      }
+
       const clearFromInbox = (items: InboxItem[]) => {
         const state = get()
-        const ids = items.map((item) => item.conversation.id)
+        const ids = items.map((item) => item.id)
         const previousCursors = Object.fromEntries(ids.map((id) => [id, state.cursors[id]]))
         const cursors = { ...state.cursors }
         for (const item of items) {
-          cursors[item.conversation.id] = { ts: latestTs(item), expiresAt: Date.now() + CURSOR_LIFETIME }
-          syncReadCursor(item.conversation.id, latestTs(item))
+          cursors[item.id] = override(latestTs(item))
+          run(localApi.markRead(item.conversation.id, latestTs(item)))
         }
-        return {
-          patch: { items: omit(state.items, ids), cursors },
-          restore: () => {
-            set((current) => {
-              const restoredCursors = { ...current.cursors }
-              for (const [id, cursor] of Object.entries(previousCursors)) {
-                if (cursor) restoredCursors[id] = cursor
-                else delete restoredCursors[id]
-              }
-              return {
-                items: { ...current.items, ...Object.fromEntries(items.map((item) => [item.conversation.id, item])) },
-                cursors: restoredCursors,
-              }
-            })
-            reselect(ids)
-            for (const item of items) {
-              const first = item.messages[0]
-              if (first) syncReadCursor(item.conversation.id, precedingTs(first.ts))
+        set({ items: omit(state.items, ids), cursors })
+        return () => {
+          set((current) => {
+            const restoredCursors = { ...current.cursors }
+            for (const [id, cursor] of Object.entries(previousCursors)) {
+              if (cursor) restoredCursors[id] = cursor
+              else delete restoredCursors[id]
             }
-          },
+            return {
+              items: { ...current.items, ...Object.fromEntries(items.map((item) => [item.id, item])) },
+              cursors: restoredCursors,
+            }
+          })
+          reselect(ids)
+          for (const item of items) {
+            const first = item.messages[0]
+            if (first) run(localApi.markRead(item.conversation.id, precedingTs(first.ts)))
+          }
         }
       }
 
       const applyInbox = (payload: InboxPayload) => {
         set((state) => {
           const now = Date.now()
-          const cursors = Object.fromEntries(Object.entries(state.cursors).filter(([, cursor]) => cursor.expiresAt > now))
+          const cursors = activeOverrides(state.cursors, now)
+          const laterOverrides = activeOverrides(state.laterOverrides, now)
+          const muteOverrides = activeOverrides(state.muteOverrides, now)
+
           const items: Record<string, InboxItem> = {}
           for (const item of payload.items) {
-            const cursor = maxTs(cursors[item.conversation.id]?.ts)
+            const cursor = maxTs(cursors[item.id]?.value)
             const messages = item.messages.filter((message) => compareTs(message.ts, cursor) > 0)
-            if (messages.length) items[item.conversation.id] = { ...item, messages }
+            if (messages.length) items[item.id] = { ...item, messages }
           }
-          const status = payload.session ? 'ready' : payload.sync.error ? 'error' : 'loading'
+
+          const later: Record<string, LaterItem> = Object.fromEntries(payload.later.map((item) => [item.id, item]))
+          for (const [id, { value }] of Object.entries(laterOverrides)) {
+            if (value) later[id] = later[id] ?? value
+            else delete later[id]
+          }
+
+          const muted: Record<string, true> = Object.fromEntries(payload.muted.map((id) => [id, true]))
+          for (const [id, { value }] of Object.entries(muteOverrides)) {
+            if (value) muted[id] = true
+            else delete muted[id]
+          }
+
           return {
-            status,
+            status: payload.session ? 'ready' : payload.sync.error ? 'error' : 'loading',
             error: payload.sync.error && !payload.session ? new LocalApiError(payload.sync.error) : undefined,
             session: payload.session,
             sync: payload.sync,
+            preferenceSource: payload.preferenceSource,
             users: { ...state.users, ...payload.users },
             items,
+            later,
+            muted,
             cursors,
+            laterOverrides,
+            muteOverrides,
           }
         })
+      }
+
+      const importLegacyPreferences = () => {
+        const pending = legacyPreferences
+        if (!pending || !get().session) return
+        legacyPreferences = undefined
+        localApi
+          .importLegacyPreferences(pending)
+          .then(() => {
+            clearLegacyPreferences()
+            const destination = get().preferenceSource === 'slack' ? 'Slack' : 'the local database'
+            showToast(
+              `Moved ${pluralize(pending.later.length, 'Later item')} and ${pluralize(pending.muted.length, 'muted conversation')} to ${destination}`,
+            )
+          })
+          .catch((error) => {
+            legacyPreferences = pending
+            reportError(error)
+          })
       }
 
       return {
@@ -266,9 +368,11 @@ export const useStore = create<InboxState>()(
         users: {},
         emoji: {},
         items: {},
-        cursors: {},
         later: {},
         muted: {},
+        cursors: {},
+        laterOverrides: {},
+        muteOverrides: {},
         view: 'important',
         mode: 'list',
         checked: {},
@@ -279,6 +383,7 @@ export const useStore = create<InboxState>()(
         load: async () => {
           try {
             applyInbox(await localApi.inbox())
+            importLegacyPreferences()
           } catch (error) {
             if (get().status === 'ready') return
             set({
@@ -296,14 +401,12 @@ export const useStore = create<InboxState>()(
           if (emoji) set({ emoji })
         },
 
-        refresh: () => {
-          localApi.sync().catch(reportError)
-        },
+        refresh: () => run(localApi.sync()),
 
         setView: (view) => {
           const first = computeVisible({ ...get(), view })[0]
           set({ view, mode: 'list', checked: {} })
-          set(selectionPatch(first?.conversation.id))
+          set(selectionPatch(first?.id))
         },
 
         cycleView: (delta) => {
@@ -323,9 +426,9 @@ export const useStore = create<InboxState>()(
             return
           }
           const visible = computeVisible(state)
-          const index = visible.findIndex((item) => item.conversation.id === state.selectedId)
+          const index = visible.findIndex((item) => item.id === state.selectedId)
           const next = visible[Math.min(visible.length - 1, Math.max(0, index + delta))]
-          if (next) set(selectionPatch(next.conversation.id))
+          if (next) set(selectionPatch(next.id))
         },
 
         open: (id) => {
@@ -352,26 +455,23 @@ export const useStore = create<InboxState>()(
         markDone: (ids = targetIds(), message) => {
           const state = get()
           if (!ids.length) return
-          const nextId = selectionAfterRemoval(ids)
 
           if (state.view === 'later') {
-            const removed = ids.map((id) => state.later[id]).filter((item) => item !== undefined)
-            const later = omit(state.later, ids)
-            set({ later, checked: {}, ...selectionPatch(nextId, state.items, later) })
-            showToast(message ?? `Removed ${pluralize(removed.length, 'conversation')} from Later`, {
+            const completed = ids.map((id) => state.later[id]).filter((item) => item !== undefined)
+            removeAndAdvance(ids, () => setLaterOverrides(completed.map((item) => [item.id, undefined])))
+            for (const item of completed) run(localApi.completeLater(item.conversation.id, item.ts))
+            showToast(message ?? `Completed ${pluralize(completed.length, 'Later item')}`, {
               undo: () => {
-                set((current) => ({
-                  later: { ...current.later, ...Object.fromEntries(removed.map((item) => [item.conversation.id, item])) },
-                }))
+                setLaterOverrides(completed.map((item) => [item.id, item]))
                 reselect(ids)
+                for (const item of completed) run(localApi.reopenLater(item.conversation.id, item.ts))
               },
             })
             return
           }
 
           const removed = ids.map((id) => state.items[id]).filter((item) => item !== undefined)
-          const { patch, restore } = clearFromInbox(removed)
-          set({ ...patch, checked: {}, ...selectionPatch(nextId, patch.items) })
+          const restore = removeAndAdvance(ids, () => clearFromInbox(removed))
           showToast(message ?? `Marked ${pluralize(removed.length, 'conversation')} as read`, { undo: restore })
         },
 
@@ -379,28 +479,26 @@ export const useStore = create<InboxState>()(
           const state = get()
           if (!ids.length || state.view === 'later') return
           const moved = ids.map((id) => state.items[id]).filter((item) => item !== undefined)
-          const previousLater = Object.fromEntries(moved.map((item) => [item.conversation.id, state.later[item.conversation.id]]))
-          const later = { ...state.later }
-          for (const item of moved) {
-            later[item.conversation.id] = {
-              conversation: item.conversation,
-              messages: mergeMessages(state.later[item.conversation.id]?.messages, item.messages),
-              savedAt: Date.now(),
-            }
-          }
-          const nextId = selectionAfterRemoval(ids)
-          const { patch, restore } = clearFromInbox(moved)
-          set({ ...patch, later, checked: {}, ...selectionPatch(nextId, patch.items) })
-          showToast(`Saved ${pluralize(moved.length, 'conversation')} for later`, {
+          const saved = moved.map(toLaterItem).filter((item) => item !== undefined)
+          const requests = saved.map((item) => localApi.saveForLater(item.conversation.id, item.ts))
+          for (const request of requests) run(request)
+
+          const restore = removeAndAdvance(ids, () => {
+            setLaterOverrides(saved.map((item) => [item.id, item]))
+            return clearFromInbox(moved)
+          })
+          showToast(`Saved ${pluralize(saved.length, 'conversation')} for later`, {
             undo: () => {
               restore()
-              set((current) => {
-                const restored = { ...current.later }
-                for (const [id, item] of Object.entries(previousLater)) {
-                  if (item) restored[id] = item
-                  else delete restored[id]
-                }
-                return { later: restored }
+              setLaterOverrides(saved.map((item) => [item.id, undefined]))
+              saved.forEach((item, index) => {
+                const request = requests[index]
+                if (!request) return
+                run(
+                  request.then(({ created }) =>
+                    created ? localApi.removeLater(item.conversation.id, item.ts) : undefined,
+                  ),
+                )
               })
             },
           })
@@ -410,19 +508,13 @@ export const useStore = create<InboxState>()(
           const state = get()
           if (!ids.length || state.view === 'later') return
           const muting = state.view !== 'muted'
-          const apply = (mute: boolean) =>
-            set((current) => {
-              const muted = { ...current.muted }
-              for (const id of ids) {
-                if (mute) muted[id] = true
-                else delete muted[id]
-              }
-              return { muted }
-            })
-          const nextId = selectionAfterRemoval(ids)
-          apply(muting)
-          set({ checked: {}, ...selectionPatch(nextId) })
-          showToast(`${muting ? 'Muted' : 'Unmuted'} ${pluralize(ids.length, 'conversation')}`, {
+          const channels = ids.map((id) => state.items[id]?.conversation.id).filter((id) => id !== undefined)
+          const apply = (muted: boolean) => {
+            setMuteOverrides(channels, muted)
+            for (const channel of channels) run(localApi.setMuted(channel, muted))
+          }
+          removeAndAdvance(ids, () => apply(muting))
+          showToast(`${muting ? 'Muted' : 'Unmuted'} ${pluralize(channels.length, 'conversation')}`, {
             undo: () => {
               apply(!muting)
               reselect(ids)
@@ -467,7 +559,7 @@ export const useStore = create<InboxState>()(
             return false
           }
           set({ threadTarget: undefined })
-          get().markDone([item.conversation.id], 'Reply sent')
+          get().markDone([item.id], 'Reply sent')
           return true
         },
 
@@ -515,13 +607,10 @@ export const useStore = create<InboxState>()(
     },
     {
       name: 'slack-inbox',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => resilientLocalStorage),
-      partialize: (state) => ({
-        later: state.later,
-        muted: state.muted,
-        view: state.view,
-      }),
+      migrate: (persisted) => ({ view: (persisted as { view?: View } | undefined)?.view ?? 'important' }),
+      partialize: (state) => ({ view: state.view }),
     },
   ),
 )

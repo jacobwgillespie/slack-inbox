@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { SlackError } from './slack-client.ts'
+import type { LegacyPreferences } from '../src/slack/types.ts'
 import type { SyncEngine } from './sync.ts'
 
 type Handler = (request: IncomingMessage, response: ServerResponse, url: URL) => Promise<void> | void
@@ -28,6 +29,22 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
 function requireString(value: unknown, name: string): string {
   if (typeof value !== 'string' || !value) throw new RequestError(400, `missing_${name}`)
   return value
+}
+
+function readReference(body: Record<string, unknown>) {
+  return [requireString(body.channel, 'channel'), requireString(body.ts, 'ts')] as const
+}
+
+function readLegacyPreferences(body: Record<string, unknown>): LegacyPreferences {
+  const later = Array.isArray(body.later) ? body.later : []
+  const muted = Array.isArray(body.muted) ? body.muted : []
+  return {
+    later: later.map((entry: Record<string, unknown>) => ({
+      channel: requireString(entry?.channel, 'channel'),
+      ts: requireString(entry?.ts, 'ts'),
+    })),
+    muted: muted.map((channel) => requireString(channel, 'channel')),
+  }
 }
 
 function sendJson(response: ServerResponse, status: number, body: unknown) {
@@ -71,6 +88,31 @@ export function localApi(engine: SyncEngine) {
     'POST /local/mark': async (request, response) => {
       const body = await readJson(request)
       await engine.markRead(requireString(body.channel, 'channel'), requireString(body.ts, 'ts'))
+      sendJson(response, 200, { ok: true })
+    },
+    'POST /local/later': async (request, response) => {
+      sendJson(response, 200, await engine.saveForLater(...readReference(await readJson(request))))
+    },
+    'POST /local/later/complete': async (request, response) => {
+      await engine.completeLater(...readReference(await readJson(request)))
+      sendJson(response, 200, { ok: true })
+    },
+    'POST /local/later/reopen': async (request, response) => {
+      await engine.reopenLater(...readReference(await readJson(request)))
+      sendJson(response, 200, { ok: true })
+    },
+    'POST /local/later/remove': async (request, response) => {
+      await engine.removeLater(...readReference(await readJson(request)))
+      sendJson(response, 200, { ok: true })
+    },
+    'POST /local/mute': async (request, response) => {
+      const body = await readJson(request)
+      if (typeof body.muted !== 'boolean') throw new RequestError(400, 'missing_muted')
+      await engine.setMuted(requireString(body.channel, 'channel'), body.muted)
+      sendJson(response, 200, { ok: true })
+    },
+    'POST /local/import': async (request, response) => {
+      await engine.importLegacyPreferences(readLegacyPreferences(await readJson(request)))
       sendJson(response, 200, { ok: true })
     },
     'POST /local/post': async (request, response) => {

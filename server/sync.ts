@@ -3,6 +3,7 @@ import type {
   CredentialMode,
   InboxItem,
   InboxPayload,
+  LegacyPreferences,
   Message,
   Session,
   SyncError,
@@ -10,6 +11,7 @@ import type {
   ThreadPayload,
 } from '../src/slack/types.ts'
 import type { Database, StoredConversation } from './database.ts'
+import { Preferences } from './preferences.ts'
 import { RealtimeConnection, type RealtimeEvent } from './realtime.ts'
 import { SlackError, type SlackClient } from './slack-client.ts'
 import {
@@ -52,21 +54,21 @@ function describeError(error: unknown): SyncError {
   return { code: 'internal_error', message: error instanceof Error ? error.message : String(error) }
 }
 
-function referencedUserIds(items: InboxItem[]): string[] {
-  const ids = new Set<string>()
-  const addMessage = (message: Message) => {
+function messageUserIds(messages: Message[], ids = new Set<string>()): Set<string> {
+  for (const message of messages) {
     if (message.user) ids.add(message.user)
     for (const match of message.text.matchAll(USER_MENTION)) if (match[1]) ids.add(match[1])
   }
-  for (const item of items) {
-    if (item.conversation.userId) ids.add(item.conversation.userId)
-    item.messages.forEach(addMessage)
-  }
-  return [...ids]
+  return ids
 }
 
-function messageUserIds(messages: Message[]): string[] {
-  return referencedUserIds([{ conversation: { id: '', name: '', kind: 'channel' }, messages }])
+function referencedUserIds(items: InboxItem[]): string[] {
+  const ids = new Set<string>()
+  for (const item of items) {
+    if (item.conversation.userId) ids.add(item.conversation.userId)
+    messageUserIds(item.messages, ids)
+  }
+  return [...ids]
 }
 
 export class SyncEngine {
@@ -82,6 +84,7 @@ export class SyncEngine {
   private readonly listeners = new Set<(version: number) => void>()
   private readonly requestedUsers = new Set<string>()
   private readonly realtime?: RealtimeConnection
+  private readonly preferences: Preferences
 
   constructor(
     private readonly database: Database,
@@ -90,6 +93,7 @@ export class SyncEngine {
   ) {
     this.status = { mode, realtime: mode === 'session' ? 'connecting' : 'unavailable', running: false, done: 0, total: 0 }
     this.session = database.getMetadata<Session>('session')
+    this.preferences = new Preferences(database, client, mode === 'session', () => this.changed())
     if (mode === 'session') {
       this.realtime = new RealtimeConnection(client, {
         onEvent: (event) => this.handleRealtimeEvent(event),
@@ -139,10 +143,44 @@ export class SyncEngine {
 
   inbox(): InboxPayload {
     const items = this.session ? this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT) : []
-    const ids = referencedUserIds(items)
+    const later = this.preferences.later()
+    const ids = referencedUserIds([...items, ...later])
     const users = this.database.usersById(ids)
     this.requestMissingUsers(ids.filter((id) => !users[id]))
-    return { version: this.version, session: this.session, sync: this.status, items, users }
+    return {
+      version: this.version,
+      session: this.session,
+      sync: this.status,
+      items,
+      later,
+      muted: this.database.mutedConversationIds(),
+      preferenceSource: this.preferences.source,
+      users,
+    }
+  }
+
+  saveForLater(channel: string, ts: string) {
+    return this.preferences.save(channel, ts)
+  }
+
+  completeLater(channel: string, ts: string) {
+    return this.preferences.complete(channel, ts)
+  }
+
+  reopenLater(channel: string, ts: string) {
+    return this.preferences.reopen(channel, ts)
+  }
+
+  removeLater(channel: string, ts: string) {
+    return this.preferences.remove(channel, ts)
+  }
+
+  setMuted(channel: string, muted: boolean) {
+    return this.preferences.setMuted(channel, muted)
+  }
+
+  importLegacyPreferences(preferences: LegacyPreferences) {
+    return this.preferences.importLegacy(preferences)
   }
 
   emoji(): Record<string, string> {
@@ -170,7 +208,7 @@ export class SyncEngine {
     const all = raw.map(toMessage)
     this.database.upsertMessages(channel, all)
     const messages = all.filter((message) => message.ts !== ts)
-    const ids = messageUserIds(messages)
+    const ids = [...messageUserIds(messages)]
     const users = this.database.usersById(ids)
     this.requestMissingUsers(ids.filter((id) => !users[id]))
     return { messages, users }
@@ -193,6 +231,9 @@ export class SyncEngine {
       this.database.upsertUser(toUser(event.user as RawUser))
     } else if (MEMBERSHIP_EVENTS.has(event.type)) {
       this.invalidateDirectory('conversations')
+    } else if (event.type === 'pref_change' && event.name === 'all_notifications_prefs') {
+      this.preferences.applyNotificationPreferences(event.value)
+      return
     } else if (event.type === 'emoji_changed') {
       this.invalidateDirectory('emoji')
     } else {
@@ -251,6 +292,7 @@ export class SyncEngine {
       await this.refreshDirectory('conversations')
       if (this.status.mode === 'session') await this.syncWithCounts()
       else await this.syncWithConversationInfo()
+      await this.preferences.sync().catch((error) => console.warn('Could not sync Later and mute settings', error))
       await this.refreshDirectory('users')
       await this.refreshDirectory('emoji').catch(() => undefined)
       this.setStatus({ lastCompletedAt: Date.now() })

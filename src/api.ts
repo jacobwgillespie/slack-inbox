@@ -1,4 +1,4 @@
-import type { InboxPayload, SyncError, ThreadPayload } from './slack/types'
+import type { InboxPayload, LegacyPreferences, SyncError, ThreadPayload } from './slack/types'
 
 export class LocalApiError extends Error {
   readonly code: string
@@ -34,6 +34,12 @@ export const localApi = {
   sync: () => post('/local/sync'),
   markRead: (channel: string, ts: string) => post('/local/mark', { channel, ts }),
   postMessage: (channel: string, text: string, threadTs?: string) => post('/local/post', { channel, text, threadTs }),
+  saveForLater: (channel: string, ts: string) => post<{ created: boolean }>('/local/later', { channel, ts }),
+  completeLater: (channel: string, ts: string) => post('/local/later/complete', { channel, ts }),
+  reopenLater: (channel: string, ts: string) => post('/local/later/reopen', { channel, ts }),
+  removeLater: (channel: string, ts: string) => post('/local/later/remove', { channel, ts }),
+  setMuted: (channel: string, muted: boolean) => post('/local/mute', { channel, muted }),
+  importLegacyPreferences: (preferences: LegacyPreferences) => post('/local/import', preferences),
   threadReplies: (channel: string, ts: string) =>
     request<ThreadPayload>(`/local/replies?${new URLSearchParams({ channel, ts })}`),
 }

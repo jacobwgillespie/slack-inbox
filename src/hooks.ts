@@ -108,7 +108,7 @@ export function useSelectionRepair() {
   const visible = useVisibleItems()
   const selectedId = useStore((state) => state.selectedId)
   useEffect(() => {
-    if (visible.some((item) => item.conversation.id === selectedId)) return
-    useStore.getState().select(visible[0]?.conversation.id)
+    if (visible.some((item) => item.id === selectedId)) return
+    useStore.getState().select(visible[0]?.id)
   }, [visible, selectedId])
 }

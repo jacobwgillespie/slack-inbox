@@ -34,7 +34,7 @@ export function Detail() {
     )
   }
 
-  const { id } = item.conversation
+  const { id } = item
 
   return (
     <section className={`detail${reading ? ' reading' : ''}`} aria-label="Conversation">
@@ -42,12 +42,13 @@ export function Detail() {
         <div>
           <h2>{conversationLabel(item.conversation, context.users, session)}</h2>
           <p className="muted">
-            {KIND_LABELS[item.conversation.kind]} · {item.messages.length} unread
+            {KIND_LABELS[item.conversation.kind]} ·{' '}
+            {view === 'later' ? 'Saved for later' : `${item.messages.length} unread`}
           </p>
         </div>
         <div className="detail-actions">
           <button className="button" onClick={() => markDone([id])} title="E">
-            <CheckIcon /> {view === 'later' ? 'Done' : 'Mark read'}
+            <CheckIcon /> {view === 'later' ? 'Complete' : 'Mark read'}
           </button>
           {view !== 'later' && (
             <>
@@ -68,7 +69,7 @@ export function Detail() {
         {item.messages.map((message, index) => (
           <MessageView
             key={message.ts}
-            channel={id}
+            channel={item.conversation.id}
             message={message}
             continued={isSameAuthorGroup(item.messages[index - 1], message)}
           />

@@ -63,7 +63,7 @@ When a session token is set, the app uses it instead of `SLACK_USER_TOKEN`.
 
 Before you use a session token, know that:
 
-- `client.counts` is not a documented Slack API, and `rtm.connect` is deprecated for Slack apps. Slack can change or block either at any time.
+- `client.counts`, `saved.*`, and `users.prefs.*` are not documented Slack APIs, and `rtm.connect` is deprecated for Slack apps. Slack can change or block any of them at any time.
 - The token has full access to your account, not only the scopes in the manifest. Keep `.env.local` private.
 - The token stops working when you sign out of that browser session. You must then copy new values.
 - Your workspace's security policy may not allow this.
@@ -74,8 +74,15 @@ Before you use a session token, know that:
 | --------- | --------------------------------------------------------------------- |
 | Important | Direct messages, group messages, and channels that mention you        |
 | Other     | All other channels with unread messages                               |
-| Later     | Conversations you saved for later. This list is stored in the browser |
+| Later     | Messages in your Slack **Later** list                                 |
 | Muted     | Muted conversations that have unread messages                         |
+
+With a session token, Later and Muted use your Slack settings:
+
+- The Later view shows the in-progress items from Slack's **Later** list, including items you save in Slack. Pressing `L` saves the newest message of a conversation to Slack's Later list and marks the conversation as read. Pressing `E` in the Later view marks the item complete in Slack.
+- Pressing `M` mutes or unmutes the conversation in Slack. Conversations you mute in Slack also appear as muted here.
+
+Mute changes made in Slack appear at once. Later changes made in Slack appear at the next full sync, within 5 minutes. With only a user token, Slack does not allow access to these settings, so the app keeps Later and Muted in the local database instead.
 
 ## Keyboard shortcuts
 
@@ -84,8 +91,8 @@ Before you use a session token, know that:
 | `J` / `K`       | Next or previous conversation (message while reading)    |
 | `Enter` / `O`   | Read conversation; while reading, show thread replies    |
 | `Esc`           | Return to list, clear selection, or cancel thread reply  |
-| `E`             | Mark as read in Slack (in Later: remove from Later)      |
-| `L`             | Save for later and mark as read in Slack                 |
+| `E`             | Mark as read in Slack (in Later: mark complete)          |
+| `L`             | Save the newest message for later and mark as read       |
 | `M`             | Mute or unmute                                           |
 | `X`             | Select for a bulk action                                 |
 | `Z`             | Undo the last action                                     |
@@ -101,6 +108,5 @@ Sending a reply also marks the conversation as read.
 ## Limits
 
 - Slack's API does not report unread thread replies, so the inbox shows unread top-level messages only.
-- Slack mutes are not visible through the API. Use `M` to mute conversations in this app.
 - The app loads up to 100 unread messages for each conversation.
 - With a user token, each scan checks every conversation you belong to, which takes minutes in a large workspace. Direct messages are checked first. See [Faster scans with a session token](#faster-scans-with-a-session-token-optional).

@@ -15,9 +15,9 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
   {
     title: 'Triage',
     shortcuts: [
-      [['E'], 'Mark as read (in Later: remove)'],
-      [['L'], 'Save for later and mark as read'],
-      [['M'], 'Mute or unmute conversation'],
+      [['E'], 'Mark as read (in Later: mark complete)'],
+      [['L'], 'Save the newest message for later and mark as read'],
+      [['M'], 'Mute or unmute conversation in Slack'],
       [['X'], 'Select for bulk action'],
       [['Z'], 'Undo last action'],
     ],

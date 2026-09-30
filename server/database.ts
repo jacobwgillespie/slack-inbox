@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { compareTs } from '../src/slack/timestamps.ts'
-import type { Conversation, InboxItem, Message, User } from '../src/slack/types.ts'
+import type { Conversation, InboxItem, LaterItem, Message, SavedItemReference, User } from '../src/slack/types.ts'
 
 const IGNORED_SUBTYPES = ['channel_join', 'channel_leave', 'group_join', 'group_leave']
 
@@ -36,7 +36,36 @@ const SCHEMA = `
     PRIMARY KEY (conversation_id, ts)
   );
   CREATE INDEX IF NOT EXISTS messages_by_thread ON messages (conversation_id, thread_ts);
+  CREATE TABLE IF NOT EXISTS saved_items (
+    conversation_id TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    state TEXT NOT NULL,
+    date_created INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, ts)
+  );
 `
+
+const COLUMN_MIGRATIONS = [{ table: 'conversations', column: 'is_muted', definition: 'INTEGER NOT NULL DEFAULT 0' }]
+
+export type SavedItemState = 'in_progress' | 'completed'
+
+export interface SavedItemRecord extends SavedItemReference {
+  state: SavedItemState
+  dateCreated: number
+}
+
+export interface LaterResult {
+  items: LaterItem[]
+  missing: SavedItemReference[]
+}
+
+interface LaterRow {
+  conversation_id: string
+  ts: string
+  date_created: number
+  conversation: string | null
+  message: string | null
+}
 
 export interface StoredConversation {
   conversation: Conversation
@@ -68,6 +97,16 @@ export class Database {
     this.db = new DatabaseSync(path)
     this.db.exec('PRAGMA journal_mode = WAL')
     this.db.exec(SCHEMA)
+    this.migrateColumns()
+  }
+
+  private migrateColumns() {
+    for (const { table, column, definition } of COLUMN_MIGRATIONS) {
+      const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+      if (!columns.some((existing) => existing.name === column)) {
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+      }
+    }
   }
 
   close() {
@@ -88,7 +127,9 @@ export class Database {
 
   clearWorkspace() {
     this.transaction(() => {
-      for (const table of ['metadata', 'users', 'emoji', 'conversations', 'messages']) this.db.exec(`DELETE FROM ${table}`)
+      for (const table of ['metadata', 'users', 'emoji', 'conversations', 'messages', 'saved_items']) {
+        this.db.exec(`DELETE FROM ${table}`)
+      }
     })
   }
 
@@ -189,6 +230,92 @@ export class Database {
     })
   }
 
+  upsertConversation(conversation: Conversation, isMember: boolean) {
+    this.db
+      .prepare(
+        `INSERT INTO conversations (id, data, is_member) VALUES (?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET data = excluded.data`,
+      )
+      .run(conversation.id, JSON.stringify(conversation), isMember ? 1 : 0)
+  }
+
+  mutedConversationIds(): string[] {
+    const rows = this.db.prepare('SELECT id FROM conversations WHERE is_muted = 1').all() as { id: string }[]
+    return rows.map((row) => row.id)
+  }
+
+  setMuted(id: string, muted: boolean) {
+    this.db.prepare('UPDATE conversations SET is_muted = ? WHERE id = ?').run(muted ? 1 : 0, id)
+  }
+
+  replaceMuted(ids: Set<string>) {
+    this.transaction(() => {
+      this.db.exec('UPDATE conversations SET is_muted = 0')
+      const update = this.db.prepare('UPDATE conversations SET is_muted = 1 WHERE id = ?')
+      for (const id of ids) update.run(id)
+    })
+  }
+
+  savedItem(channel: string, ts: string): SavedItemRecord | undefined {
+    const row = this.db
+      .prepare('SELECT state, date_created FROM saved_items WHERE conversation_id = ? AND ts = ?')
+      .get(channel, ts) as { state: SavedItemState; date_created: number } | undefined
+    return row && { channel, ts, state: row.state, dateCreated: row.date_created }
+  }
+
+  setSavedItem(item: SavedItemRecord) {
+    this.db
+      .prepare(
+        `INSERT INTO saved_items (conversation_id, ts, state, date_created) VALUES (?, ?, ?, ?)
+         ON CONFLICT (conversation_id, ts) DO UPDATE SET state = excluded.state, date_created = excluded.date_created`,
+      )
+      .run(item.channel, item.ts, item.state, item.dateCreated)
+  }
+
+  deleteSavedItem(channel: string, ts: string) {
+    this.db.prepare('DELETE FROM saved_items WHERE conversation_id = ? AND ts = ?').run(channel, ts)
+  }
+
+  replaceInProgressSavedItems(items: SavedItemRecord[], keepCreatedAfter: number) {
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM saved_items WHERE state = 'in_progress' AND date_created < ?").run(keepCreatedAfter)
+      for (const item of items) this.setSavedItem(item)
+    })
+  }
+
+  later(): LaterResult {
+    const rows = this.db
+      .prepare(
+        `SELECT s.conversation_id, s.ts, s.date_created, c.data AS conversation, m.data AS message
+         FROM saved_items s
+         LEFT JOIN conversations c ON c.id = s.conversation_id
+         LEFT JOIN messages m ON m.conversation_id = s.conversation_id AND m.ts = s.ts
+         WHERE s.state = 'in_progress'
+         ORDER BY s.date_created DESC`,
+      )
+      .all() as unknown as LaterRow[]
+    const result: LaterResult = { items: [], missing: [] }
+    for (const row of rows) {
+      if (!row.conversation || !row.message) {
+        result.missing.push({ channel: row.conversation_id, ts: row.ts })
+        continue
+      }
+      const conversation = JSON.parse(row.conversation) as Conversation
+      result.items.push({
+        id: `${row.conversation_id}:${row.ts}`,
+        conversation,
+        messages: [JSON.parse(row.message) as Message],
+        ts: row.ts,
+        savedAt: row.date_created * 1000,
+      })
+    }
+    return result
+  }
+
+  hasAnyConversation(id: string): boolean {
+    return this.db.prepare('SELECT 1 FROM conversations WHERE id = ?').get(id) !== undefined
+  }
+
   hasConversation(id: string): boolean {
     return this.db.prepare('SELECT 1 FROM conversations WHERE id = ? AND is_member = 1').get(id) !== undefined
   }
@@ -228,7 +355,7 @@ export class Database {
     const items = new Map<string, InboxItem>()
     for (const row of rows) {
       const conversation = JSON.parse(row.conversation) as Conversation
-      const item = items.get(conversation.id) ?? { conversation, messages: [] }
+      const item = items.get(conversation.id) ?? { id: conversation.id, conversation, messages: [] }
       item.messages.push(JSON.parse(row.message) as Message)
       items.set(conversation.id, item)
     }
