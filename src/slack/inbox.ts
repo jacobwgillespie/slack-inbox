@@ -130,11 +130,34 @@ async function fetchUnreadMessages(channel: string, lastRead: string, selfId: st
     .filter((message) => compareTs(message.ts, lastRead) > 0)
     .filter((message) => message.user !== selfId && !IGNORED_SUBTYPES.has(message.subtype ?? ''))
     .reverse()
+    .map(toMessage)
+}
+
+function toMessage(raw: Message): Message {
+  return {
+    ts: raw.ts,
+    text: raw.text ?? '',
+    user: raw.user,
+    username: raw.username,
+    subtype: raw.subtype,
+    thread_ts: raw.thread_ts,
+    reply_count: raw.reply_count,
+    files: raw.files?.map(({ id, name, title, permalink }) => ({ id, name, title, permalink })),
+    attachments: raw.attachments?.map(({ fallback, pretext, title, title_link, text }) => ({
+      fallback,
+      pretext,
+      title,
+      title_link,
+      text,
+    })),
+    reactions: raw.reactions?.map(({ name, count }) => ({ name, count })),
+    bot_profile: raw.bot_profile && { name: raw.bot_profile.name, icons: { image_48: raw.bot_profile.icons?.image_48 } },
+  }
 }
 
 export async function fetchThreadReplies(channel: string, ts: string): Promise<Message[]> {
   const messages = await paginate<Message>('conversations.replies', 'messages', { channel, ts, limit: 200 })
-  return messages.filter((message) => message.ts !== ts)
+  return messages.filter((message) => message.ts !== ts).map(toMessage)
 }
 
 export async function markRead(channel: string, ts: string): Promise<void> {

@@ -145,6 +145,18 @@ function pluralize(count: number, noun: string) {
   return count === 1 ? `1 ${noun}` : `${count} ${noun}s`
 }
 
+const resilientLocalStorage = {
+  getItem: (key: string) => localStorage.getItem(key),
+  setItem: (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value)
+    } catch (error) {
+      console.warn('Could not save inbox state', error)
+    }
+  },
+  removeItem: (key: string) => localStorage.removeItem(key),
+}
+
 let toastCounter = 0
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 const pendingUsers = new Set<string>()
@@ -522,8 +534,14 @@ export const useStore = create<InboxState>()(
     {
       name: 'slack-inbox',
       version: 1,
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ later: state.later, muted: state.muted, view: state.view }),
+      storage: createJSONStorage(() => resilientLocalStorage),
+      partialize: (state) => ({
+        items: state.items,
+        cursors: state.cursors,
+        later: state.later,
+        muted: state.muted,
+        view: state.view,
+      }),
     },
   ),
 )

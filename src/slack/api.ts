@@ -1,5 +1,5 @@
-const CONCURRENCY = 8
-const MAX_ATTEMPTS = 6
+const CONCURRENCY_PER_METHOD = 4
+const DEFAULT_RETRY_SECONDS = 5
 
 export class SlackError extends Error {
   constructor(
@@ -20,24 +20,48 @@ interface SlackResponse {
   response_metadata?: { next_cursor?: string }
 }
 
-let active = 0
-const waiting: (() => void)[] = []
+class Semaphore {
+  private active = 0
+  private readonly waiting: (() => void)[] = []
 
-async function acquire() {
-  if (active < CONCURRENCY) {
-    active++
-    return
+  constructor(private readonly limit: number) {}
+
+  async acquire() {
+    if (this.active < this.limit) {
+      this.active++
+      return
+    }
+    await new Promise<void>((resolve) => this.waiting.push(resolve))
   }
-  await new Promise<void>((resolve) => waiting.push(resolve))
+
+  release() {
+    const next = this.waiting.shift()
+    if (next) next()
+    else this.active--
+  }
 }
 
-function release() {
-  const next = waiting.shift()
-  if (next) next()
-  else active--
+const semaphores = new Map<string, Semaphore>()
+const pausedUntil = new Map<string, number>()
+
+function semaphoreFor(method: string) {
+  let semaphore = semaphores.get(method)
+  if (!semaphore) {
+    semaphore = new Semaphore(CONCURRENCY_PER_METHOD)
+    semaphores.set(method, semaphore)
+  }
+  return semaphore
 }
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+async function waitForRateLimit(method: string) {
+  for (;;) {
+    const remaining = (pausedUntil.get(method) ?? 0) - Date.now()
+    if (remaining <= 0) return
+    await wait(remaining)
+  }
+}
 
 export async function call<T>(method: string, params: Params = {}): Promise<T> {
   const body = new URLSearchParams()
@@ -45,20 +69,24 @@ export async function call<T>(method: string, params: Params = {}): Promise<T> {
     if (value !== undefined) body.set(key, String(value))
   }
 
-  await acquire()
-  try {
-    for (let attempt = 1; ; attempt++) {
-      const response = await fetch(`/api/${method}`, { method: 'POST', body })
-      if (response.status === 429 && attempt < MAX_ATTEMPTS) {
-        await wait(Number(response.headers.get('Retry-After') ?? '1') * 1000)
-        continue
-      }
-      const data: SlackResponse = await response.json().catch(() => ({ ok: false, error: `http_${response.status}` }))
-      if (!data.ok) throw new SlackError(method, data.error ?? 'unknown_error', data.needed)
-      return data as T
+  const semaphore = semaphoreFor(method)
+  for (;;) {
+    await waitForRateLimit(method)
+    await semaphore.acquire()
+    let response: Response
+    try {
+      response = await fetch(`/api/${method}`, { method: 'POST', body })
+    } finally {
+      semaphore.release()
     }
-  } finally {
-    release()
+    if (response.status === 429) {
+      const seconds = Number(response.headers.get('Retry-After')) || DEFAULT_RETRY_SECONDS
+      pausedUntil.set(method, Math.max(pausedUntil.get(method) ?? 0, Date.now() + seconds * 1000))
+      continue
+    }
+    const data: SlackResponse = await response.json().catch(() => ({ ok: false, error: `http_${response.status}` }))
+    if (!data.ok) throw new SlackError(method, data.error ?? 'unknown_error', data.needed)
+    return data as T
   }
 }
 
