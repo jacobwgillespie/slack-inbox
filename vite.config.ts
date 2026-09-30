@@ -17,7 +17,31 @@ async function readBody(request: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString()
 }
 
+function credentialProblems({ userToken, sessionToken, sessionCookie }: SlackCredentials): string[] {
+  const problems: string[] = []
+  if (sessionCookie?.startsWith('xoxc-')) {
+    problems.push('SLACK_SESSION_COOKIE holds an xoxc- token. Put the token in SLACK_SESSION_TOKEN and the d cookie (xoxd-) in SLACK_SESSION_COOKIE.')
+  } else if (sessionCookie && !sessionCookie.startsWith('xoxd-')) {
+    problems.push('SLACK_SESSION_COOKIE must be the value of the d cookie, which starts with xoxd-.')
+  }
+  if (sessionToken && !sessionToken.startsWith('xoxc-')) problems.push('SLACK_SESSION_TOKEN must start with xoxc-.')
+  if (sessionToken && !sessionCookie) problems.push('SLACK_SESSION_TOKEN is set, but SLACK_SESSION_COOKIE is missing.')
+  if (!sessionToken && !userToken) problems.push('Set SLACK_USER_TOKEN or SLACK_SESSION_TOKEN in .env.local.')
+  return problems
+}
+
+function describeCredentials({ sessionToken, userToken }: SlackCredentials): string {
+  if (sessionToken) return 'session token (fast scans with client.counts)'
+  if (userToken) return 'user token (each scan checks every conversation)'
+  return 'no token'
+}
+
 function slackApi(credentials: SlackCredentials): Plugin {
+  const reportCredentials = (logger: { info: (message: string) => void; warn: (message: string) => void }) => {
+    logger.info(`  Slack API: using ${describeCredentials(credentials)}`)
+    for (const problem of credentialProblems(credentials)) logger.warn(`  Slack API: ${problem}`)
+  }
+
   const handle = async (request: IncomingMessage, response: ServerResponse, next: () => void) => {
     if (!request.url?.startsWith('/api/')) return next()
     try {
@@ -46,8 +70,14 @@ function slackApi(credentials: SlackCredentials): Plugin {
 
   return {
     name: 'slack-api',
-    configureServer: (server) => void server.middlewares.use(handle),
-    configurePreviewServer: (server) => void server.middlewares.use(handle),
+    configureServer: (server) => {
+      reportCredentials(server.config.logger)
+      server.middlewares.use(handle)
+    },
+    configurePreviewServer: (server) => {
+      reportCredentials(server.config.logger)
+      server.middlewares.use(handle)
+    },
   }
 }
 
