@@ -97,6 +97,11 @@ export class SlackClient {
     return results
   }
 
+  realtimeHeaders(): Record<string, string> {
+    const { sessionToken, sessionCookie } = this.credentials
+    return sessionToken && sessionCookie ? { cookie: `d=${sessionCookie}` } : {}
+  }
+
   private send(method: string, params: Params): Promise<Response> {
     const body = new URLSearchParams()
     for (const [key, value] of Object.entries(params)) {

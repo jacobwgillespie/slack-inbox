@@ -72,8 +72,11 @@ export interface SyncError {
   needed?: string
 }
 
+export type RealtimeState = 'connecting' | 'connected' | 'disconnected' | 'unavailable'
+
 export interface SyncStatus {
   mode: CredentialMode
+  realtime: RealtimeState
   running: boolean
   done: number
   total: number

@@ -57,7 +57,8 @@ interface InboxRow {
   message: string
 }
 
-const topLevel = (prefix = '') => `(${prefix}thread_ts IS NULL OR ${prefix}thread_ts = ${prefix}ts)`
+const topLevel = (prefix = '') =>
+  `(${prefix}thread_ts IS NULL OR ${prefix}thread_ts = ${prefix}ts OR ${prefix}subtype = 'thread_broadcast')`
 
 export class Database {
   private readonly db: DatabaseSync
@@ -186,6 +187,21 @@ export class Database {
         .prepare('UPDATE conversations SET history_latest = ? WHERE id = ?')
         .run(latest ?? returned[returned.length - 1] ?? null, conversationId)
     })
+  }
+
+  hasConversation(id: string): boolean {
+    return this.db.prepare('SELECT 1 FROM conversations WHERE id = ? AND is_member = 1').get(id) !== undefined
+  }
+
+  message(conversationId: string, ts: string): Message | undefined {
+    const row = this.db
+      .prepare('SELECT data FROM messages WHERE conversation_id = ? AND ts = ?')
+      .get(conversationId, ts) as { data: string } | undefined
+    return row ? (JSON.parse(row.data) as Message) : undefined
+  }
+
+  deleteMessage(conversationId: string, ts: string) {
+    this.db.prepare('DELETE FROM messages WHERE conversation_id = ? AND ts = ?').run(conversationId, ts)
   }
 
   upsertMessages(conversationId: string, messages: Message[]) {

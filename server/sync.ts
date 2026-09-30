@@ -10,6 +10,7 @@ import type {
   ThreadPayload,
 } from '../src/slack/types'
 import type { Database, StoredConversation } from './database'
+import { RealtimeConnection, type RealtimeEvent } from './realtime'
 import { SlackError, type SlackClient } from './slack-client'
 import {
   hasUnreads,
@@ -22,6 +23,7 @@ import {
 } from './slack-data'
 
 const SESSION_SYNC_INTERVAL = 30 * 1000
+const REALTIME_SYNC_INTERVAL = 5 * 60 * 1000
 const USER_SYNC_INTERVAL = 60 * 1000
 const DIRECTORY_MAX_AGE = 60 * 60 * 1000
 const HISTORY_LIMIT = 100
@@ -29,6 +31,19 @@ const INBOX_MESSAGE_LIMIT = 100
 const CHANGE_NOTIFICATION_DELAY = 250
 const KIND_PRIORITY: Record<ConversationKind, number> = { dm: 0, group: 1, private: 2, channel: 3 }
 const USER_MENTION = /<@([UW][A-Z0-9]+)/g
+const READ_MARKER_EVENTS = new Set(['channel_marked', 'group_marked', 'im_marked', 'mpim_marked'])
+const MEMBERSHIP_EVENTS = new Set([
+  'channel_joined',
+  'channel_left',
+  'channel_rename',
+  'group_joined',
+  'group_left',
+  'group_rename',
+  'im_created',
+  'im_close',
+  'mpim_joined',
+  'mpim_close',
+])
 
 type DirectoryKey = 'conversations' | 'users' | 'emoji'
 
@@ -66,22 +81,32 @@ export class SyncEngine {
   private notifyTimer?: ReturnType<typeof setTimeout>
   private readonly listeners = new Set<(version: number) => void>()
   private readonly requestedUsers = new Set<string>()
+  private readonly realtime?: RealtimeConnection
 
   constructor(
     private readonly database: Database,
     private readonly client: SlackClient,
     mode: CredentialMode,
   ) {
-    this.status = { mode, running: false, done: 0, total: 0 }
+    this.status = { mode, realtime: mode === 'session' ? 'connecting' : 'unavailable', running: false, done: 0, total: 0 }
     this.session = database.getMetadata<Session>('session')
+    if (mode === 'session') {
+      this.realtime = new RealtimeConnection(client, {
+        onEvent: (event) => this.handleRealtimeEvent(event),
+        onStateChange: (realtime) => this.setStatus({ realtime }),
+        onConnected: () => this.requestSync(),
+      })
+    }
   }
 
   start() {
     this.requestSync()
+    this.realtime?.start()
   }
 
   async stop() {
     this.stopped = true
+    this.realtime?.stop()
     clearTimeout(this.timer)
     clearTimeout(this.notifyTimer)
     this.listeners.clear()
@@ -108,8 +133,7 @@ export class SyncEngine {
         this.requestSync()
         return
       }
-      const interval = this.status.mode === 'session' ? SESSION_SYNC_INTERVAL : USER_SYNC_INTERVAL
-      this.timer = setTimeout(() => this.requestSync(), interval)
+      this.timer = setTimeout(() => this.requestSync(), this.syncInterval())
     })
   }
 
@@ -150,6 +174,74 @@ export class SyncEngine {
     const users = this.database.usersById(ids)
     this.requestMissingUsers(ids.filter((id) => !users[id]))
     return { messages, users }
+  }
+
+  private syncInterval() {
+    if (this.status.realtime === 'connected') return REALTIME_SYNC_INTERVAL
+    return this.status.mode === 'session' ? SESSION_SYNC_INTERVAL : USER_SYNC_INTERVAL
+  }
+
+  private handleRealtimeEvent(event: RealtimeEvent) {
+    const channel = typeof event.channel === 'string' ? event.channel : undefined
+    if (event.type === 'message' && channel) {
+      this.handleMessageEvent(channel, event)
+    } else if (READ_MARKER_EVENTS.has(event.type) && channel && typeof event.ts === 'string') {
+      this.database.setReadStates([[channel, event.ts]])
+    } else if (event.type === 'reaction_added' || event.type === 'reaction_removed') {
+      this.handleReactionEvent(event)
+    } else if (event.type === 'user_change' && event.user && typeof event.user === 'object') {
+      this.database.upsertUser(toUser(event.user as RawUser))
+    } else if (MEMBERSHIP_EVENTS.has(event.type)) {
+      this.invalidateDirectory('conversations')
+    } else if (event.type === 'emoji_changed') {
+      this.invalidateDirectory('emoji')
+    } else {
+      return
+    }
+    this.changed()
+  }
+
+  private handleMessageEvent(channel: string, event: RealtimeEvent) {
+    if (!this.database.hasConversation(channel)) {
+      this.invalidateDirectory('conversations')
+      return
+    }
+    switch (event.subtype) {
+      case 'message_deleted':
+        if (typeof event.deleted_ts === 'string') this.database.deleteMessage(channel, event.deleted_ts)
+        return
+      case 'message_changed':
+      case 'message_replied':
+        if (event.message && typeof event.message === 'object') {
+          this.database.upsertMessages(channel, [toMessage(event.message as Message)])
+        }
+        return
+      default:
+        if (typeof event.ts === 'string') this.database.upsertMessages(channel, [toMessage(event as unknown as Message)])
+    }
+  }
+
+  private handleReactionEvent(event: RealtimeEvent) {
+    const item = event.item as { channel?: string; ts?: string } | undefined
+    const name = typeof event.reaction === 'string' ? event.reaction : undefined
+    if (!item?.channel || !item.ts || !name) return
+    const message = this.database.message(item.channel, item.ts)
+    if (!message) return
+    const delta = event.type === 'reaction_added' ? 1 : -1
+    const reactions = message.reactions ?? []
+    const existing = reactions.find((reaction) => reaction.name === name)
+    const updated = existing
+      ? reactions.map((reaction) => (reaction === existing ? { name, count: reaction.count + delta } : reaction))
+      : delta > 0
+        ? [...reactions, { name, count: 1 }]
+        : reactions
+    const next = { ...message, reactions: updated.filter((reaction) => reaction.count > 0) }
+    this.database.upsertMessages(item.channel, [next])
+  }
+
+  private invalidateDirectory(key: DirectoryKey) {
+    this.database.setMetadata(`${key}_synced_at`, 0)
+    this.requestSync()
   }
 
   private async runSync() {

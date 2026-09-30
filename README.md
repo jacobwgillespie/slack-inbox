@@ -26,7 +26,8 @@ The app needs Node.js 22.13 or later.
 The Vite server runs a sync process that copies your Slack data into a local SQLite database at `data/slack.sqlite`. The browser reads the inbox from this database and never calls Slack directly. Your token stays in the server.
 
 - Users, custom emoji, and the list of conversations refresh once an hour.
-- Unread state refreshes every 30 seconds with a session token, or continuously with a user token.
+- With a session token, the server keeps a real-time connection to Slack. New messages, edits, deletions, reactions, and conversations you read in other Slack apps appear at once. A full check of unread state also runs every 5 minutes, and after each reconnection, to catch anything the connection missed. The header shows **Live** while the connection is open.
+- With a user token, Slack does not offer a real-time connection, so the server checks unread state continuously.
 - Message history is fetched only for conversations that have new messages.
 - When you mark a conversation as read or send a reply, the server updates Slack and the database.
 - The server tells the browser when data changes, so the inbox updates without a reload.
@@ -37,7 +38,7 @@ Because the server does this work, the app only runs through `pnpm dev` or `pnpm
 
 With a user token, Slack does not report which conversations are unread. The app must call `conversations.info` once for each conversation, and Slack allows about 50 of these calls each minute. If you belong to 600 conversations, each scan takes about 12 minutes. The inbox shows the last result from the database while the scan runs.
 
-A browser session token lets the app ask Slack for all unread conversations in one request (`client.counts`). A scan then takes a few seconds.
+A browser session token lets the app ask Slack for all unread conversations in one request (`client.counts`), so a scan takes a few seconds. It also lets the app receive updates in real time (`rtm.connect`).
 
 To get the session token:
 
@@ -62,7 +63,7 @@ When a session token is set, the app uses it instead of `SLACK_USER_TOKEN`.
 
 Before you use a session token, know that:
 
-- `client.counts` is not a documented Slack API. Slack can change or block it at any time.
+- `client.counts` is not a documented Slack API, and `rtm.connect` is deprecated for Slack apps. Slack can change or block either at any time.
 - The token has full access to your account, not only the scopes in the manifest. Keep `.env.local` private.
 - The token stops working when you sign out of that browser session. You must then copy new values.
 - Your workspace's security policy may not allow this.
