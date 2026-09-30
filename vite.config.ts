@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => {
         sessionToken: env.SLACK_SESSION_TOKEN,
         sessionCookie: env.SLACK_SESSION_COOKIE,
         databasePath: env.SLACK_DATABASE_PATH || 'data/slack.sqlite',
+        openaiApiKey: env.OPENAI_API_KEY,
+        classifierModel: env.OPENAI_CLASSIFIER_MODEL || 'gpt-6-luna',
       }),
     ],
     server: { watch: { ignored: ['**/data/**'] } },

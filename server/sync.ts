@@ -2,14 +2,18 @@ import type {
   ConversationKind,
   CredentialMode,
   InboxItem,
+  ClassificationEntry,
+  ClassificationLabel,
   InboxPayload,
   LegacyPreferences,
+  SavedItemReference,
   Message,
   Session,
   SyncError,
   SyncStatus,
   ThreadPayload,
 } from '../src/slack/types.ts'
+import { Classifier, type ClassifierOptions } from './classifier.ts'
 import type { Database, StoredConversation } from './database.ts'
 import { Preferences } from './preferences.ts'
 import { Threads } from './threads.ts'
@@ -87,13 +91,30 @@ export class SyncEngine {
   private readonly realtime?: RealtimeConnection
   private readonly preferences: Preferences
   private readonly threads?: Threads
+  private readonly classifier?: Classifier
 
   constructor(
     private readonly database: Database,
     private readonly client: SlackClient,
     mode: CredentialMode,
+    classifierOptions?: ClassifierOptions,
   ) {
-    this.status = { mode, realtime: mode === 'session' ? 'connecting' : 'unavailable', running: false, done: 0, total: 0 }
+    this.status = {
+      mode,
+      realtime: mode === 'session' ? 'connecting' : 'unavailable',
+      classifier: { enabled: Boolean(classifierOptions), running: false, pending: 0 },
+      running: false,
+      done: 0,
+      total: 0,
+    }
+    if (classifierOptions) {
+      this.classifier = new Classifier(database, classifierOptions, {
+        session: () => this.session,
+        unreadItems: () => (this.session ? this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT) : []),
+        onStatus: (classifier) => this.setStatus({ classifier }),
+        changed: () => this.changed(),
+      })
+    }
     this.session = database.getMetadata<Session>('session')
     this.preferences = new Preferences(database, client, mode === 'session', () => this.changed())
     if (mode === 'session') {
@@ -119,6 +140,7 @@ export class SyncEngine {
   async stop() {
     this.stopped = true
     this.realtime?.stop()
+    await this.classifier?.stop()
     clearTimeout(this.timer)
     clearTimeout(this.notifyTimer)
     this.listeners.clear()
@@ -152,7 +174,7 @@ export class SyncEngine {
   inbox(): InboxPayload {
     const items = this.session
       ? [
-          ...this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT),
+          ...this.withClassifications(this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT)),
           ...(this.threads ? this.database.threadInbox(this.session.userId) : []),
         ]
       : []
@@ -170,6 +192,32 @@ export class SyncEngine {
       preferenceSource: this.preferences.source,
       users,
     }
+  }
+
+  setClassifications(references: SavedItemReference[], label: ClassificationLabel) {
+    this.database.transaction(() => {
+      for (const reference of references) this.database.saveUserClassification(reference, label)
+    })
+    this.changed()
+    this.classifier?.schedule()
+  }
+
+  restoreClassifications(entries: ClassificationEntry[]) {
+    this.database.transaction(() => {
+      for (const entry of entries) this.database.restoreClassification(entry, entry.classification)
+    })
+    this.changed()
+  }
+
+  private withClassifications(items: InboxItem[]): InboxItem[] {
+    const classifications = this.database.classifications(items.map((item) => item.conversation.id))
+    return items.map((item) => ({
+      ...item,
+      messages: item.messages.map((message) => {
+        const classification = classifications.get(`${item.conversation.id}:${message.ts}`)
+        return classification ? { ...message, classification } : message
+      }),
+    }))
   }
 
   async markThreadRead(channel: string, threadTs: string, ts: string) {
@@ -278,7 +326,10 @@ export class SyncEngine {
         }
         return
       default:
-        if (typeof event.ts === 'string') this.database.upsertMessages(channel, [toMessage(event as unknown as Message)])
+        if (typeof event.ts === 'string') {
+          this.database.upsertMessages(channel, [toMessage(event as unknown as Message)])
+          this.classifier?.schedule()
+        }
     }
   }
 
@@ -317,6 +368,7 @@ export class SyncEngine {
       await this.refreshDirectory('users')
       await this.refreshDirectory('emoji').catch(() => undefined)
       this.setStatus({ lastCompletedAt: Date.now() })
+      this.classifier?.schedule(0)
     } catch (error) {
       console.error('Slack sync failed', error)
       this.setStatus({ error: describeError(error) })

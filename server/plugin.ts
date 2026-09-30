@@ -7,6 +7,8 @@ import { SyncEngine } from './sync.ts'
 
 export interface SlackInboxOptions extends SlackCredentials {
   databasePath: string
+  openaiApiKey?: string
+  classifierModel: string
 }
 
 function credentialProblems({ userToken, sessionToken, sessionCookie }: SlackCredentials): string[] {
@@ -38,8 +40,17 @@ export function slackInbox(options: SlackInboxOptions): Plugin {
     logger.info(`  Slack API: storing data in ${databasePath}`)
     for (const problem of credentialProblems(options)) logger.warn(`  Slack API: ${problem}`)
 
+    const classifier = options.openaiApiKey
+      ? { apiKey: options.openaiApiKey, model: options.classifierModel, databasePath }
+      : undefined
+    logger.info(
+      classifier
+        ? `  Classifier: sorting new messages with ${classifier.model}`
+        : '  Classifier: off. Set OPENAI_API_KEY in .env.local to turn it on.',
+    )
+
     const database = new Database(databasePath)
-    const engine = new SyncEngine(database, new SlackClient(options), mode)
+    const engine = new SyncEngine(database, new SlackClient(options), mode, classifier)
     server.middlewares.use(localApi(engine))
     engine.start()
     server.httpServer?.once('close', () => {

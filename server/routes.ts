@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { SlackError } from './slack-client.ts'
-import type { LegacyPreferences } from '../src/slack/types.ts'
+import type { Classification, LegacyPreferences } from '../src/slack/types.ts'
 import type { SyncEngine } from './sync.ts'
 
 type Handler = (request: IncomingMessage, response: ServerResponse, url: URL) => Promise<void> | void
@@ -33,6 +33,15 @@ function requireString(value: unknown, name: string): string {
 
 function readReference(body: Record<string, unknown>) {
   return [requireString(body.channel, 'channel'), requireString(body.ts, 'ts')] as const
+}
+
+function readClassification(value: unknown): Classification | null {
+  if (!value || typeof value !== 'object') return null
+  const { label, reason, source } = value as Record<string, unknown>
+  if ((label !== 'important' && label !== 'other') || (source !== 'model' && source !== 'user')) {
+    throw new RequestError(400, 'invalid_classification')
+  }
+  return { label, reason: typeof reason === 'string' ? reason : '', source }
 }
 
 function readLegacyPreferences(body: Record<string, unknown>): LegacyPreferences {
@@ -88,6 +97,27 @@ export function localApi(engine: SyncEngine) {
     'POST /local/mark': async (request, response) => {
       const body = await readJson(request)
       await engine.markRead(requireString(body.channel, 'channel'), requireString(body.ts, 'ts'))
+      sendJson(response, 200, { ok: true })
+    },
+    'POST /local/classifications': async (request, response) => {
+      const body = await readJson(request)
+      if (body.label !== 'important' && body.label !== 'other') throw new RequestError(400, 'invalid_label')
+      const references = Array.isArray(body.messages) ? body.messages.map(readReference) : []
+      engine.setClassifications(
+        references.map(([channel, ts]) => ({ channel, ts })),
+        body.label,
+      )
+      sendJson(response, 200, { ok: true })
+    },
+    'POST /local/classifications/restore': async (request, response) => {
+      const body = await readJson(request)
+      const entries = Array.isArray(body.entries) ? body.entries : []
+      engine.restoreClassifications(
+        entries.map((entry: Record<string, unknown>) => {
+          const [channel, ts] = readReference(entry)
+          return { channel, ts, classification: readClassification(entry.classification) }
+        }),
+      )
       sendJson(response, 200, { ok: true })
     },
     'POST /local/thread/mark': async (request, response) => {

@@ -11,10 +11,10 @@ import {
 } from '../format'
 import { useCurrentItem, useFormatContext } from '../hooks'
 import { threadKey, useStore } from '../store'
-import type { InboxItem, Message } from '../slack/types'
+import type { Classification, InboxItem, Message } from '../slack/types'
 import { Avatar } from './Avatar'
 import { Composer } from './Composer'
-import { CheckIcon, ClockIcon, ExternalIcon, MuteIcon, ThreadIcon } from './Icons'
+import { CheckIcon, ClockIcon, ExternalIcon, MuteIcon, SwapIcon, ThreadIcon } from './Icons'
 
 const KIND_LABELS = { channel: 'Channel', private: 'Private channel', dm: 'Direct message', group: 'Group message' }
 
@@ -30,7 +30,7 @@ export function Detail() {
   const session = useStore((state) => state.session)
   const view = useStore((state) => state.view)
   const reading = useStore((state) => state.mode === 'reading')
-  const { markDone, saveForLater, toggleMute, openInSlack } = useStore.getState()
+  const { markDone, saveForLater, toggleMute, recategorize, openInSlack } = useStore.getState()
 
   if (!item) {
     return (
@@ -61,6 +61,11 @@ export function Detail() {
               <button className="button" onClick={() => saveForLater([id])} title="L">
                 <ClockIcon /> Later
               </button>
+              {!item.thread && view !== 'muted' && (
+                <button className="button" onClick={() => recategorize([id])} title="C">
+                  <SwapIcon /> {view === 'important' ? 'Move to Other' : 'Move to Important'}
+                </button>
+              )}
               {!item.thread && (
                 <button className="button" onClick={() => toggleMute([id])} title="M">
                   <MuteIcon /> {view === 'muted' ? 'Unmute' : 'Mute'}
@@ -176,6 +181,7 @@ function MessageView({ channel, message, continued }: { channel: string; message
           </div>
         ) : null}
         <div className="message-footer">
+          {message.classification && <ClassificationTag classification={message.classification} />}
           {message.reply_count ? (
             <button
               className="link-button"
@@ -208,6 +214,16 @@ function MessageView({ channel, message, continued }: { channel: string; message
         )}
       </div>
     </article>
+  )
+}
+
+function ClassificationTag({ classification }: { classification: Classification }) {
+  const label = classification.label === 'important' ? 'Important' : 'Other'
+  const source = classification.source === 'user' ? 'Set by you' : 'Sorted by the classifier'
+  return (
+    <span className={`classification classification-${classification.label}`} title={`${source}: ${classification.reason}`}>
+      {label}
+    </span>
   )
 }
 

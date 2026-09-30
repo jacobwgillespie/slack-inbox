@@ -2,7 +2,16 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { compareTs } from '../src/slack/timestamps.ts'
-import type { Conversation, InboxItem, LaterItem, Message, SavedItemReference, User } from '../src/slack/types.ts'
+import type {
+  Classification,
+  ClassificationLabel,
+  Conversation,
+  InboxItem,
+  LaterItem,
+  Message,
+  SavedItemReference,
+  User,
+} from '../src/slack/types.ts'
 
 const IGNORED_SUBTYPES = ['channel_join', 'channel_leave', 'group_join', 'group_leave']
 
@@ -42,6 +51,30 @@ const SCHEMA = `
     last_read TEXT NOT NULL,
     PRIMARY KEY (conversation_id, thread_ts)
   );
+  CREATE TABLE IF NOT EXISTS classifications (
+    conversation_id TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    label TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    source TEXT NOT NULL,
+    model TEXT,
+    previous_label TEXT,
+    reviewed INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, ts)
+  );
+  CREATE TABLE IF NOT EXISTS classification_attempts (
+    conversation_id TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    attempts INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, ts)
+  );
+  CREATE TABLE IF NOT EXISTS memories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS saved_items (
     conversation_id TEXT NOT NULL,
     ts TEXT NOT NULL,
@@ -63,6 +96,26 @@ export interface SavedItemRecord extends SavedItemReference {
 export interface LaterResult {
   items: LaterItem[]
   missing: SavedItemReference[]
+}
+
+export interface Memory {
+  id: number
+  content: string
+  updatedAt: number
+}
+
+export interface Correction extends SavedItemReference {
+  label: ClassificationLabel
+  previousLabel?: ClassificationLabel
+  text: string
+}
+
+interface ClassificationRow {
+  conversation_id: string
+  ts: string
+  label: ClassificationLabel
+  reason: string
+  source: Classification['source']
 }
 
 export interface ThreadRecord {
@@ -146,7 +199,18 @@ export class Database {
 
   clearWorkspace() {
     this.transaction(() => {
-      for (const table of ['metadata', 'users', 'emoji', 'conversations', 'messages', 'saved_items', 'threads']) {
+      const tables = [
+        'metadata',
+        'users',
+        'emoji',
+        'conversations',
+        'messages',
+        'saved_items',
+        'threads',
+        'classifications',
+        'classification_attempts',
+      ]
+      for (const table of tables) {
         this.db.exec(`DELETE FROM ${table}`)
       }
     })
@@ -329,6 +393,145 @@ export class Database {
       })
     }
     return result
+  }
+
+  classifications(conversationIds: string[]): Map<string, Classification> {
+    const result = new Map<string, Classification>()
+    if (!conversationIds.length) return result
+    const placeholders = conversationIds.map(() => '?').join(', ')
+    const rows = this.db
+      .prepare(
+        `SELECT conversation_id, ts, label, reason, source FROM classifications WHERE conversation_id IN (${placeholders})`,
+      )
+      .all(...conversationIds) as unknown as ClassificationRow[]
+    for (const row of rows) {
+      result.set(`${row.conversation_id}:${row.ts}`, { label: row.label, reason: row.reason, source: row.source })
+    }
+    return result
+  }
+
+  classificationAttempts(): Map<string, number> {
+    const rows = this.db.prepare('SELECT conversation_id, ts, attempts FROM classification_attempts').all() as {
+      conversation_id: string
+      ts: string
+      attempts: number
+    }[]
+    return new Map(rows.map((row) => [`${row.conversation_id}:${row.ts}`, row.attempts]))
+  }
+
+  recordClassificationAttempts(references: SavedItemReference[]) {
+    this.transaction(() => {
+      const upsert = this.db.prepare(
+        `INSERT INTO classification_attempts (conversation_id, ts, attempts) VALUES (?, ?, 1)
+         ON CONFLICT (conversation_id, ts) DO UPDATE SET attempts = attempts + 1`,
+      )
+      for (const { channel, ts } of references) upsert.run(channel, ts)
+    })
+  }
+
+  saveModelClassification(reference: SavedItemReference, label: ClassificationLabel, reason: string, model: string) {
+    this.db
+      .prepare(
+        `INSERT INTO classifications (conversation_id, ts, label, reason, source, model, created_at)
+         VALUES (?, ?, ?, ?, 'model', ?, ?)
+         ON CONFLICT (conversation_id, ts) DO UPDATE SET
+           label = excluded.label, reason = excluded.reason, model = excluded.model, created_at = excluded.created_at
+         WHERE classifications.source = 'model'`,
+      )
+      .run(reference.channel, reference.ts, label, reason, model, Date.now())
+  }
+
+  saveUserClassification(reference: SavedItemReference, label: ClassificationLabel) {
+    const existing = this.db
+      .prepare('SELECT label, source, previous_label FROM classifications WHERE conversation_id = ? AND ts = ?')
+      .get(reference.channel, reference.ts) as
+      | { label: ClassificationLabel; source: string; previous_label: ClassificationLabel | null }
+      | undefined
+    const previousLabel = existing?.source === 'user' ? existing.previous_label : (existing?.label ?? null)
+    this.db
+      .prepare(
+        `INSERT INTO classifications (conversation_id, ts, label, reason, source, previous_label, reviewed, created_at)
+         VALUES (?, ?, ?, 'Set by you', 'user', ?, 0, ?)
+         ON CONFLICT (conversation_id, ts) DO UPDATE SET
+           label = excluded.label, reason = excluded.reason, source = 'user',
+           previous_label = excluded.previous_label, reviewed = 0, created_at = excluded.created_at`,
+      )
+      .run(reference.channel, reference.ts, label, previousLabel, Date.now())
+  }
+
+  restoreClassification(reference: SavedItemReference, classification: Classification | null) {
+    if (!classification) {
+      this.db
+        .prepare('DELETE FROM classifications WHERE conversation_id = ? AND ts = ?')
+        .run(reference.channel, reference.ts)
+      return
+    }
+    this.db
+      .prepare(
+        `INSERT INTO classifications (conversation_id, ts, label, reason, source, created_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (conversation_id, ts) DO UPDATE SET
+           label = excluded.label, reason = excluded.reason, source = excluded.source,
+           previous_label = NULL, reviewed = 1`,
+      )
+      .run(reference.channel, reference.ts, classification.label, classification.reason, classification.source, Date.now())
+  }
+
+  unreviewedCorrections(limit: number): Correction[] {
+    const rows = this.db
+      .prepare(
+        `SELECT c.conversation_id, c.ts, c.label, c.previous_label, json_extract(m.data, '$.text') AS text
+         FROM classifications c
+         LEFT JOIN messages m ON m.conversation_id = c.conversation_id AND m.ts = c.ts
+         WHERE c.source = 'user' AND c.reviewed = 0
+         ORDER BY c.created_at DESC LIMIT ?`,
+      )
+      .all(limit) as {
+      conversation_id: string
+      ts: string
+      label: ClassificationLabel
+      previous_label: ClassificationLabel | null
+      text: string | null
+    }[]
+    return rows.map((row) => ({
+      channel: row.conversation_id,
+      ts: row.ts,
+      label: row.label,
+      previousLabel: row.previous_label ?? undefined,
+      text: row.text ?? '',
+    }))
+  }
+
+  markCorrectionsReviewed(references: SavedItemReference[]) {
+    this.transaction(() => {
+      const update = this.db.prepare('UPDATE classifications SET reviewed = 1 WHERE conversation_id = ? AND ts = ?')
+      for (const { channel, ts } of references) update.run(channel, ts)
+    })
+  }
+
+  memories(): Memory[] {
+    const rows = this.db.prepare('SELECT id, content, updated_at FROM memories ORDER BY id').all() as {
+      id: number
+      content: string
+      updated_at: number
+    }[]
+    return rows.map((row) => ({ id: row.id, content: row.content, updatedAt: row.updated_at }))
+  }
+
+  addMemory(content: string): number {
+    const now = Date.now()
+    const result = this.db
+      .prepare('INSERT INTO memories (content, created_at, updated_at) VALUES (?, ?, ?)')
+      .run(content, now, now)
+    return Number(result.lastInsertRowid)
+  }
+
+  updateMemory(id: number, content: string): boolean {
+    return this.db.prepare('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?').run(content, Date.now(), id)
+      .changes > 0
+  }
+
+  deleteMemory(id: number): boolean {
+    return this.db.prepare('DELETE FROM memories WHERE id = ?').run(id).changes > 0
   }
 
   setThread({ channel, threadTs, lastRead }: ThreadRecord) {

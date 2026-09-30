@@ -47,6 +47,7 @@ const BINDINGS: Record<string, Binding> = {
   e: (state) => state.markDone(),
   l: (state) => state.saveForLater(),
   m: (state) => state.toggleMute(),
+  c: (state) => state.recategorize(),
   x: (state) => state.toggleChecked(),
   r: (state) => state.reply(),
   t: (state) => state.replyInThread(),

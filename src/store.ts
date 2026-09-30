@@ -5,6 +5,8 @@ import { permalink } from './format'
 import { captureLegacyPreferences, clearLegacyPreferences } from './legacy-preferences'
 import { compareTs, maxTs, precedingTs } from './slack/timestamps'
 import type {
+  Classification,
+  ClassificationEntry,
   InboxItem,
   InboxPayload,
   LaterItem,
@@ -48,6 +50,7 @@ export interface InboxState {
   cursors: Record<string, Override<string>>
   laterOverrides: Record<string, Override<LaterItem | undefined>>
   muteOverrides: Record<string, Override<boolean>>
+  classificationOverrides: Record<string, Override<Classification | null>>
   view: View
   mode: Mode
   selectedId?: string
@@ -72,6 +75,7 @@ export interface InboxState {
   markDone: (ids?: string[], message?: string) => void
   saveForLater: (ids?: string[]) => void
   toggleMute: (ids?: string[]) => void
+  recategorize: (ids?: string[]) => void
   undo: () => void
   reply: () => void
   replyInThread: (ts?: string) => void
@@ -97,9 +101,32 @@ export function mentionsSelf(item: InboxItem, session?: Session): boolean {
   return item.messages.some((message) => message.text.includes(`<@${session.userId}`))
 }
 
+function matchesImportantRules(item: InboxItem, message: Message, session?: Session): boolean {
+  if (item.conversation.kind === 'dm' || item.conversation.kind === 'group') return true
+  return Boolean(session && message.text.includes(`<@${session.userId}`))
+}
+
+export function isMessageImportant(item: InboxItem, message: Message, session?: Session): boolean {
+  if (message.classification) return message.classification.label === 'important'
+  return matchesImportantRules(item, message, session)
+}
+
 export function isImportant(item: InboxItem, session?: Session): boolean {
   if (item.thread) return true
-  return item.conversation.kind === 'dm' || item.conversation.kind === 'group' || mentionsSelf(item, session)
+  return item.messages.some((message) => isMessageImportant(item, message, session))
+}
+
+const messageKey = (item: InboxItem, message: Message) => `${item.conversation.id}:${message.ts}`
+
+function withClassification(item: InboxItem, lookup: (key: string) => Classification | null | undefined): InboxItem {
+  let changed = false
+  const messages = item.messages.map((message) => {
+    const classification = lookup(messageKey(item, message))
+    if (classification === undefined) return message
+    changed = true
+    return { ...message, classification: classification ?? undefined }
+  })
+  return changed ? { ...item, messages } : item
 }
 
 export function threadTargetFor(item: InboxItem, threadTarget?: string): string | undefined {
@@ -324,12 +351,14 @@ export const useStore = create<InboxState>()(
           const cursors = activeOverrides(state.cursors, now)
           const laterOverrides = activeOverrides(state.laterOverrides, now)
           const muteOverrides = activeOverrides(state.muteOverrides, now)
+          const classificationOverrides = activeOverrides(state.classificationOverrides, now)
+          const classificationFor = (key: string) => classificationOverrides[key]?.value
 
           const items: Record<string, InboxItem> = {}
           for (const item of payload.items) {
             const cursor = maxTs(cursors[item.id]?.value)
             const messages = item.messages.filter((message) => compareTs(message.ts, cursor) > 0)
-            if (messages.length) items[item.id] = { ...item, messages }
+            if (messages.length) items[item.id] = withClassification({ ...item, messages }, classificationFor)
           }
 
           const later: Record<string, LaterItem> = Object.fromEntries(payload.later.map((item) => [item.id, item]))
@@ -357,6 +386,7 @@ export const useStore = create<InboxState>()(
             cursors,
             laterOverrides,
             muteOverrides,
+            classificationOverrides,
           }
         })
       }
@@ -390,6 +420,7 @@ export const useStore = create<InboxState>()(
         cursors: {},
         laterOverrides: {},
         muteOverrides: {},
+        classificationOverrides: {},
         view: 'important',
         mode: 'list',
         checked: {},
@@ -540,6 +571,49 @@ export const useStore = create<InboxState>()(
             undo: () => {
               apply(!muting)
               reselect(targetIds)
+            },
+          })
+        },
+
+        recategorize: (ids = targetIds()) => {
+          const state = get()
+          if (state.view !== 'important' && state.view !== 'other') return
+          const targets = ids
+            .map((id) => state.items[id])
+            .filter((item): item is InboxItem => item !== undefined && !item.thread)
+          if (!targets.length) return
+          const label = state.view === 'important' ? 'other' : 'important'
+          const previous: ClassificationEntry[] = targets.flatMap((item) =>
+            item.messages.map((message) => ({
+              channel: item.conversation.id,
+              ts: message.ts,
+              classification: message.classification ?? null,
+            })),
+          )
+          const applyClassifications = (entries: [string, Classification | null][]) => {
+            set((current) => {
+              const classificationOverrides = { ...current.classificationOverrides }
+              for (const [key, classification] of entries) classificationOverrides[key] = override(classification)
+              const lookup = (key: string) => classificationOverrides[key]?.value
+              const items = { ...current.items }
+              for (const item of targets) {
+                const existing = items[item.id]
+                if (existing) items[item.id] = withClassification(existing, lookup)
+              }
+              return { classificationOverrides, items }
+            })
+          }
+          const userClassification: Classification = { label, reason: 'Set by you', source: 'user' }
+          const targetIds = targets.map((item) => item.id)
+          removeAndAdvance(targetIds, () =>
+            applyClassifications(previous.map((entry) => [`${entry.channel}:${entry.ts}`, userClassification])),
+          )
+          run(localApi.setClassification(previous.map(({ channel, ts }) => ({ channel, ts })), label))
+          showToast(`Moved ${pluralize(targets.length, 'conversation')} to ${label === 'important' ? 'Important' : 'Other'}`, {
+            undo: () => {
+              applyClassifications(previous.map((entry) => [`${entry.channel}:${entry.ts}`, entry.classification]))
+              reselect(targetIds)
+              run(localApi.restoreClassifications(previous))
             },
           })
         },

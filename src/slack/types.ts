@@ -27,8 +27,17 @@ export interface Reaction {
   count: number
 }
 
+export type ClassificationLabel = 'important' | 'other'
+
+export interface Classification {
+  label: ClassificationLabel
+  reason: string
+  source: 'model' | 'user'
+}
+
 export interface Message {
   ts: string
+  classification?: Classification
   text: string
   user?: string
   username?: string
@@ -84,9 +93,17 @@ export interface SyncError {
 
 export type RealtimeState = 'connecting' | 'connected' | 'disconnected' | 'unavailable'
 
+export interface ClassifierStatus {
+  enabled: boolean
+  running: boolean
+  pending: number
+  error?: string
+}
+
 export interface SyncStatus {
   mode: CredentialMode
   realtime: RealtimeState
+  classifier: ClassifierStatus
   running: boolean
   done: number
   total: number
@@ -108,6 +125,10 @@ export interface InboxPayload {
 export interface SavedItemReference {
   channel: string
   ts: string
+}
+
+export interface ClassificationEntry extends SavedItemReference {
+  classification: Classification | null
 }
 
 export interface LegacyPreferences {

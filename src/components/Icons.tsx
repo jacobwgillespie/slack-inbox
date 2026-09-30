@@ -74,6 +74,12 @@ export const PeopleIcon = () => (
   </Icon>
 )
 
+export const SwapIcon = () => (
+  <Icon>
+    <path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" />
+  </Icon>
+)
+
 export const ThreadIcon = () => (
   <Icon>
     <path d="M4 5h16v10H9l-5 4z" />

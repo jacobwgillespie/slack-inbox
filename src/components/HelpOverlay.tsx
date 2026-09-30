@@ -18,6 +18,7 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
       [['E'], 'Mark as read (in Later: mark complete)'],
       [['L'], 'Save the newest message for later and mark as read'],
       [['M'], 'Mute or unmute conversation in Slack'],
+      [['C'], 'Move to Important or Other, and teach the classifier'],
       [['X'], 'Select for bulk action'],
       [['Z'], 'Undo last action'],
     ],
