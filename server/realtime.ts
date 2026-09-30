@@ -1,5 +1,5 @@
-import type { RealtimeState } from '../src/slack/types'
-import { SlackError, type SlackClient } from './slack-client'
+import type { RealtimeState } from '../src/slack/types.ts'
+import { SlackError, type SlackClient } from './slack-client.ts'
 
 const PING_INTERVAL = 30 * 1000
 const STALE_CONNECTION_AGE = 2 * PING_INTERVAL

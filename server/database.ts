@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { compareTs } from '../src/slack/timestamps'
-import type { Conversation, InboxItem, Message, User } from '../src/slack/types'
+import { compareTs } from '../src/slack/timestamps.ts'
+import type { Conversation, InboxItem, Message, User } from '../src/slack/types.ts'
 
 const IGNORED_SUBTYPES = ['channel_join', 'channel_leave', 'group_join', 'group_leave']
 

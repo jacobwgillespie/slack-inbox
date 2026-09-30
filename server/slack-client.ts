@@ -1,4 +1,4 @@
-import type { CredentialMode } from '../src/slack/types'
+import type { CredentialMode } from '../src/slack/types.ts'
 
 const CONCURRENCY_PER_METHOD = 4
 const DEFAULT_RETRY_SECONDS = 5

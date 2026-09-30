@@ -1,5 +1,5 @@
-import { compareTs } from '../src/slack/timestamps'
-import type { Conversation, Message, User } from '../src/slack/types'
+import { compareTs } from '../src/slack/timestamps.ts'
+import type { Conversation, Message, User } from '../src/slack/types.ts'
 
 export interface RawConversation {
   id: string

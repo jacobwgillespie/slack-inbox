@@ -1,9 +1,9 @@
 import { resolve } from 'node:path'
 import type { Logger, Plugin, PreviewServer, ViteDevServer } from 'vite'
-import { Database } from './database'
-import { localApi } from './routes'
-import { credentialMode, SlackClient, type SlackCredentials } from './slack-client'
-import { SyncEngine } from './sync'
+import { Database } from './database.ts'
+import { localApi } from './routes.ts'
+import { credentialMode, SlackClient, type SlackCredentials } from './slack-client.ts'
+import { SyncEngine } from './sync.ts'
 
 export interface SlackInboxOptions extends SlackCredentials {
   databasePath: string

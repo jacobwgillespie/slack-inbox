@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { SlackError } from './slack-client'
-import type { SyncEngine } from './sync'
+import { SlackError } from './slack-client.ts'
+import type { SyncEngine } from './sync.ts'
 
 type Handler = (request: IncomingMessage, response: ServerResponse, url: URL) => Promise<void> | void
 

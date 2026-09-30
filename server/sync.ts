@@ -8,10 +8,10 @@ import type {
   SyncError,
   SyncStatus,
   ThreadPayload,
-} from '../src/slack/types'
-import type { Database, StoredConversation } from './database'
-import { RealtimeConnection, type RealtimeEvent } from './realtime'
-import { SlackError, type SlackClient } from './slack-client'
+} from '../src/slack/types.ts'
+import type { Database, StoredConversation } from './database.ts'
+import { RealtimeConnection, type RealtimeEvent } from './realtime.ts'
+import { SlackError, type SlackClient } from './slack-client.ts'
 import {
   hasUnreads,
   toConversation,
@@ -20,7 +20,7 @@ import {
   type RawConversation,
   type RawCount,
   type RawUser,
-} from './slack-data'
+} from './slack-data.ts'
 
 const SESSION_SYNC_INTERVAL = 30 * 1000
 const REALTIME_SYNC_INTERVAL = 5 * 60 * 1000
