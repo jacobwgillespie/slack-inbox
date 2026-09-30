@@ -68,6 +68,18 @@ Before you use a session token, know that:
 - The token stops working when you sign out of that browser session. You must then copy new values.
 - Your workspace's security policy may not allow this.
 
+## Message classifier (optional)
+
+If `OPENAI_API_KEY` is set in `.env.local`, the server asks an OpenAI model to sort each new unread message into Important or Other. The default model is `gpt-6-luna`. To use a different model, set `OPENAI_CLASSIFIER_MODEL`.
+
+- The server sends unread messages from the last 7 days in groups of up to 25. It sends the message text, the conversation name, the author, and whether the message mentions you.
+- The model records each decision with a short reason. The result is saved in the local database, so each message is sorted only once. Select a message to see the label, and hold the pointer over the label to see the reason.
+- A conversation is in Important if any of its unread messages is important. Messages that are not sorted yet use the built-in rules: direct messages, group messages, and mentions are important.
+- The model can read the local database with SQL to get more context, for example earlier messages in the conversation. It cannot change the database, except to record decisions and memories.
+- Press `C` to move a conversation to the other view. The model receives your correction on its next run and can save a memory, such as "Messages in #announcements are important." It includes all memories every time it sorts messages. Memories are stored in the `memories` table in the database.
+
+Message text and the context the model reads are sent to OpenAI.
+
 ## Views
 
 | View      | Contents                                                                           |
@@ -96,6 +108,7 @@ Mute changes made in Slack appear at once. Later changes made in Slack appear at
 | `E`             | Mark as read in Slack (in Later: mark complete)          |
 | `L`             | Save the newest message for later and mark as read       |
 | `M`             | Mute or unmute                                           |
+| `C`             | Move to Important or Other, and teach the classifier     |
 | `X`             | Select for a bulk action                                 |
 | `Z`             | Undo the last action                                     |
 | `R`             | Reply in the conversation                                |
