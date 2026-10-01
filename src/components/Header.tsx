@@ -27,6 +27,27 @@ export function Header() {
     <header className="header">
       <div className="sidebar-heading">
         {window.slackDesktop?.platform !== 'darwin' && <div className="brand">Inbox</div>}
+        <div className="sync-status" role="status">
+          {sync?.error && !scanning && (
+            <span className="scan-status scan-error" title={sync.error.message}>
+              Sync failed: {sync.error.code}
+            </span>
+          )}
+          {sync?.realtime === 'disconnected' && <span className="scan-status">Reconnecting</span>}
+          {sync?.classifier.error && (
+            <span className="scan-status scan-error" title={sync.classifier.error}>
+              Classifier failed
+            </span>
+          )}
+          {sync?.classifier.running && sync.classifier.pending > 0 && (
+            <span className="scan-status">Sorting {sync.classifier.pending}</span>
+          )}
+          {showProgress && (
+            <span className="scan-status">
+              {sync?.total ? `Syncing ${sync.done} of ${sync.total}` : 'Syncing'}
+            </span>
+          )}
+        </div>
         <div className="view-switcher" role="radiogroup" aria-label="Conversations"
           style={{ '--selected-view': Math.max(0, VIEWS.indexOf(view)) } as CSSProperties}>
           {VIEWS.map((candidate, index) => {
@@ -48,28 +69,6 @@ export function Header() {
             )
           })}
         </div>
-
-      </div>
-      <div className="sync-status" role="status">
-        {sync?.error && !scanning && (
-          <span className="scan-status scan-error" title={sync.error.message}>
-            Sync failed: {sync.error.code}
-          </span>
-        )}
-        {sync?.realtime === 'disconnected' && <span className="scan-status">Reconnecting</span>}
-        {sync?.classifier.error && (
-          <span className="scan-status scan-error" title={sync.classifier.error}>
-            Classifier failed
-          </span>
-        )}
-        {sync?.classifier.running && sync.classifier.pending > 0 && (
-          <span className="scan-status">Sorting {sync.classifier.pending}</span>
-        )}
-        {showProgress && (
-          <span className="scan-status">
-            {sync?.total ? `Syncing ${sync.done} of ${sync.total}` : 'Syncing'}
-          </span>
-        )}
       </div>
     </header>
   )

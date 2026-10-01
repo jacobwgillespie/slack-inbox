@@ -278,14 +278,19 @@ kbd {
 
 .sync-status {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 8px;
-  padding: 12px 8px 2px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-.sync-status:empty {
-  display: none;
+.sync-status .scan-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
 }
 
 .sidebar-footer {
@@ -324,11 +329,11 @@ kbd {
 .account-menu {
   position: fixed;
   inset: auto auto 80px 16px;
-  width: 240px;
+  width: 220px;
   margin: 0;
-  padding: 8px;
+  padding: 6px;
   border: 1px solid #303030;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #191919;
   color: var(--text);
   box-shadow: var(--shadow);
@@ -337,15 +342,15 @@ kbd {
 .account-menu button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 8px;
+  padding: 6px 8px;
   border: 0;
   border-radius: 8px;
   background: none;
   color: inherit;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
@@ -360,8 +365,13 @@ kbd {
   margin-left: auto;
 }
 
+.account-menu .icon {
+  width: 14px;
+  height: 14px;
+}
+
 .account-menu hr {
-  margin: 6px 8px;
+  margin: 4px 8px;
   border: 0;
   border-top: 1px solid #303030;
 }
@@ -378,6 +388,7 @@ kbd {
   justify-content: center;
   gap: 10px;
   flex: 1;
+  height: 40px;
   padding: 8px 14px;
   border: 1px solid #303030;
   border-radius: 24px;
@@ -385,6 +396,11 @@ kbd {
   color: var(--text);
   text-decoration: none;
   font-size: 14px;
+}
+
+.sidebar-footer > .icon-button {
+  width: 40px;
+  height: 40px;
 }
 
 .workspace-link:hover {
