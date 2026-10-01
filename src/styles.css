@@ -80,8 +80,19 @@ kbd {
 }
 
 .header {
+  position: relative;
+  z-index: 1;
   padding: 24px 14px 8px;
   flex-shrink: 0;
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 -32px;
+  height: 32px;
+  background: linear-gradient(to bottom, var(--surface), transparent);
+  pointer-events: none;
 }
 
 .brand {
