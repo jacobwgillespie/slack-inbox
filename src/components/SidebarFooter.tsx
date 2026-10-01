@@ -37,6 +37,12 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
         <button onClick={() => { menu.current?.hidePopover(); toggleHelp() }}>
           <HelpIcon /><span>Help</span><kbd>?</kbd>
         </button>
+        {session && <button onClick={() => {
+          menu.current?.hidePopover()
+          if (!openDesktopSlack()) window.open(session.url, '_blank', 'noopener,noreferrer')
+        }}>
+          <ExternalIcon /><span>Debug in Slack</span>
+        </button>}
         {window.slackDesktop && <>
           <hr />
           <button onClick={() => void logOut()} disabled={loggingOut}>
@@ -45,11 +51,6 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
           {error && <p role="alert" className="account-error">{error}</p>}
         </>}
       </div>
-      {session ? (
-        <a className="workspace-link" href={session.url} target="_blank" rel="noreferrer" onClick={(event) => { if (openDesktopSlack()) event.preventDefault() }}>
-          <span>Open Slack</span><ExternalIcon />
-        </a>
-      ) : <span className="workspace-link">Slack Inbox</span>}
       <button className={`icon-button${scanning ? ' spinning' : ''}`} onClick={refresh} disabled={scanning} title="Refresh (Shift+R)" aria-label="Refresh">
         <RefreshIcon />
       </button>
