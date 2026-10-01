@@ -24,8 +24,24 @@ export function ItemList() {
   const selected = useStore((state) => state.selectedId)
   const listRef = useRef<HTMLElement>(null)
   const [scrolled, setScrolled] = useState(false)
+  const [moreBelow, setMoreBelow] = useState(false)
   useLayoutEffect(() => {
-    setScrolled((listRef.current?.scrollTop ?? 0) > 0)
+    const list = listRef.current
+    if (!list) return
+    const update = () => {
+      setScrolled(list.scrollTop > 0)
+      setMoreBelow(list.scrollHeight - list.clientHeight - list.scrollTop > 1)
+    }
+    update()
+    list.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(list)
+    const content = list.querySelector('ul')
+    if (content) observer.observe(content)
+    return () => {
+      list.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
   }, [view, items.length])
   useEffect(() => {
     const bridge = window.slackDesktop
@@ -66,7 +82,7 @@ export function ItemList() {
   }
 
   return (
-    <section ref={listRef} className={`item-list${scrolled ? ' scrolled' : ''}`} onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)} aria-label="Conversations" tabIndex={-1}>
+    <section ref={listRef} className={`item-list${scrolled ? ' scrolled' : ''}${moreBelow ? ' more-below' : ''}`} aria-label="Conversations" tabIndex={-1}>
       <ul>
         {items.map((item) => (
           <ItemRow key={item.id} item={item} />

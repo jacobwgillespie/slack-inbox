@@ -293,6 +293,11 @@ kbd {
   height: 32px;
   background: linear-gradient(to top, var(--surface), transparent);
   pointer-events: none;
+  opacity: 0;
+}
+
+.sidebar:has(.item-list.more-below) .sidebar-footer::before {
+  opacity: 1;
 }
 
 .workspace-link {
