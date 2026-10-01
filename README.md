@@ -53,11 +53,48 @@ The configured-session path has been verified against the live workspace, includ
 
 ### macOS packaging and icon
 
-Run `pnpm desktop:package` on macOS to build **Slack Inbox.app** and a DMG in `release/` for the current machine's architecture. Open the app directly from `release/mac-arm64/` (or `release/mac/` on Intel), or open the DMG and drag it into Applications. The app is ad-hoc signed for local use and is not notarized for distribution.
+Run `pnpm desktop:package` on macOS to build **Slack Inbox.app**, a DMG, and a ZIP in `release/` for the current machine's architecture. Open the app directly from `release/mac-arm64/` (or `release/mac/` on Intel), or open the DMG and drag it into Applications. This command uses ad-hoc signing for local use and skips notarization.
 
 Packaging includes the built interface and desktop code. It excludes `.env.local`, the development database, and browser profiles. Sign in through the app; its existing desktop profile and cache stay in Electron's `userData` directory.
 
 The saddle-leather icon's transparent source is `assets/icon-source.png`. `pnpm icons` generates the PNG and browser icons in `public/` and, on macOS, `assets/icon.icns`. Builds run this automatically. The Electron development app uses the PNG for its Dock icon; the packaged app also embeds the ICNS for Finder.
+
+### Signing and releases
+
+GitHub Actions builds the desktop app on pull requests and pushes to `main`. The **Release** workflow builds signed, notarized DMGs and ZIPs for Apple Silicon and Intel Macs. Run it manually to download the build artifacts without creating a release, or push a version tag to create a draft GitHub Release.
+
+Configure these [repository Actions secrets](https://github.com/jacobwgillespie/slack-inbox/settings/secrets/actions):
+
+| Secret | Value |
+| --- | --- |
+| `MAC_CSC_LINK` | Base64-encoded `.p12` containing the Developer ID Application certificate and its private key |
+| `MAC_CSC_KEY_PASSWORD` | Password used to encrypt the `.p12` |
+| `APPLE_ID` | Email address associated with the Apple Developer account |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created for notarization in the Apple account's Sign-In and Security settings |
+| `APPLE_TEAM_ID` | Apple Developer team ID |
+
+Use a **Developer ID Application** certificate from Apple's **G2 Sub-CA** for distribution through GitHub. When exporting from Keychain Access, export the certificate together with its private key as a password-protected `.p12`. Keep a secure backup of the key and certificate outside this repository. The Apple app-specific password is separate from both the account password and the `.p12` password.
+
+The workflow requires signing credentials and verifies the app signatures, Gatekeeper assessment, and stapled notarization tickets before uploading artifacts. Its publish job uploads to a draft release only after both architectures build successfully. It refuses to overwrite a published release.
+
+To release a version:
+
+1. Update `version` in `package.json` and merge the change into `main`.
+2. Tag that commit with the matching version and push the tag:
+
+   ```sh
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+3. Wait for the **Release** workflow and install the DMG on a clean Mac to check sign-in and startup.
+4. Review the draft release notes, then publish the release in GitHub. Retain the ZIPs, blockmaps, and `latest-mac.yml` alongside the DMGs; automatic updates use these files.
+
+Make the repository public before distributing builds to users. The update client reads public GitHub Releases and does not contain a GitHub access token. Draft releases are invisible to update checks.
+
+Packaged macOS apps check for updates at startup and every four hours. Choose **Slack Inbox → Check for Updates…** for a manual check. Updates download in the background and offer **Restart to update**; choosing **Later** installs the update when you quit. Development runs skip update checks. The app flushes Slack cookies and stops sync before quitting; the profile and SQLite database remain in the existing `userData` directory.
+
+Before relying on automatic updates, install one signed release, publish a newer version, and verify that updating preserves sign-in, cached conversations, and Done state.
 
 ## How it works
 

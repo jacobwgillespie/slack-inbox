@@ -1,7 +1,9 @@
 {
   "name": "slack-inbox",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "packageManager": "pnpm@12.6.0",
+  "repository": "https://github.com/jacobwgillespie/slack-inbox",
   "type": "module",
   "main": "electron-dist/main.cjs",
   "description": "A keyboard-driven inbox for Slack conversations",
@@ -14,28 +16,45 @@
     "preview": "vite preview",
     "desktop:build": "pnpm build && node scripts/build-desktop.mjs",
     "desktop": "pnpm exec install-electron && pnpm desktop:build && electron electron-dist/main.cjs",
-    "desktop:package": "pnpm exec install-electron && pnpm desktop:build && electron-builder --mac --publish never"
+    "desktop:package": "pnpm exec install-electron && pnpm desktop:build && electron-builder --mac --publish never --config.mac.identity=- --config.mac.notarize=false --config.mac.hardenedRuntime=false",
+    "desktop:release": "pnpm exec install-electron && pnpm desktop:build && electron-builder --mac --arm64 --x64 --publish never --config.forceCodeSigning=true"
   },
   "build": {
     "appId": "com.jacobwgillespie.slack-inbox",
     "productName": "Slack Inbox",
+    "artifactName": "Slack-Inbox-${version}-${arch}.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "jacobwgillespie",
+      "repo": "slack-inbox"
+    },
     "directories": {
       "output": "release",
       "buildResources": "assets"
     },
-    "files": ["dist/**/*", "electron-dist/**/*", "package.json"],
+    "files": [
+      "dist/**/*",
+      "electron-dist/**/*",
+      "package.json"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.icns",
-      "identity": "-",
-      "notarize": false,
-      "target": ["dmg"]
+      "hardenedRuntime": true,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "notarize": true,
+      "target": [
+        "dmg",
+        "zip"
+      ]
     }
   },
   "dependencies": {
     "@tanstack/react-db": "^0.4.1",
     "dompurify": "^3.4.16",
     "electron-native-auth": "0.2.0",
+    "electron-updater": "6.8.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zustand": "^5.0.15"

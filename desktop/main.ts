@@ -10,6 +10,7 @@ import { configuredSession } from './configured-session.ts'
 import { BrowserSignin } from './browser-signin.ts'
 import { ConversationCollector } from './conversation-collector.ts'
 import { observeSlack } from './slack-session.ts'
+import { setupUpdates } from './updates.ts'
 
 app.setName('Slack Inbox')
 if (!app.requestSingleInstanceLock()) app.quit()
@@ -262,15 +263,25 @@ async function start() {
   if (savedTeam) void collectorView.webContents.loadURL(`https://app.slack.com/client/${savedTeam}`).catch(() => {})
   await ui.webContents.loadURL(origin)
   engine.start()
-  app.on('before-quit', () => { browserSignin.stop() })
-  window.on('closed', () => {
+  let quitting = false
+  app.once('before-quit', (event) => {
+    event.preventDefault()
+    quitting = true
+    void shutdown().catch((error) => console.error('Could not finish shutdown', error)).finally(() => app.quit())
+  })
+  async function shutdown() {
     collector.stop()
     unsubscribeCache()
     if (!collectorContents.isDestroyed()) collectorContents.close()
     if (!slackContents.isDestroyed()) slackContents.close()
     if (!uiContents.isDestroyed()) uiContents.close()
     server.close()
-    void engine.stop().finally(() => { database.close(); app.quit() })
-  })
+    await browserSignin.stop()
+    await engine.stop()
+    await slackSession.cookies.flushStore()
+    database.close()
+  }
+  window.on('closed', () => { if (!quitting) app.quit() })
   app.on('second-instance', () => { window.show(); window.focus() })
+  setupUpdates()
 }
