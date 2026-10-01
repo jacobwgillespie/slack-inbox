@@ -1105,12 +1105,20 @@ kbd {
   }
 }
 
-.message.continued > .message-bubble {
+.message.continued:not(.message-own) > .message-bubble {
   border-top-left-radius: 6px;
 }
 
-.message.continues > .message-bubble {
+.message.continues:not(.message-own) > .message-bubble {
   border-bottom-left-radius: 6px;
+}
+
+.message.message-own.continued > .message-bubble {
+  border-top-right-radius: 6px;
+}
+
+.message.message-own.continues > .message-bubble {
+  border-bottom-right-radius: 6px;
 }
 
 .message-gutter {
