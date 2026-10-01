@@ -1,3 +1,5 @@
+<img src="public/icon.png" alt="Slack Inbox app icon" width="96" height="96">
+
 # Slack Inbox
 
 An unofficial macOS app for working through your Slack conversations. Read and reply, save messages for later, and mark conversations done without losing their history.
