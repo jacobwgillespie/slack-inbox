@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { conversationLabel, formatListTime, messageSummary, authorName } from '../format'
-import { useFormatContext, useVisibleItems } from '../hooks'
+import { useFormatContext, useVisibleItems, useViewCounts } from '../hooks'
 import { inboxStore, latestTs, mentionsSelf, isConversationView, useStore, type View } from '../store'
 import { compareTs } from '../slack/timestamps'
 import type { InboxItem } from '../slack/types'
@@ -20,6 +20,7 @@ const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
 
 export function ItemList() {
   const items = useVisibleItems()
+  const counts = useViewCounts()
   const view = useStore((state) => state.view)
   const status = useStore((state) => state.status)
   const selected = useStore((state) => state.selectedId)
@@ -86,7 +87,9 @@ export function ItemList() {
   }, [view, selected, items.map((item) => item.id).join(',')])
 
   if (!items.length) {
-    const empty = EMPTY_STATES[view]
+    const empty = view === 'inbox' && (counts.later > 0 || counts.done > 0)
+      ? { title: 'Everything is handled', detail: 'New activity will appear here.' }
+      : EMPTY_STATES[view]
     return (
       <section ref={listRef} className="item-list item-list-empty">
         {status === 'loading' ? (

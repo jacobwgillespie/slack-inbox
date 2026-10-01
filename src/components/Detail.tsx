@@ -84,7 +84,6 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
     return (
       <section className="detail detail-empty">
         <header className="detail-header" />
-        <p className="muted">Select a conversation to read it.</p>
         <Toast />
       </section>
     )
