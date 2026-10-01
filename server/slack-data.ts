@@ -1,5 +1,5 @@
 import { compareTs } from '../src/slack/timestamps.ts'
-import type { Conversation, Message, User } from '../src/slack/types.ts'
+import type { Conversation, Message, SlackFile, User } from '../src/slack/types.ts'
 
 export interface RawConversation {
   id: string
@@ -44,6 +44,11 @@ export function toUser(raw: RawUser): User {
   }
 }
 
+export function toFile(raw: SlackFile): SlackFile {
+  const { id, name, title, permalink, mimetype, url_private, thumb_720, original_w, original_h } = raw
+  return { id, name, title, permalink, mimetype, url_private, thumb_720, original_w, original_h }
+}
+
 export function toMessage(raw: Message): Message {
   return {
     ts: raw.ts,
@@ -53,7 +58,7 @@ export function toMessage(raw: Message): Message {
     subtype: raw.subtype,
     thread_ts: raw.thread_ts,
     reply_count: raw.reply_count,
-    files: raw.files?.map(({ id, name, title, permalink }) => ({ id, name, title, permalink })),
+    files: raw.files?.map(toFile),
     attachments: raw.attachments?.map(({ fallback, pretext, title, title_link, text }) => ({
       fallback,
       pretext,

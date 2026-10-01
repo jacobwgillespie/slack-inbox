@@ -84,7 +84,26 @@ export function localApi(engine: SyncEngine) {
   const routes: Record<string, Handler> = {
     'GET /local/inbox': (_, response) => sendJson(response, 200, engine.inbox()),
     'GET /local/emoji': (_, response) => sendJson(response, 200, engine.emoji()),
+    'GET /local/image': async (_, response, url) => {
+      const image = await engine.imagePreview(requireString(url.searchParams.get('file'), 'file'))
+      response.writeHead(200, {
+        'content-type': image.contentType,
+        'content-length': image.data.byteLength,
+        'cache-control': 'private, max-age=86400',
+        'x-content-type-options': 'nosniff',
+      })
+      response.end(image.data)
+    },
     'GET /local/events': streamEvents(engine),
+    'GET /local/history': async (_, response, url) => {
+      const channel = requireString(url.searchParams.get('channel'), 'channel')
+      const before = url.searchParams.get('before') ?? undefined
+      const after = url.searchParams.get('after') ?? undefined
+      for (const ts of [before, after]) {
+        if (ts && !/^\d+(\.\d{1,6})?$/.test(ts)) throw new RequestError(400, 'invalid_timestamp')
+      }
+      sendJson(response, 200, await engine.history(channel, { before, after, cached: url.searchParams.get('cached') === 'true' }))
+    },
     'GET /local/replies': async (_, response, url) => {
       const channel = requireString(url.searchParams.get('channel'), 'channel')
       const ts = requireString(url.searchParams.get('ts'), 'ts')

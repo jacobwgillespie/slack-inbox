@@ -102,6 +102,32 @@ export class SlackClient {
     return sessionToken && sessionCookie ? { cookie: `d=${sessionCookie}` } : {}
   }
 
+  async downloadFile(source: string): Promise<Response> {
+    let url = new URL(source)
+    for (let redirects = 0; redirects < 5; redirects++) {
+      const slackHost = url.hostname === 'slack.com' || url.hostname.endsWith('.slack.com')
+      const slackCdn = url.hostname.endsWith('.slack-edge.com') || url.hostname.endsWith('.slack-files.com')
+      if (url.protocol !== 'https:' || url.username || url.password || (!slackHost && !slackCdn)) {
+        throw new SlackError('files.download', 'invalid_file_host')
+      }
+      const headers: Record<string, string> = {}
+      if (slackHost) {
+        const { sessionToken, sessionCookie, userToken } = this.credentials
+        headers.authorization = `Bearer ${sessionToken ?? userToken ?? ''}`
+        if (sessionToken && sessionCookie) headers.cookie = `d=${sessionCookie}`
+      }
+      const response = await fetch(url, { headers, redirect: 'manual' })
+      if (response.status >= 300 && response.status < 400 && response.headers.has('location')) {
+        url = new URL(response.headers.get('location')!, url)
+        await response.body?.cancel()
+        continue
+      }
+      if (!response.ok) throw new SlackError('files.download', `http_${response.status}`)
+      return response
+    }
+    throw new SlackError('files.download', 'too_many_redirects')
+  }
+
   private send(method: string, params: Params): Promise<Response> {
     const body = new URLSearchParams()
     for (const [key, value] of Object.entries(params)) {

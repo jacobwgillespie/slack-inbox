@@ -7,6 +7,7 @@ import { compareTs, maxTs, precedingTs } from './slack/timestamps'
 import type {
   Classification,
   ClassificationEntry,
+  DirectMessage,
   InboxItem,
   InboxPayload,
   LaterItem,
@@ -17,8 +18,8 @@ import type {
   User,
 } from './slack/types'
 
-export type View = 'important' | 'other' | 'later' | 'muted'
-export const VIEWS: View[] = ['important', 'other', 'later', 'muted']
+export type View = 'important' | 'other' | 'later' | 'muted' | 'dms'
+export const VIEWS: View[] = ['important', 'other', 'later', 'muted', 'dms']
 
 type Mode = 'list' | 'reading'
 
@@ -36,6 +37,15 @@ interface Override<T> {
 
 type ThreadState = Message[] | 'loading'
 
+export interface HistoryState {
+  item?: InboxItem
+  hasMore: boolean
+  before?: string
+  loading: boolean
+  loadingOlder?: boolean
+  error?: string
+}
+
 export interface InboxState {
   status: 'loading' | 'ready' | 'error'
   error?: LocalApiError
@@ -45,6 +55,8 @@ export interface InboxState {
   users: Record<string, User>
   emoji: Record<string, string>
   items: Record<string, InboxItem>
+  directMessages: Record<string, DirectMessage>
+  histories: Record<string, HistoryState>
   later: Record<string, LaterItem>
   muted: Record<string, true>
   cursors: Record<string, Override<string>>
@@ -64,6 +76,7 @@ export interface InboxState {
 
   load: () => Promise<void>
   loadEmoji: () => Promise<void>
+  loadHistory: (channel: string, mode?: 'latest' | 'older' | 'cached') => Promise<void>
   refresh: () => void
   setView: (view: View) => void
   cycleView: (delta: number) => void
@@ -88,7 +101,7 @@ export interface InboxState {
   dismissToast: () => void
 }
 
-type VisibleSource = Pick<InboxState, 'items' | 'later' | 'muted' | 'view' | 'session'>
+type VisibleSource = Pick<InboxState, 'items' | 'directMessages' | 'later' | 'muted' | 'view' | 'session'>
 
 const OVERRIDE_LIFETIME = 2 * 60 * 1000
 const TOAST_DURATION = 7000
@@ -146,6 +159,10 @@ const bySavedAt = (a: LaterItem, b: LaterItem) => b.savedAt - a.savedAt
 export function computeVisible(state: VisibleSource): InboxItem[] {
   const inbox = Object.values(state.items)
   switch (state.view) {
+    case 'dms':
+      return Object.values(state.directMessages).sort((a, b) =>
+        compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
+      )
     case 'later':
       return Object.values(state.later).sort(bySavedAt)
     case 'muted':
@@ -169,6 +186,7 @@ export function computeCounts(state: VisibleSource): Record<View, number> {
 
 export function currentItem(state: InboxState): InboxItem | undefined {
   if (!state.selectedId) return undefined
+  if (state.view === 'dms') return state.histories[state.selectedId]?.item ?? state.directMessages[state.selectedId]
   return state.view === 'later' ? state.later[state.selectedId] : state.items[state.selectedId]
 }
 
@@ -262,10 +280,10 @@ export const useStore = create<InboxState>()(
 
       const selectionPatch = (id: string | undefined) => {
         const state = get()
-        const item = id ? (state.view === 'later' ? state.later[id] : state.items[id]) : undefined
+        const item = id ? currentItem({ ...state, selectedId: id }) : undefined
         return {
           selectedId: id,
-          focusedTs: item?.messages[0]?.ts,
+          focusedTs: state.view === 'dms' ? item?.messages.at(-1)?.ts : item?.messages[0]?.ts,
           threadTarget: undefined,
           mode: item ? state.mode : ('list' as const),
         }
@@ -381,6 +399,7 @@ export const useStore = create<InboxState>()(
             preferenceSource: payload.preferenceSource,
             users: { ...state.users, ...payload.users },
             items,
+            directMessages: Object.fromEntries(payload.directMessages.map((item) => [item.id, item])),
             later,
             muted,
             cursors,
@@ -415,6 +434,8 @@ export const useStore = create<InboxState>()(
         users: {},
         emoji: {},
         items: {},
+        directMessages: {},
+        histories: {},
         later: {},
         muted: {},
         cursors: {},
@@ -449,7 +470,67 @@ export const useStore = create<InboxState>()(
           if (emoji) set({ emoji })
         },
 
-        refresh: () => run(localApi.sync()),
+        loadHistory: async (channel, mode = 'latest') => {
+          const previous = get().histories[channel]
+          const dm = get().directMessages[channel]
+          if (!dm || previous?.loading || (mode === 'older' && !previous?.hasMore)) return
+          set((state) => ({
+            histories: {
+              ...state.histories,
+              [channel]: {
+                ...previous,
+                hasMore: previous?.hasMore ?? true,
+                loading: true,
+                loadingOlder: mode === 'older',
+                error: undefined,
+              },
+            },
+          }))
+          try {
+            const oldest = previous?.item?.messages[0]?.ts
+            let payload = await localApi.history(channel, {
+              before: mode === 'older' ? previous?.before : undefined,
+              after: mode === 'cached' ? oldest : undefined,
+              cached: mode === 'cached',
+            })
+            if (mode === 'latest' && oldest) {
+              payload = await localApi.history(channel, { after: oldest, cached: true })
+            }
+            const messages = mode === 'older'
+              ? [...new Map([...payload.messages, ...(previous?.item?.messages ?? [])].map((message) => [message.ts, message])).values()]
+                  .sort((a, b) => compareTs(a.ts, b.ts))
+              : payload.messages
+            set((state) => ({
+              histories: {
+                ...state.histories,
+                [channel]: {
+                  item: { id: channel, conversation: dm.conversation, messages },
+                  hasMore: payload.hasMore,
+                  before: payload.before,
+                  loading: false,
+                },
+              },
+              users: { ...state.users, ...payload.users },
+            }))
+          } catch (error) {
+            set((state) => ({
+              histories: {
+                ...state.histories,
+                [channel]: {
+                  ...state.histories[channel]!,
+                  loading: false,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              },
+            }))
+          }
+        },
+
+        refresh: () => {
+          run(localApi.sync())
+          const state = get()
+          if (state.view === 'dms' && state.selectedId) run(state.loadHistory(state.selectedId))
+        },
 
         setView: (view) => {
           const first = computeVisible({ ...get(), view })[0]
@@ -493,7 +574,7 @@ export const useStore = create<InboxState>()(
         },
 
         toggleChecked: (id = get().selectedId) => {
-          if (!id) return
+          if (!id || get().view === 'dms') return
           const checked = { ...get().checked }
           if (checked[id]) delete checked[id]
           else checked[id] = true
@@ -503,6 +584,16 @@ export const useStore = create<InboxState>()(
         markDone: (ids = targetIds(), message) => {
           const state = get()
           if (!ids.length) return
+
+          if (state.view === 'dms') {
+            for (const id of ids) {
+              const item = currentItem({ ...state, selectedId: id })
+              if (!item?.messages.length) continue
+              run(localApi.markRead(item.conversation.id, latestTs(item)).then(() => get().load()))
+            }
+            showToast(message ?? 'Marked as read')
+            return
+          }
 
           if (state.view === 'later') {
             const completed = ids.map((id) => state.later[id]).filter((item) => item !== undefined)
@@ -525,7 +616,7 @@ export const useStore = create<InboxState>()(
 
         saveForLater: (ids = targetIds()) => {
           const state = get()
-          if (!ids.length || state.view === 'later') return
+          if (!ids.length || state.view === 'later' || state.view === 'dms') return
           const moved = ids.map((id) => state.items[id]).filter((item) => item !== undefined)
           const saved = moved.map(toLaterItem).filter((item) => item !== undefined)
           const requests = saved.map((item) => localApi.saveForLater(item.conversation.id, item.ts))
@@ -555,9 +646,9 @@ export const useStore = create<InboxState>()(
         toggleMute: (ids = targetIds()) => {
           const state = get()
           if (!ids.length || state.view === 'later') return
-          const muting = state.view !== 'muted'
+          const muting = state.view === 'dms' ? !state.muted[ids[0] ?? ''] : state.view !== 'muted'
           const targets = ids
-            .map((id) => state.items[id])
+            .map((id) => state.view === 'dms' ? state.directMessages[id] : state.items[id])
             .filter((item): item is InboxItem => item !== undefined && !item.thread)
           if (!targets.length) return
           const targetIds = targets.map((item) => item.id)
@@ -566,7 +657,8 @@ export const useStore = create<InboxState>()(
             setMuteOverrides(channels, muted)
             for (const channel of channels) run(localApi.setMuted(channel, muted))
           }
-          removeAndAdvance(targetIds, () => apply(muting))
+          if (state.view === 'dms') apply(muting)
+          else removeAndAdvance(targetIds, () => apply(muting))
           showToast(`${muting ? 'Muted' : 'Unmuted'} ${pluralize(channels.length, 'conversation')}`, {
             undo: () => {
               apply(!muting)
@@ -655,6 +747,13 @@ export const useStore = create<InboxState>()(
             return false
           }
           set({ threadTarget: undefined })
+          if (state.view === 'dms') {
+            await get().loadHistory(item.id, get().sync?.realtime === 'connected' ? 'cached' : 'latest')
+            const updated = get().histories[item.id]?.item ?? item
+            run(localApi.markRead(item.conversation.id, latestTs(updated)).then(() => get().load()))
+            showToast('Reply sent')
+            return true
+          }
           get().markDone([item.id], 'Reply sent')
           return true
         },

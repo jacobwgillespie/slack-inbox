@@ -93,7 +93,6 @@ export function Composer({ item }: { item: InboxItem }) {
           <ArrowUpIcon />
         </button>
       </div>
-      <p className="composer-hint">Enter sends and marks the conversation read · Shift+Enter adds a line · Esc cancels</p>
     </form>
   )
 }

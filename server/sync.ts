@@ -12,11 +12,14 @@ import type {
   SyncError,
   SyncStatus,
   ThreadPayload,
+  HistoryPayload,
 } from '../src/slack/types.ts'
 import { Classifier, type ClassifierOptions } from './classifier.ts'
 import type { Database, StoredConversation } from './database.ts'
 import { Preferences } from './preferences.ts'
 import { Threads } from './threads.ts'
+import { History } from './history.ts'
+import { Files } from './files.ts'
 import { RealtimeConnection, type RealtimeEvent } from './realtime.ts'
 import { SlackError, type SlackClient } from './slack-client.ts'
 import {
@@ -92,6 +95,8 @@ export class SyncEngine {
   private readonly preferences: Preferences
   private readonly threads?: Threads
   private readonly classifier?: Classifier
+  private readonly messageHistory: History
+  private readonly files: Files
 
   constructor(
     private readonly database: Database,
@@ -107,6 +112,8 @@ export class SyncEngine {
       done: 0,
       total: 0,
     }
+    this.messageHistory = new History(database, client)
+    this.files = new Files(database, client)
     if (classifierOptions) {
       this.classifier = new Classifier(database, classifierOptions, {
         session: () => this.session,
@@ -126,7 +133,10 @@ export class SyncEngine {
       )
       this.realtime = new RealtimeConnection(client, {
         onEvent: (event) => this.handleRealtimeEvent(event),
-        onStateChange: (realtime) => this.setStatus({ realtime }),
+        onStateChange: (realtime) => {
+          if (realtime !== 'connected') this.messageHistory.invalidateLive()
+          this.setStatus({ realtime })
+        },
         onConnected: () => this.requestSync(),
       })
     }
@@ -179,7 +189,9 @@ export class SyncEngine {
         ]
       : []
     const later = this.preferences.later()
-    const ids = referencedUserIds([...items, ...later])
+    const directMessages = this.database.directMessages()
+    const ids = referencedUserIds([...items, ...later, ...directMessages])
+    if (this.session) ids.push(this.session.userId)
     const users = this.database.usersById(ids)
     this.requestMissingUsers(ids.filter((id) => !users[id]))
     return {
@@ -187,6 +199,7 @@ export class SyncEngine {
       session: this.session,
       sync: this.status,
       items,
+      directMessages,
       later,
       muted: this.database.mutedConversationIds(),
       preferenceSource: this.preferences.source,
@@ -265,7 +278,10 @@ export class SyncEngine {
       text,
       thread_ts: threadTs,
     })
-    if (result.message) this.database.upsertMessages(channel, [toMessage(result.message)])
+    if (result.message) {
+      this.database.upsertMessages(channel, [toMessage(result.message)])
+      this.messageHistory.observeMessage(channel, result.message.ts)
+    }
     this.changed()
   }
 
@@ -278,6 +294,23 @@ export class SyncEngine {
     const users = this.database.usersById(ids)
     this.requestMissingUsers(ids.filter((id) => !users[id]))
     return { messages, users }
+  }
+
+  imagePreview(id: string) {
+    return this.files.image(id)
+  }
+
+  async history(channel: string, options: { before?: string; after?: string; cached?: boolean }): Promise<HistoryPayload> {
+    const page = await this.messageHistory.page(channel, {
+      ...options,
+      maxAge: this.status.realtime === 'connected' ? REALTIME_SYNC_INTERVAL : USER_SYNC_INTERVAL,
+      live: this.status.realtime === 'connected',
+    })
+    const ids = [...messageUserIds(page.messages)]
+    const users = this.database.usersById(ids)
+    this.requestMissingUsers(ids.filter((id) => !users[id]))
+    if (!options.cached) this.changed()
+    return { ...page, users }
   }
 
   private syncInterval() {
@@ -328,6 +361,9 @@ export class SyncEngine {
       default:
         if (typeof event.ts === 'string') {
           this.database.upsertMessages(channel, [toMessage(event as unknown as Message)])
+          if (!event.thread_ts || event.thread_ts === event.ts || event.subtype === 'thread_broadcast') {
+            this.messageHistory.observeMessage(channel, event.ts)
+          }
           this.classifier?.schedule()
         }
     }
@@ -435,6 +471,7 @@ export class SyncEngine {
 
     const tracked = counts.filter((count) => known.has(count.id))
     this.database.setReadStates(tracked.map((count) => [count.id, count.last_read ?? '0']))
+    this.database.setLatestStates(tracked.flatMap((count) => count.latest ? [[count.id, count.latest]] : []))
     this.changed()
 
     const outdated = tracked.filter(

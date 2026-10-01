@@ -194,10 +194,10 @@ export function formatMessageTime(ts: string): string {
   return `${dateFormat.format(date)}, ${timeFormat.format(date)}`
 }
 
-export function isSameAuthorGroup(previous: Message | undefined, message: Message): boolean {
+export function isSameAuthorGroup(previous: Message | undefined, message: Message, maxGapMs = 5 * 60 * 1000): boolean {
   if (!previous) return false
   const sameAuthor = previous.user === message.user && previous.username === message.username
-  return sameAuthor && tsDate(message.ts).getTime() - tsDate(previous.ts).getTime() < 5 * 60 * 1000
+  return sameAuthor && tsDate(message.ts).getTime() - tsDate(previous.ts).getTime() < maxGapMs
 }
 
 export function permalink(session: Session, channel: string, ts?: string): string {

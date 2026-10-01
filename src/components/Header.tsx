@@ -7,6 +7,7 @@ const VIEW_LABELS: Record<View, string> = {
   other: 'Other',
   later: 'Later',
   muted: 'Muted',
+  dms: 'DMs',
 }
 
 export function Header() {
@@ -41,20 +42,28 @@ export function Header() {
           </button>
         </div>
       </div>
-      <nav className="tabs" aria-label="Views">
-        {VIEWS.map((candidate, index) => (
-          <button
-            key={candidate}
-            className={`tab${candidate === view ? ' active' : ''}`}
-            onClick={() => setView(candidate)}
-            title={`${index + 1}`}
-            aria-pressed={candidate === view}
-          >
-            {VIEW_LABELS[candidate]}
-            <span className="tab-count">{counts[candidate]}</span>
-          </button>
-        ))}
+      <nav className="section-tabs" aria-label="Inbox or direct messages">
+        <button className={view !== 'dms' ? 'active' : ''} aria-pressed={view !== 'dms'} onClick={() => setView('important')}>Inbox</button>
+        <button className={view === 'dms' ? 'active' : ''} aria-pressed={view === 'dms'} onClick={() => setView('dms')}>
+          DMs <span>{counts.dms}</span>
+        </button>
       </nav>
+      {view !== 'dms' && (
+        <nav className="tabs" aria-label="Views">
+          {VIEWS.filter((candidate) => candidate !== 'dms').map((candidate, index) => (
+            <button
+              key={candidate}
+              className={`tab${candidate === view ? ' active' : ''}`}
+              onClick={() => setView(candidate)}
+              title={`${index + 1}`}
+              aria-pressed={candidate === view}
+            >
+              {VIEW_LABELS[candidate]}
+              <span className="tab-count">{counts[candidate]}</span>
+            </button>
+          ))}
+        </nav>
+      )}
       <div className="sync-status" role="status">
         {sync?.error && !scanning && (
           <span className="scan-status scan-error" title={sync.error.message}>

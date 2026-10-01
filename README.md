@@ -1,6 +1,6 @@
 # Slack Inbox
 
-A keyboard-driven inbox for unread Slack messages. Each conversation with unread messages is one row. Mark a row as read, save it for later, mute it, or reply without leaving the list.
+A keyboard-driven inbox for unread Slack messages and a viewer for direct messages. Each unread conversation is one inbox row. Mark a row as read, save it for later, mute it, or reply without leaving the list. The **DMs** tab shows read and unread conversations with messages from both sides.
 
 ## Setup
 
@@ -30,9 +30,11 @@ The Vite server runs a sync process that copies your Slack data into a local SQL
 - Users, custom emoji, and the list of conversations refresh once an hour.
 - With a session token, the server keeps a real-time connection to Slack. New messages, edits, deletions, reactions, and conversations you read in other Slack apps appear at once. A full check of unread state also runs every 5 minutes, and after each reconnection, to catch anything the connection missed. The header shows **Live** while the connection is open.
 - With a user token, Slack does not offer a real-time connection, so the server checks unread state continuously.
-- Message history is fetched only for conversations that have new messages.
+- Unread message history is fetched only for conversations that have new messages. DM history loads when you open a conversation or scroll to an earlier page.
 - When you mark a conversation as read or send a reply, the server updates Slack and the database.
 - The server tells the browser when data changes, so the inbox updates without a reload.
+
+Image attachments load inline as you scroll. The server authenticates downloads and caches previews in SQLite; your token stays out of the browser. If a preview is unavailable, the attachment remains a link to Slack. User OAuth tokens need the `files:read` scope from the app manifest; existing installations need to be reinstalled after adding that scope.
 
 Because the server does this work, the app only runs through `pnpm dev` or `pnpm preview`, not as static files. To start again with an empty database, stop the server and delete the `data` directory. To store the database somewhere else, set `SLACK_DATABASE_PATH` in `.env.local`.
 
@@ -90,6 +92,11 @@ Message text and the context the model reads are sent to OpenAI.
 | Other     | All other channels with unread messages                                            |
 | Later     | Messages in your Slack **Later** list                                              |
 | Muted     | Muted conversations that have unread messages                                      |
+| DMs       | All direct and group messages, including read and muted conversations              |
+
+In **DMs**, opening a conversation shows its latest messages. The eight most recently opened DMs retain their rendered panels, scroll positions, and unsent drafts when you switch conversations. Hidden panels pause polling. Scroll up or select **Load earlier messages** to load older messages, 100 at a time. The app preserves your scroll position as messages load. The arrow above the composer returns you to the latest messages. Hover over a bubble to reply in a thread. Swipe or drag left to reveal timestamps on the right; they spring closed when you release. Group DMs show other participants' names at the start of each message group; one-to-one DMs omit sender names.
+
+Fetched pages stay in SQLite across app restarts. The server tracks which time ranges are complete, so messages saved by the inbox do not hide gaps in history. Opening the sidebar does not fetch every DM's history. With a live connection, new messages update the cache immediately, and the selected conversation checks its latest page at most once every 5 minutes. Without a live connection, this check runs once a minute. Reconnecting also checks for missed messages. Earlier cached pages load without another Slack request.
 
 With a session token, each thread you follow that has unread replies appears in Important as its own row. The row shows the thread's first message and the unread replies. Pressing `E` marks the thread as read in Slack, and `R` replies in the thread. Muting a channel does not hide its threads, which matches Slack's Threads view.
 
@@ -116,14 +123,14 @@ Mute changes made in Slack appear at once. Later changes made in Slack appear at
 | `R`             | Reply in the conversation                                |
 | `T`             | Reply in the thread of the current message               |
 | `U`             | Open in Slack                                            |
-| `Tab` / `1`–`4` | Change view                                              |
+| `Tab` / `1`–`5` | Change view                                              |
 | `Shift+R`       | Refresh                                                  |
 | `?`             | Show all shortcuts                                       |
 
-Sending a reply also marks the conversation as read.
+Sending a reply also marks the conversation as read. In **DMs**, the conversation stays open after you send or mark it as read.
 
 ## Limits
 
 - Unread replies in threads you follow need a session token. With only a user token, the inbox shows unread top-level messages only. You can still expand threads and reply in them.
-- The app loads up to 100 unread messages for each conversation.
+- The inbox loads up to 100 unread messages for each conversation. The **DMs** view loads additional history as you scroll.
 - With a user token, each scan checks every conversation you belong to, which takes minutes in a large workspace. Direct messages are checked first. See [Faster scans with a session token](#faster-scans-with-a-session-token-optional).

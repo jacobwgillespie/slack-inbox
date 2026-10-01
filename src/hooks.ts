@@ -12,6 +12,7 @@ function useVisibleSource() {
   return useStore(
     useShallow((state) => ({
       items: state.items,
+      directMessages: state.directMessages,
       later: state.later,
       muted: state.muted,
       view: state.view,
@@ -92,7 +93,14 @@ export function useInboxSync() {
       loading = true
       do {
         stale = false
+        const previousRealtime = useStore.getState().sync?.realtime
         await load()
+        const state = useStore.getState()
+        if (state.view === 'dms' && state.selectedId && state.histories[state.selectedId]?.item) {
+          await state.loadHistory(state.selectedId,
+            previousRealtime !== 'connected' && state.sync?.realtime === 'connected' ? 'latest' : 'cached',
+          )
+        }
       } while (stale)
       loading = false
     }

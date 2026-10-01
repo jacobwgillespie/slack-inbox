@@ -6,16 +6,20 @@ import type {
   Classification,
   ClassificationLabel,
   Conversation,
+  DirectMessage,
   InboxItem,
   LaterItem,
   Message,
   SavedItemReference,
+  SlackFile,
   User,
 } from '../src/slack/types.ts'
 
 const IGNORED_SUBTYPES = ['channel_join', 'channel_leave', 'group_join', 'group_leave']
 
 const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS image_previews (id TEXT PRIMARY KEY, content_type TEXT NOT NULL, data BLOB NOT NULL);
   CREATE TABLE IF NOT EXISTS metadata (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -45,6 +49,12 @@ const SCHEMA = `
     PRIMARY KEY (conversation_id, ts)
   );
   CREATE INDEX IF NOT EXISTS messages_by_thread ON messages (conversation_id, thread_ts);
+  CREATE TABLE IF NOT EXISTS history_ranges (
+    conversation_id TEXT NOT NULL,
+    oldest TEXT NOT NULL,
+    newest TEXT NOT NULL,
+    PRIMARY KEY (conversation_id, oldest)
+  );
   CREATE TABLE IF NOT EXISTS threads (
     conversation_id TEXT NOT NULL,
     thread_ts TEXT NOT NULL,
@@ -84,7 +94,15 @@ const SCHEMA = `
   );
 `
 
-const COLUMN_MIGRATIONS = [{ table: 'conversations', column: 'is_muted', definition: 'INTEGER NOT NULL DEFAULT 0' }]
+const COLUMN_MIGRATIONS = [
+  { table: 'conversations', column: 'is_muted', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'conversations', column: 'latest_ts', definition: 'TEXT' },
+]
+
+export interface HistoryRange {
+  oldest: string
+  newest: string
+}
 
 export type SavedItemState = 'in_progress' | 'completed'
 
@@ -205,6 +223,9 @@ export class Database {
         'emoji',
         'conversations',
         'messages',
+        'files',
+        'image_previews',
+        'history_ranges',
         'saved_items',
         'threads',
         'classifications',
@@ -293,6 +314,75 @@ export class Database {
     this.transaction(() => {
       const update = this.db.prepare('UPDATE conversations SET last_read = ? WHERE id = ?')
       for (const [id, lastRead] of states) update.run(lastRead, id)
+    })
+  }
+
+  setLatestStates(states: [id: string, ts: string][]) {
+    this.transaction(() => {
+      const update = this.db.prepare('UPDATE conversations SET latest_ts = ? WHERE id = ?')
+      for (const [id, ts] of states) update.run(ts, id)
+    })
+  }
+
+  directMessages(channel?: string): DirectMessage[] {
+    const rows = this.db.prepare(
+      `SELECT c.id, c.data, c.last_read, c.latest_ts,
+         (SELECT m.data FROM messages m WHERE m.conversation_id = c.id AND ${topLevel('m.')}
+          ORDER BY m.ts DESC LIMIT 1) AS message
+       FROM conversations c WHERE c.is_member = 1 AND json_extract(c.data, '$.kind') IN ('dm', 'group')
+       ${channel ? 'AND c.id = ?' : ''}`,
+    ).all(...(channel ? [channel] : [])) as { id: string; data: string; last_read: string | null; latest_ts: string | null; message: string | null }[]
+    return rows.map((row) => {
+      const message = row.message ? JSON.parse(row.message) as Message : undefined
+      return {
+        id: row.id,
+        conversation: JSON.parse(row.data) as Conversation,
+        messages: message ? [message] : [],
+        lastRead: row.last_read ?? undefined,
+        latestTs: row.latest_ts && compareTs(row.latest_ts, message?.ts ?? '0') > 0 ? row.latest_ts : message?.ts ?? '0',
+      }
+    })
+  }
+
+  historyRange(channel: string, before?: string): HistoryRange | undefined {
+    return this.db.prepare(
+      `SELECT oldest, newest FROM history_ranges WHERE conversation_id = ?
+       ${before ? 'AND oldest <= ? AND newest >= ?' : ''} ORDER BY newest DESC LIMIT 1`,
+    ).get(channel, ...(before ? [before, before] : [])) as HistoryRange | undefined
+  }
+
+  historyMessages(channel: string, oldest: string, before?: string, limit = 101, newest?: string): Message[] {
+    const rows = this.db.prepare(
+      `SELECT data FROM messages WHERE conversation_id = ? AND ts >= ? AND ${topLevel()}
+       ${before ? 'AND ts < ?' : ''} ${newest ? 'AND ts <= ?' : ''} ORDER BY ts DESC LIMIT ?`,
+    ).all(channel, oldest, ...(before ? [before] : []), ...(newest ? [newest] : []), limit) as { data: string }[]
+    return rows.map((row) => JSON.parse(row.data) as Message)
+  }
+
+  extendHistoryRange(channel: string, newest: string) {
+    const range = this.historyRange(channel)
+    if (range && compareTs(newest, range.newest) > 0) {
+      this.db.prepare('UPDATE history_ranges SET newest = ? WHERE conversation_id = ? AND oldest = ?')
+        .run(newest, channel, range.oldest)
+    }
+  }
+
+  cacheHistoryPage(channel: string, messages: Message[], range: HistoryRange) {
+    this.transaction(() => {
+      this.db.prepare(
+        `DELETE FROM messages WHERE conversation_id = ? AND ts >= ? AND ts < ? AND ${topLevel()}`,
+      ).run(channel, range.oldest, range.newest)
+      this.insertMessages(channel, messages)
+      const overlaps = this.db.prepare(
+        `SELECT oldest, newest FROM history_ranges WHERE conversation_id = ? AND oldest <= ? AND newest >= ?`,
+      ).all(channel, range.newest, range.oldest) as unknown as HistoryRange[]
+      for (const overlap of overlaps) {
+        this.db.prepare('DELETE FROM history_ranges WHERE conversation_id = ? AND oldest = ?').run(channel, overlap.oldest)
+        if (compareTs(overlap.oldest, range.oldest) < 0) range.oldest = overlap.oldest
+        if (compareTs(overlap.newest, range.newest) > 0) range.newest = overlap.newest
+      }
+      this.db.prepare('INSERT INTO history_ranges (conversation_id, oldest, newest) VALUES (?, ?, ?)')
+        .run(channel, range.oldest, range.newest)
     })
   }
 
@@ -634,6 +724,36 @@ export class Database {
     this.transaction(() => this.insertMessages(conversationId, messages))
   }
 
+  file(id: string): SlackFile | undefined {
+    const row = this.db.prepare('SELECT data FROM files WHERE id = ?').get(id) as { data: string } | undefined
+    if (row) return JSON.parse(row.data) as SlackFile
+    // Older cached messages only retained the filename and Slack link.
+    const legacy = this.db.prepare(
+      `SELECT f.value AS data FROM messages m, json_each(m.data, '$.files') f
+       WHERE json_extract(f.value, '$.id') = ? LIMIT 1`,
+    ).get(id) as { data: string } | undefined
+    return legacy ? JSON.parse(legacy.data) as SlackFile : undefined
+  }
+
+  cacheFile(file: SlackFile) {
+    const row = this.db.prepare('SELECT data FROM files WHERE id = ?').get(file.id) as { data: string } | undefined
+    const previous = row ? JSON.parse(row.data) as SlackFile : undefined
+    const fields = Object.fromEntries(Object.entries(file).filter(([, value]) => value !== undefined))
+    this.db.prepare('INSERT INTO files (id, data) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET data = excluded.data')
+      .run(file.id, JSON.stringify({ ...previous, ...fields }))
+  }
+
+  imagePreview(id: string): { contentType: string; data: Uint8Array } | undefined {
+    const row = this.db.prepare('SELECT content_type, data FROM image_previews WHERE id = ?').get(id) as
+      { content_type: string; data: Uint8Array } | undefined
+    return row && { contentType: row.content_type, data: row.data }
+  }
+
+  cacheImagePreview(id: string, contentType: string, data: Uint8Array) {
+    this.db.prepare('INSERT OR REPLACE INTO image_previews (id, content_type, data) VALUES (?, ?, ?)')
+      .run(id, contentType, data)
+  }
+
   inbox(selfId: string, messageLimit: number): InboxItem[] {
     const ignored = IGNORED_SUBTYPES.map(() => '?').join(', ')
     const rows = this.db
@@ -677,6 +797,7 @@ export class Database {
         message.subtype ?? null,
         JSON.stringify(message),
       )
+      for (const file of message.files ?? []) this.cacheFile(file)
     }
   }
 }

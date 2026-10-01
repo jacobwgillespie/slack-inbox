@@ -2,6 +2,7 @@ import { useEffect, useRef, type MouseEvent } from 'react'
 import { conversationLabel, formatListTime, messageSummary, authorName } from '../format'
 import { useFormatContext, useVisibleItems } from '../hooks'
 import { latestTs, mentionsSelf, useStore, type View } from '../store'
+import { compareTs } from '../slack/timestamps'
 import type { InboxItem } from '../slack/types'
 import { ConversationIcon } from './Avatar'
 import { CheckIcon, ClockIcon, MuteIcon } from './Icons'
@@ -11,6 +12,7 @@ const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
   other: { title: 'Nothing else unread', detail: 'Every channel is read.' },
   later: { title: 'Nothing saved', detail: 'Press L on a conversation, or save a message for later in Slack.' },
   muted: { title: 'No muted unreads', detail: 'Muted conversations with unread messages appear here.' },
+  dms: { title: 'No direct messages yet', detail: 'Your Slack conversations will appear here after syncing.' },
 }
 
 export function ItemList() {
@@ -53,6 +55,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const selected = useStore((state) => state.selectedId === id)
   const checked = useStore((state) => Boolean(state.checked[id]))
   const reading = useStore((state) => state.mode === 'reading')
+  const dm = useStore((state) => state.directMessages[id])
   const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = useStore.getState()
   const ref = useRef<HTMLLIElement>(null)
 
@@ -60,6 +63,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const label = conversationLabel(item.conversation, context.users, session)
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
   const mentioned = item.conversation.kind !== 'dm' && mentionsSelf(item, session)
+  const unread = view === 'dms' && dm && compareTs(dm.latestTs, dm.lastRead ?? '0') > 0
 
   useEffect(() => {
     if (selected) ref.current?.scrollIntoView({ block: 'nearest' })
@@ -67,7 +71,7 @@ function ItemRow({ item }: { item: InboxItem }) {
 
   const onClick = (event: MouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey) toggleChecked(id)
-    else if (selected && !reading) open(id)
+    else if (view === 'dms' || (selected && !reading)) open(id)
     else select(id)
   }
 
@@ -80,21 +84,23 @@ function ItemRow({ item }: { item: InboxItem }) {
 
   return (
     <li ref={ref} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
-      <button
+      {view !== 'dms' && <button
         className="done-button"
         title={view === 'later' ? 'Mark complete (E)' : 'Mark as read (E)'}
         onClick={action((ids) => markDone(ids))}
       >
         <CheckIcon />
       </button>
+      }
       <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
       <div className="item-body">
         <div className="item-heading">
           <span className="item-title">{label}</span>
-          {item.messages.length > 1 && <span className="item-count">{item.messages.length}</span>}
+          {unread && <span className="unread-dot" aria-label="Unread" />}
+          {view !== 'dms' && item.messages.length > 1 && <span className="item-count">{item.messages.length}</span>}
           {item.thread && <span className="item-flag item-flag-thread">Thread</span>}
           {mentioned && <span className="item-flag">Mention</span>}
-          <time className="item-time">{formatListTime(latestTs(item))}</time>
+          <time className="item-time">{latestTs(item) !== '0' && formatListTime(latestTs(item))}</time>
         </div>
         {item.thread && (
           <p className="item-context">
@@ -107,9 +113,10 @@ function ItemRow({ item }: { item: InboxItem }) {
             {messageSummary(latest, context)}
           </p>
         )}
+        {view === 'dms' && !latest && <p className="item-preview">Open conversation</p>}
       </div>
       <div className="item-actions">
-        {view !== 'later' && (
+        {view !== 'later' && view !== 'dms' && (
           <>
             <button title="Save for later (L)" onClick={action(saveForLater)}>
               <ClockIcon />

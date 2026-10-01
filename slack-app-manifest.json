@@ -19,6 +19,7 @@
         "mpim:read",
         "mpim:write",
         "chat:write",
+        "files:read",
         "users:read",
         "emoji:read"
       ]

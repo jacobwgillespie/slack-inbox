@@ -12,6 +12,11 @@ export interface SlackFile {
   name?: string
   title?: string
   permalink?: string
+  mimetype?: string
+  url_private?: string
+  thumb_720?: string
+  original_w?: number
+  original_h?: number
 }
 
 export interface SlackAttachment {
@@ -76,6 +81,18 @@ export interface InboxItem {
   thread?: ThreadContext
 }
 
+export interface DirectMessage extends InboxItem {
+  lastRead?: string
+  latestTs: string
+}
+
+export interface HistoryPayload {
+  messages: Message[]
+  users: Record<string, User>
+  hasMore: boolean
+  before?: string
+}
+
 export interface LaterItem extends InboxItem {
   ts: string
   savedAt: number
@@ -116,6 +133,7 @@ export interface InboxPayload {
   session?: Session
   sync: SyncStatus
   items: InboxItem[]
+  directMessages: DirectMessage[]
   later: LaterItem[]
   muted: string[]
   preferenceSource: PreferenceSource
