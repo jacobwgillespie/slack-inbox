@@ -7,7 +7,7 @@ import { WebviewImage } from './WebviewImage'
 import type { Classification, Message } from '../slack/types'
 import { Avatar } from './Avatar'
 import { FileAttachment, isImageFile } from './FileAttachment'
-import { ReplyIcon, ThreadIcon } from './Icons'
+import { BookmarkIcon, ReplyIcon, ThreadIcon } from './Icons'
 
 export function MessageView({ channel, message, continued, continues = false, webview = false }: {
   channel: string
@@ -66,6 +66,7 @@ export function MessageView({ channel, message, continued, continues = false, we
           >
             <ReplyIcon />
           </button>
+          <SaveLaterButton channel={channel} message={message} />
         </div>
   )
 
@@ -129,6 +130,7 @@ export function MessageView({ channel, message, continued, continues = false, we
               {thread.map((reply, index) => (
                 <ThreadReply
                   key={reply.ts}
+                  channel={channel}
                   message={reply}
                   compact={compact || (group && reply.user === session?.userId)}
                   continued={isSameAuthorGroup(thread[index - 1], reply)}
@@ -170,12 +172,13 @@ function ClassificationTag({ classification }: { classification: Classification 
   )
 }
 
-function ThreadReply({ message, continued, compact }: { message: Message; continued: boolean; compact: boolean }) {
+function ThreadReply({ channel, message, continued, compact }: { channel: string; message: Message; continued: boolean; compact: boolean }) {
   const context = useFormatContext(message.emoji)
   const name = authorName(message, context.users)
 
   return (
     <div className={`thread-reply${continued ? ' continued' : ''}`}>
+      <SaveLaterButton channel={channel} message={message} className="thread-save" />
       <div className="message-gutter">
         {!continued && <Avatar url={authorAvatar(message, context.users)} name={name} size="small" />}
       </div>
@@ -194,5 +197,19 @@ function ThreadReply({ message, continued, compact }: { message: Message; contin
         ) : null}
       </div>
     </div>
+  )
+}
+
+function SaveLaterButton({ channel, message, className = '' }: { channel: string; message: Message; className?: string }) {
+  const saved = useStore((state) => Boolean(state.later[`${channel}:${message.ts}`]))
+  const label = saved ? 'Saved for later' : 'Save message for later'
+  return (
+    <button
+      className={`icon-button ${className}`}
+      aria-label={label}
+      title={label}
+      disabled={saved}
+      onClick={(event) => { event.stopPropagation(); inboxStore.getState().saveMessageForLater(channel, message) }}
+    ><BookmarkIcon /></button>
   )
 }

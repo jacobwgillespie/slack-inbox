@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { compareTs } from '../slack/timestamps'
 import { isSameAuthorGroup } from '../format'
 import type { InboxItem, Message } from '../slack/types'
 import { useStore } from '../store'
@@ -20,10 +21,12 @@ function messageDay(ts: string): string {
   })
 }
 
-export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistory: boolean }) {
+export function MessageList({ item, fullHistory, targetTs }: { item: InboxItem; fullHistory: boolean; targetTs?: string }) {
+  const channel = item.conversation.id
+  const jumped = useRef(false)
   const fromWebview = fullHistory && Boolean(window.slackDesktop)
-  const webview = useCachedConversation(item.id, fromWebview)
-  const history = useStore((state) => state.histories[item.id])
+  const webview = useCachedConversation(channel, fromWebview)
+  const history = useStore((state) => state.histories[channel])
   const loadHistory = useStore((state) => state.loadHistory)
   const ref = useRef<HTMLDivElement>(null)
   const olderRef = useRef<HTMLDivElement>(null)
@@ -35,13 +38,17 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
 
   useEffect(() => {
     if (!fullHistory || fromWebview) return
-    void loadHistory(item.id)
-    const timer = setInterval(() => void loadHistory(item.id), 60 * 1000)
+    void loadHistory(channel)
+    const timer = setInterval(() => void loadHistory(channel), 60 * 1000)
     return () => clearInterval(timer)
-  }, [fullHistory, fromWebview, item.id, loadHistory])
+  }, [fullHistory, fromWebview, channel, loadHistory])
 
-  const messages = fromWebview ? webview.snapshot?.messages ?? [] : fullHistory && !history?.item ? [] : item.messages
-  useReadAtBottom(ref, item.id, messages.at(-1)?.ts, atBottom, fullHistory)
+  const conversationMessages = fromWebview ? webview.snapshot?.messages ?? [] : fullHistory ? history?.item?.messages ?? [] : item.messages
+  const reachedTarget = targetTs && ((conversationMessages[0] && compareTs(conversationMessages[0].ts, targetTs) <= 0) || (fromWebview ? webview.snapshot && !webview.snapshot.hasMore : history?.item && !history.hasMore))
+  const messages = targetTs && reachedTarget && !conversationMessages.some((message) => message.ts === targetTs)
+    ? [...conversationMessages, ...item.messages.filter((message) => message.ts === targetTs)].sort((a, b) => compareTs(a.ts, b.ts))
+    : conversationMessages
+  useReadAtBottom(ref, channel, messages.at(-1)?.ts, atBottom, fullHistory && (!targetTs || jumped.current))
 
   const rememberPosition = (element: HTMLDivElement) => {
     if (!element.clientHeight) return
@@ -67,18 +74,29 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
   }
 
   useLayoutEffect(() => {
-    if (ref.current && fullHistory) restorePosition(ref.current)
-  }, [fullHistory, messages, history?.loading])
+    const element = ref.current
+    if (!element || !fullHistory) return
+    if (targetTs && !jumped.current) {
+      const row = element.querySelector<HTMLElement>(`[data-message-ts="${CSS.escape(targetTs)}"]`)
+      if (!row) return
+      jumped.current = true
+      position.current.atBottom = false
+      row.classList.add('saved-message')
+      element.scrollTop += row.getBoundingClientRect().top - element.getBoundingClientRect().top - element.clientHeight / 2 + row.offsetHeight / 2
+      rememberPosition(element)
+      setAtBottom(false)
+    } else restorePosition(element)
+  }, [fullHistory, messages, history?.loading, targetTs])
 
   useLayoutEffect(() => {
     const element = ref.current
     if (!element || !fullHistory) return
-    restorePosition(element)
-    const observer = new ResizeObserver(() => restorePosition(element))
+    if (!targetTs || jumped.current) restorePosition(element)
+    const observer = new ResizeObserver(() => { if (!targetTs || jumped.current) restorePosition(element) })
     observer.observe(element)
     if (element.firstElementChild) observer.observe(element.firstElementChild)
     return () => observer.disconnect()
-  }, [fullHistory])
+  }, [fullHistory, targetTs])
 
   const showEarlier = () => {
     if (!webview.snapshot?.hasMore || webview.loadingOlder) return
@@ -88,6 +106,13 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
     }
     webview.scroll('older')
   }
+
+  useEffect(() => {
+    if (!targetTs || jumped.current || !messages.length || reachedTarget) return
+    if (fromWebview) {
+      if (!webview.loadingOlder && !webview.error) showEarlier()
+    } else if (history?.hasMore && !history.loading && !history.error) void loadHistory(channel, 'older')
+  }, [targetTs, messages, reachedTarget, fromWebview, webview.loadingOlder, webview.error, history?.loading])
 
   // Observe the top of our timeline, rather than depending on wheel input.
   // Recheck after prepending messages in case the viewport is still near it.
@@ -134,7 +159,7 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
               setAtBottom(bottom)
               if (fromWebview && element.scrollTop < 200) showEarlier()
               if (!fromWebview && fullHistory && element.scrollTop < 80 && history?.item && history.hasMore && !history.loading && !history.error) {
-                void loadHistory(item.id, 'older')
+                void loadHistory(channel, 'older')
               }
             }}
           >
@@ -145,12 +170,12 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
                   {history?.error ? (
                     <>
                       <span className="scan-error">{history.error}</span>
-                      <button className="link-button" onClick={() => void loadHistory(item.id, history.loadingOlder ? 'older' : 'latest')}>Retry</button>
+                      <button className="link-button" onClick={() => void loadHistory(channel, history.loadingOlder ? 'older' : 'latest')}>Retry</button>
                     </>
                   ) : !history?.item ? (
                     <span>Loading conversation…</span>
                   ) : history.hasMore ? (
-                    <button className="link-button" disabled={history.loading} onClick={() => void loadHistory(item.id, 'older')}>
+                    <button className="link-button" disabled={history.loading} onClick={() => void loadHistory(channel, 'older')}>
                       {history.loading && history.loadingOlder ? 'Loading earlier messages…' : 'Load earlier messages'}
                     </button>
                   ) : <span>Beginning of conversation</span>}
@@ -158,7 +183,7 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
               )}
               {fromWebview && (
                 <div className="history-status" role="status">
-                  {webview.error ? <><span className="scan-error">{webview.error}</span><button className="link-button" onClick={() => void window.slackDesktop?.refreshConversation(item.id)}>Retry sync</button></> : !webview.snapshot ? 'Loading cached conversation…' : (
+                  {webview.error ? <><span className="scan-error">{webview.error}</span><button className="link-button" onClick={() => void window.slackDesktop?.refreshConversation(channel)}>Retry sync</button></> : !webview.snapshot ? 'Loading cached conversation…' : (
                     <span>{webview.loadingOlder ? 'Loading earlier messages…' : !webview.snapshot.hasMore ? 'Beginning of conversation' : webview.snapshot.syncing ? 'Syncing earlier messages…' : ''}</span>
                   )}
                 </div>
@@ -186,7 +211,7 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
                   </Fragment>
                 )
               })}
-              {fullHistory && !fromWebview && history?.item && !item.messages.length && <p className="conversation-empty muted">No messages in this conversation yet.</p>}
+              {fullHistory && !fromWebview && history?.item && !messages.length && <p className="conversation-empty muted">No messages in this conversation yet.</p>}
             </div>
           </div>
         </div>

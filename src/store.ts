@@ -94,6 +94,7 @@ export interface InboxState {
   toggleChecked: (id?: string) => void
   markDone: (ids?: string[], message?: string) => void
   saveForLater: (ids?: string[]) => void
+  saveMessageForLater: (channel: string, message: Message) => void
   toggleMute: (ids?: string[]) => void
   recategorize: (ids?: string[]) => void
   undo: () => void
@@ -172,7 +173,7 @@ export function computeVisible(state: VisibleSource): InboxItem[] {
   const inbox = Object.values(state.items).filter((item) => !archived(item))
   switch (state.view) {
     case 'done':
-      return Object.values(summaries).filter(archived).sort((a, b) => compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name))
+      return Object.values(summaries).filter((item) => archived(item) && !state.later[`${item.id}:${state.done[item.id]}`]).sort((a, b) => compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name))
     case 'inbox':
       return Object.values(summaries).filter((item) => !archived(item)).sort((a, b) =>
         compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
@@ -656,9 +657,47 @@ export const inboxStore = create<InboxState>()(
           showToast(message ?? `Marked ${pluralize(removed.length, 'conversation')} as read`, { undo: restore })
         },
 
+        saveMessageForLater: (channel, message) => {
+          const state = get()
+          const conversation = state.channels[channel]?.conversation ?? state.directMessages[channel]?.conversation ?? currentItem(state)?.conversation
+          if (!conversation || conversation.id !== channel) return
+          const item: LaterItem = { id: `${channel}:${message.ts}`, conversation, messages: [message], ts: message.ts, savedAt: Date.now() }
+          run(localApi.saveForLater(channel, message.ts).then(({ created }) => {
+            setLaterOverrides([[item.id, item]])
+            showToast('Saved message for later', {
+              undo: created ? () => {
+                run(localApi.removeLater(channel, message.ts).then(() => setLaterOverrides([[item.id, undefined]])))
+              } : undefined,
+            })
+          }))
+        },
+
         saveForLater: (ids = targetIds()) => {
           const state = get()
-          if (!ids.length || state.view === 'later' || isConversationView(state.view)) return
+          if (!ids.length || state.view === 'later' || state.view === 'done') return
+          if (state.view === 'inbox') {
+            const targets = ids.map((id) => state.channels[id] ?? state.directMessages[id]).filter((item): item is ConversationSummary => item !== undefined && item.latestTs !== '0')
+            run((async () => {
+              for (const target of targets) {
+                const ts = target.latestTs
+                const { created } = await localApi.saveForLater(target.id, ts)
+                const saved = toLaterItem(target)
+                if (saved && saved.ts === ts) setLaterOverrides([[saved.id, saved]])
+                const previous = get().done[target.id]
+                const apply = () => setDone(target.id, ts)
+                if (get().view === 'inbox') removeAndAdvance([target.id], apply)
+                else apply()
+                showToast('Moved conversation to Later', {
+                  undo: () => {
+                    setDone(target.id, previous, false)
+                    if (created) run(localApi.removeLater(target.id, ts).then(() => setLaterOverrides([[`${target.id}:${ts}`, undefined]])))
+                    reselect([target.id])
+                  },
+                })
+              }
+            })())
+            return
+          }
           const moved = ids.map((id) => state.items[id]).filter((item) => item !== undefined)
           const saved = moved.map(toLaterItem).filter((item) => item !== undefined)
           const requests = saved.map((item) => localApi.saveForLater(item.conversation.id, item.ts))

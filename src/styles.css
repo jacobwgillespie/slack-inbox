@@ -1951,3 +1951,11 @@ a:focus-visible {
 }
 .onboarding-start:hover { background: #e4e4e4; }
 .onboarding-start:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+
+.later-button { right: 38px; }
+.message-row.saved-message .message-bubble { outline: 1px solid var(--text-muted); outline-offset: 3px; }
+
+.thread-reply { position: relative; padding-right: 32px; }
+.thread-save { position: absolute; top: 0; right: 0; opacity: 0; }
+.thread-reply:hover > .thread-save,
+.thread-reply:focus-within > .thread-save { opacity: 1; }

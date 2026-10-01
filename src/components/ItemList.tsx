@@ -12,7 +12,7 @@ import { ArrowLeftIcon, CheckIcon, ClockIcon, MuteIcon } from './Icons'
 const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
   important: { title: 'All caught up', detail: 'No unread direct messages or mentions.' },
   other: { title: 'Nothing else unread', detail: 'Every channel is read.' },
-  later: { title: 'Nothing saved', detail: 'Save a message for later in Slack to see it here.' },
+  later: { title: 'Nothing saved', detail: 'Save a message for later using its bookmark button, or move a conversation to Later.' },
   muted: { title: 'No muted unreads', detail: 'Muted conversations with unread messages appear here.' },
   done: { title: 'Nothing done yet', detail: 'Press E on a DM or channel to mark it done.' },
   inbox: { title: 'Inbox is empty', detail: 'Your Slack channels and direct messages will appear here after syncing.' },
@@ -156,6 +156,15 @@ function ItemRow({ item }: { item: InboxItem }) {
       >
         {view === 'done' ? <ArrowLeftIcon /> : <CheckIcon />}
       </button>
+      {view === 'inbox' && (
+        <button
+          className="done-button later-button"
+          title="Move to Later (L)"
+          aria-label={`Move to Later: ${label}`}
+          onClick={action((ids) => saveForLater(ids))}
+          onDoubleClick={(event) => event.stopPropagation()}
+        ><ClockIcon /></button>
+      )}
       <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
       <div className="item-body">
         <div className="item-heading">

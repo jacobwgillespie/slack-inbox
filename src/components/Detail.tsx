@@ -2,7 +2,7 @@ import { prepareConversation } from '../cacheConversationResource'
 import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
 import { dmCollection, channelCollection } from '../collections'
-import type { InboxItem } from '../slack/types'
+import type { InboxItem, LaterItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
 import { useCurrentItem, useFormatContext } from '../hooks'
@@ -40,10 +40,16 @@ function DeferredDetail() {
           <RetainedConversation id={id} active={selected === id} view={view} />
         </Activity>
       ))}
-      {!isConversationView(view) && <ConversationDetail key={`${view}:${item?.id}`} item={item} view={view} />}
+      {view === 'later' && item && <LaterConversation key={item.id} item={item} />}
+      {!isConversationView(view) && (view !== 'later' || !item) && <ConversationDetail key={`${view}:${item?.id}`} item={item} view={view} />}
       {isConversationView(view) && !selected && <ConversationDetail view={view} />}
     </>
   )
+}
+
+function LaterConversation({ item }: { item: InboxItem }) {
+  if (window.slackDesktop) use(prepareConversation(item.conversation.id))
+  return <ConversationDetail item={item} view="later" />
 }
 
 function RetainedConversation({ id, active, view }: { id: string; active: boolean; view: View }) {
@@ -140,7 +146,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           )}
         </div>
       </header>
-      <MessageList item={item} fullHistory={isConversationView(view)} />
+      <MessageList item={item} fullHistory={isConversationView(view) || view === 'later'} targetTs={view === 'later' ? (item as LaterItem).ts : undefined} />
       <div className="conversation-composer">
         <Toast />
         <TypingIndicator channel={item.conversation.id} />

@@ -33,7 +33,7 @@ export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void })
           <section className="onboarding-step">
             <div className="onboarding-step-icon"><ClockIcon /></div>
             <div><h2>Later</h2>
-              <p>Messages you’ve saved for later in Slack.</p></div>
+              <p>Messages saved here or in Slack. Use the clock on a conversation to move it here.</p></div>
           </section>
           <section className="onboarding-step">
             <div className="onboarding-step-icon"><CheckIcon /></div>
