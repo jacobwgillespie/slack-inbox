@@ -262,10 +262,21 @@ kbd {
 }
 
 .sidebar-footer {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 16px;
+}
+
+.sidebar-footer::before {
+  content: '';
+  position: absolute;
+  inset: -32px 0 auto;
+  height: 32px;
+  background: linear-gradient(to top, var(--surface), transparent);
+  pointer-events: none;
 }
 
 .workspace-link {
@@ -780,7 +791,7 @@ kbd {
 }
 
 .message-row.continued {
-  margin-top: -10px;
+  margin-top: -14px;
 }
 
 .message-row:has(.reactions) {
