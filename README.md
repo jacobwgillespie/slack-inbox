@@ -23,6 +23,26 @@ The app needs Node.js 22.13 or later.
 
 A native macOS prototype built with GPUI is in [`gpui/`](gpui/README.md). It works on its own, without this web app.
 
+## Electron desktop experiment
+
+Run `pnpm desktop` to install Electron's runtime, build the app, and open the desktop window. If `.env.local` already has `SLACK_SESSION_TOKEN` and `SLACK_SESSION_COOKIE`, the desktop shell validates that session and reuses its Slack cookie automatically. Otherwise, use **Open Slack to sign in** for the first login. After signing in, return with **Back to Inbox**.
+
+The separate Chrome login is experimental: a fresh profile with debugging enabled may trigger repeated CAPTCHA challenges. Prefer the configured-session path when available.
+
+For macOS SSO requiring an existing passkey, choose **Sign in with Chrome / passkey**. This opens the installed Google Chrome in a dedicated `userData/signin-chrome` profile, where you can choose a physical security key or scan Chrome's QR code and use a passkey on your phone. Your regular Chrome profile and its extensions are not used. Once Slack opens, the app imports only Slack-domain cookies into its embedded profile, closes the dedicated Chrome window, and resumes sync automatically. Rippling/other SSO cookies remain in the dedicated browser profile. Communication uses a private DevTools pipe, with no debugging port. Set `SLACK_SIGNIN_CHROME` to override the Chrome executable path. The default path targets macOS.
+
+Electron 44's macOS Touch ID credentials belong to the app and cannot use your existing Rippling passkey, so native `configureWebAuthn({ touchID: ... })` is not enabled. The ordinary `pnpm dev` browser version still works with its existing credentials.
+
+The desktop shell hosts the React app and a separate, sandboxed Slack `WebContentsView`. Slack cookies and storage persist in the app's own profile. The shell captures Slack's session token from its API requests in memory and uses that profile's Chromium network stack for API calls and image downloads. It does not copy credentials into `.env.local` or expose them to React.
+
+Slack's own WebSocket frames feed messages, edits, deletions, reactions, and read markers into the existing sync engine. No second realtime socket is opened. SQLite still supplies the UI, caches image bytes and history pages, and records history coverage. Polling and reconnection checks remain available when observed realtime updates stop.
+
+**Open Slack** in a conversation explicitly reveals that conversation in the real Slack client, where its composer provides mentions, slash commands, and other workflows. Selecting DMs in our viewer does not navigate Slack. Composer contents and keystrokes are not mirrored; the two editors retain independent drafts. Opening the real Slack client can mark its active conversation read as Slack normally does.
+
+This first experiment targets one workspace. It uses a separate database at Electron's `userData/slack.sqlite`, so it can run alongside the browser app without two engines writing the same cache. Override it with `SLACK_DESKTOP_DATABASE_PATH`. The local renderer uses port 5174; override with `SLACK_DESKTOP_PORT` if needed. `pnpm desktop:build` builds without launching; after building, `pnpm exec electron electron-dist/main.cjs` launches directly.
+
+The configured-session path has been verified against the live workspace, including authenticated sync and the embedded realtime connection. The fresh Chrome SSO path remains experimental. This is a development shell, with no packaged installer yet.
+
 ## How it works
 
 The Vite server runs a sync process that copies your Slack data into a local SQLite database at `data/slack.sqlite`. The browser reads the inbox from this database and never calls Slack directly. Your token stays in the server.
@@ -36,7 +56,7 @@ The Vite server runs a sync process that copies your Slack data into a local SQL
 
 Image attachments load inline as you scroll. The server authenticates downloads and caches previews in SQLite; your token stays out of the browser. If a preview is unavailable, the attachment remains a link to Slack. User OAuth tokens need the `files:read` scope from the app manifest; existing installations need to be reinstalled after adding that scope.
 
-Because the server does this work, the app only runs through `pnpm dev` or `pnpm preview`, not as static files. To start again with an empty database, stop the server and delete the `data` directory. To store the database somewhere else, set `SLACK_DATABASE_PATH` in `.env.local`.
+Because the server does this work, the browser app only runs through `pnpm dev` or `pnpm preview`, not as static files. To start again with an empty database, stop the server and delete the `data` directory. To store the database somewhere else, set `SLACK_DATABASE_PATH` in `.env.local`.
 
 ## Faster scans with a session token (optional)
 
@@ -134,3 +154,9 @@ Sending a reply also marks the conversation as read. In **DMs**, the conversatio
 - Unread replies in threads you follow need a session token. With only a user token, the inbox shows unread top-level messages only. You can still expand threads and reply in them.
 - The inbox loads up to 100 unread messages for each conversation. The **DMs** view loads additional history as you scroll.
 - With a user token, each scan checks every conversation you belong to, which takes minutes in a large workspace. Direct messages are checked first. See [Faster scans with a session token](#faster-scans-with-a-session-token-optional).
+
+### Webview DM experiment
+
+In Electron, selecting a DM navigates the background Slack view to that conversation. The message panel reads Slack's rendered timeline over a narrow IPC bridge, without reading SQLite history or making our own history API requests. It polls the DOM every 750 ms while active. Scroll upward at the start of our list, or choose **Show earlier messages**, to scroll Slack's virtualized list and read the resulting rows. **Open in Slack** reveals the underlying conversation for comparison.
+
+This is a screen-content experiment: each active panel accumulates the rows observed in Slack in memory, so scrolling back does not discard newer messages. Scroll position is anchored to a message timestamp as older rows and images arrive. These observed messages are not stored in SQLite. The sidebar and user directory still use the existing SQLite sync, and sending still uses our API transport. Rich text, reactions, and image attachment links are extracted from the DOM; complex unfurls, app cards, and thread interactions need further adapters. The browser version continues to use SQLite-backed history.

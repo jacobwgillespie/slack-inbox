@@ -21,7 +21,7 @@ export function Header() {
   return (
     <header className="header">
       <div className="sidebar-heading">
-        <div className="brand">Inbox</div>
+        {window.slackDesktop?.platform !== 'darwin' && <div className="brand">Inbox</div>}
         <div className="header-tools">
           <button
             className={`icon-button${scanning ? ' spinning' : ''}`}

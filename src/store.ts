@@ -1,3 +1,4 @@
+import { openDesktopSlack } from './desktop'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { LocalApiError, localApi } from './api'
@@ -471,6 +472,7 @@ export const useStore = create<InboxState>()(
         },
 
         loadHistory: async (channel, mode = 'latest') => {
+          if (window.slackDesktop) return
           const previous = get().histories[channel]
           const dm = get().directMessages[channel]
           if (!dm || previous?.loading || (mode === 'older' && !previous?.hasMore)) return
@@ -792,7 +794,7 @@ export const useStore = create<InboxState>()(
           const item = currentItem(state)
           if (!item || !state.session) return
           const ts = state.mode === 'reading' ? state.focusedTs : latestTs(item)
-          window.open(permalink(state.session, item.conversation.id, ts), '_blank', 'noopener')
+          if (!openDesktopSlack(item.conversation.id)) window.open(permalink(state.session, item.conversation.id, ts), '_blank', 'noopener')
         },
 
         toggleHelp: () => set((state) => ({ helpOpen: !state.helpOpen })),

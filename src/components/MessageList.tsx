@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { isSameAuthorGroup } from '../format'
-import { compareTs } from '../slack/timestamps'
 import type { InboxItem, Message } from '../slack/types'
 import { useStore } from '../store'
 import { useTimestampReveal } from '../useTimestampReveal'
+import { useWebviewConversation } from '../useWebviewConversation'
 import { MessageView } from './Message'
 import { ArrowUpIcon } from './Icons'
 
@@ -20,54 +20,72 @@ function messageDay(ts: string): string {
 }
 
 export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
+  const fromWebview = dms && Boolean(window.slackDesktop)
+  const webview = useWebviewConversation(item.id, fromWebview)
   const history = useStore((state) => state.histories[item.id])
   const loadHistory = useStore((state) => state.loadHistory)
   const ref = useRef<HTMLDivElement>(null)
   const revealRef = useRef<HTMLDivElement>(null)
   useTimestampReveal(revealRef)
-  const position = useRef({ first: '', height: 0, top: 0, atBottom: true })
+  const position = useRef<{ top: number; atBottom: boolean; anchor?: { ts: string; offset: number } }>({ top: 0, atBottom: true })
   const [atBottom, setAtBottom] = useState(true)
 
   useEffect(() => {
-    if (!dms) return
+    if (!dms || fromWebview) return
     void loadHistory(item.id)
     const timer = setInterval(() => void loadHistory(item.id), 60 * 1000)
     return () => clearInterval(timer)
-  }, [dms, item.id, loadHistory])
+  }, [dms, fromWebview, item.id, loadHistory])
 
-  useLayoutEffect(() => {
-    const element = ref.current
-    if (!element || !dms) return
-    const previous = position.current
-    const first = item.messages[0]?.ts ?? ''
-    if (previous.first && first && compareTs(first, previous.first) < 0) {
-      element.scrollTop = previous.top + element.scrollHeight - previous.height
-    } else if (previous.atBottom) {
+  const messages = fromWebview ? webview.snapshot?.messages ?? [] : dms && !history?.item ? [] : item.messages
+
+  const rememberPosition = (element: HTMLDivElement) => {
+    const top = element.getBoundingClientRect().top
+    const row = [...element.querySelectorAll<HTMLElement>('[data-message-ts]')].find((row) => row.getBoundingClientRect().bottom > top)
+    position.current = {
+      ...position.current, top: element.scrollTop,
+      anchor: row?.dataset.messageTs ? { ts: row.dataset.messageTs, offset: row.getBoundingClientRect().top - top } : undefined,
+    }
+  }
+
+  const restorePosition = (element: HTMLDivElement) => {
+    if (position.current.atBottom) {
       element.scrollTop = element.scrollHeight
     } else {
-      element.scrollTop = previous.top
+      const anchor = position.current.anchor
+      const row = anchor && element.querySelector<HTMLElement>(`[data-message-ts="${CSS.escape(anchor.ts)}"]`)
+      if (row) element.scrollTop += row.getBoundingClientRect().top - element.getBoundingClientRect().top - anchor.offset
+      else element.scrollTop = position.current.top
     }
-    position.current = { first, height: element.scrollHeight, top: element.scrollTop, atBottom: previous.atBottom }
-  }, [dms, item.messages, history?.loading])
+    rememberPosition(element)
+  }
+
+  useLayoutEffect(() => {
+    if (ref.current && dms) restorePosition(ref.current)
+  }, [dms, messages, history?.loading])
 
   useEffect(() => {
     const element = ref.current
     if (!element || !dms) return
-    element.scrollTop = position.current.atBottom ? element.scrollHeight : position.current.top
-    const observer = new ResizeObserver(() => {
-      if (position.current.atBottom) element.scrollTop = element.scrollHeight
-      position.current = { ...position.current, height: element.scrollHeight, top: element.scrollTop }
-    })
+    restorePosition(element)
+    const observer = new ResizeObserver(() => restorePosition(element))
     observer.observe(element)
     if (element.firstElementChild) observer.observe(element.firstElementChild)
     return () => observer.disconnect()
   }, [dms])
 
-  const scrollToLatest = () => {
-    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight
+  const showEarlier = () => {
+    if (ref.current) {
+      position.current.atBottom = false
+      rememberPosition(ref.current)
+    }
+    webview.scroll('older')
   }
 
-  const messages = dms && !history?.item ? [] : item.messages
+  const scrollToLatest = () => {
+    if (fromWebview) webview.scroll('latest')
+    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight
+  }
 
   const sameGroup = (previous: Message | undefined, message: Message) =>
     Boolean(previous && messageDay(previous.ts) === messageDay(message.ts) &&
@@ -80,21 +98,22 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
           <div
             ref={ref}
             className="message-list"
+            onWheel={(event) => {
+              if (fromWebview && event.deltaY < 0 && event.currentTarget.scrollTop < 80 && !webview.loadingOlder) showEarlier()
+            }}
             onScroll={(event) => {
               const element = event.currentTarget
-              if (position.current.atBottom && element.scrollHeight !== position.current.height) {
-                element.scrollTop = element.scrollHeight
-              }
               const bottom = element.scrollHeight - element.scrollTop - element.clientHeight < 80
-              position.current = { ...position.current, top: element.scrollTop, height: element.scrollHeight, atBottom: bottom }
+              position.current.atBottom = bottom
+              rememberPosition(element)
               setAtBottom(bottom)
-              if (dms && element.scrollTop < 80 && history?.item && history.hasMore && !history.loading && !history.error) {
+              if (!fromWebview && dms && element.scrollTop < 80 && history?.item && history.hasMore && !history.loading && !history.error) {
                 void loadHistory(item.id, 'older')
               }
             }}
           >
             <div className="message-track">
-              {dms && (
+              {dms && !fromWebview && (
                 <div className="history-status" role="status">
                   {history?.error ? (
                     <>
@@ -108,6 +127,17 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
                       {history.loading && history.loadingOlder ? 'Loading earlier messages…' : 'Load earlier messages'}
                     </button>
                   ) : <span>Beginning of conversation</span>}
+                </div>
+              )}
+              {fromWebview && (
+                <div className="history-status" role="status">
+                  {webview.error ? <span className="scan-error">{webview.error}</span> : !webview.snapshot ? 'Reading Slack webview…' : (
+                    <><span>From Slack webview · {messages.length} observed messages</span>
+                      <button className="link-button" disabled={webview.loadingOlder} onClick={showEarlier}>
+                        {webview.loadingOlder ? 'Scrolling Slack…' : 'Show earlier messages'}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
               {item.thread && (
@@ -124,6 +154,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
                       <div className="date-divider">{messageDay(message.ts)}</div>
                     )}
                     <MessageView
+                      webview={fromWebview}
                       channel={item.conversation.id}
                       message={message}
                       continued={sameGroup(previous, message)}
@@ -132,7 +163,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
                   </Fragment>
                 )
               })}
-              {dms && history?.item && !item.messages.length && <p className="conversation-empty muted">No messages in this conversation yet.</p>}
+              {dms && !fromWebview && history?.item && !item.messages.length && <p className="conversation-empty muted">No messages in this conversation yet.</p>}
             </div>
           </div>
         </div>

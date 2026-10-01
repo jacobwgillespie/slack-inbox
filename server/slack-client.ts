@@ -62,7 +62,10 @@ export class SlackClient {
   private readonly semaphores = new Map<string, Semaphore>()
   private readonly pausedUntil = new Map<string, number>()
 
-  constructor(private readonly credentials: SlackCredentials) {}
+  constructor(
+    private readonly credentials: SlackCredentials,
+    private readonly fetchRequest: typeof fetch = fetch,
+  ) {}
 
   async call<T>(method: string, params: Params = {}): Promise<T> {
     const semaphore = this.semaphoreFor(method)
@@ -116,7 +119,7 @@ export class SlackClient {
         headers.authorization = `Bearer ${sessionToken ?? userToken ?? ''}`
         if (sessionToken && sessionCookie) headers.cookie = `d=${sessionCookie}`
       }
-      const response = await fetch(url, { headers, redirect: 'manual' })
+      const response = await this.fetchRequest(url, { headers, redirect: 'manual' })
       if (response.status >= 300 && response.status < 400 && response.headers.has('location')) {
         url = new URL(response.headers.get('location')!, url)
         await response.body?.cancel()
@@ -141,7 +144,7 @@ export class SlackClient {
     } else if (userToken) {
       headers.authorization = `Bearer ${userToken}`
     }
-    return fetch(`${origin}/api/${method}`, { method: 'POST', headers, body })
+    return this.fetchRequest(`${origin}/api/${method}`, { method: 'POST', headers, body })
   }
 
   private semaphoreFor(method: string) {

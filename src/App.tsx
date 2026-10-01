@@ -1,3 +1,5 @@
+import { DesktopSlack } from './components/DesktopSlack'
+import { openDesktopSlack } from './desktop'
 import { Avatar } from './components/Avatar'
 import { Detail } from './components/Detail'
 import { Header } from './components/Header'
@@ -18,10 +20,11 @@ export function App() {
   useKeyboardShortcuts()
   useSelectionRepair()
 
-  if (status === 'error') return <SetupScreen />
+  if (status === 'error') return <><DesktopSlack /><SetupScreen /></>
 
   return (
     <div className="app">
+      <DesktopSlack />
       <main className="workspace">
         <aside className="sidebar" aria-label="Inbox sidebar">
           <Header />
@@ -29,7 +32,7 @@ export function App() {
           <footer className="sidebar-footer">
             <Avatar url={self?.avatar} name={self?.displayName || session?.handle || 'You'} />
             {session ? (
-              <a className="workspace-link" href={session.url} target="_blank" rel="noreferrer">
+              <a className="workspace-link" href={session.url} target="_blank" rel="noreferrer" onClick={(event) => { if (openDesktopSlack()) event.preventDefault() }}>
                 <span>Open Slack</span>
                 <ExternalIcon />
               </a>

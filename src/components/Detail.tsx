@@ -38,7 +38,7 @@ export function Detail() {
 }
 
 function DirectMessageDetail({ id }: { id: string }) {
-  const item = useStore((state) => state.histories[id]?.item ?? state.directMessages[id])
+  const item = useStore((state) => window.slackDesktop ? state.directMessages[id] : state.histories[id]?.item ?? state.directMessages[id])
   return <ConversationDetail item={item} view="dms" />
 }
 
@@ -62,6 +62,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   if (!item) {
     return (
       <section className="detail detail-empty">
+        <header className="detail-header" />
         <p className="muted">Select a conversation to read it.</p>
       </section>
     )

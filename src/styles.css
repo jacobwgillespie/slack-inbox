@@ -547,8 +547,16 @@ kbd {
 }
 
 .detail-empty {
+  position: relative;
   align-items: center;
   justify-content: center;
+}
+
+.detail-empty .detail-header {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 80px;
+  margin: 0;
 }
 
 .detail-header {
@@ -1477,4 +1485,53 @@ a:focus-visible {
     padding: 10px 16px 12px;
   }
 
+}
+
+.desktop-slack-toolbar {
+  position: fixed;
+  z-index: 1000;
+  inset: 0 0 auto;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 16px;
+  background: #111;
+  color: #aaa;
+}
+.desktop-slack-toolbar button { border: 0; background: none; color: #eee; cursor: pointer; }
+
+.desktop .header,
+.desktop .detail-header,
+.desktop .desktop-slack-toolbar {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.desktop :is(button, a, input, textarea, select) {
+  -webkit-app-region: no-drag;
+}
+
+.desktop-darwin .sidebar-heading {
+  justify-content: flex-end;
+  padding-left: 80px;
+}
+
+.desktop-darwin .desktop-slack-toolbar {
+  height: 68px;
+  padding-left: 100px;
+}
+
+.desktop-darwin .setup::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: 68px;
+  -webkit-app-region: drag;
+}
+
+@media (max-width: 760px) {
+  .desktop-darwin .detail-header {
+    padding-top: 68px;
+  }
 }

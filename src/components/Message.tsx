@@ -2,14 +2,17 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { authorAvatar, authorName, formatMessageTime, renderEmoji, renderMrkdwn, isSameAuthorGroup } from '../format'
 import { useFormatContext } from '../hooks'
 import { threadKey, useStore } from '../store'
+import type { WebviewMessage } from '../slack/webview'
+import { WebviewImage } from './WebviewImage'
 import type { Classification, Message } from '../slack/types'
 import { Avatar } from './Avatar'
 import { FileAttachment, isImageFile } from './FileAttachment'
 import { ReplyIcon, ThreadIcon } from './Icons'
 
-export function MessageView({ channel, message, continued, continues = false }: {
+export function MessageView({ channel, message, continued, continues = false, webview = false }: {
   channel: string
-  message: Message
+  message: WebviewMessage
+  webview?: boolean
   continued: boolean
   continues?: boolean
 }) {
@@ -28,14 +31,15 @@ export function MessageView({ channel, message, continued, continues = false }: 
 
   const name = authorName(message, context.users)
   const own = Boolean(session && message.user === session.userId)
+  const webviewImages = message.images ?? []
   const images = message.files?.filter(isImageFile) ?? []
   const files = message.files?.filter((file) => !isImageFile(file)) ?? []
-  const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count || thread)
+  const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count || (!webview && thread))
   useLayoutEffect(() => {
     const article = ref.current
     const row = article?.parentElement
     const bubble = article?.querySelector<HTMLElement>('.message-bubble')
-    if (!article || !row || !bubble || !images.length) return
+    if (!article || !row || !bubble || !(images.length || webviewImages.length)) return
     const alignControls = () => {
       const bounds = bubble.getBoundingClientRect()
       const center = bounds.top - row.getBoundingClientRect().top + bounds.height / 2
@@ -49,12 +53,12 @@ export function MessageView({ channel, message, continued, continues = false }: 
       observer.disconnect()
       row.style.removeProperty('--message-control-y')
     }
-  }, [hasBubble, images.length])
+  }, [hasBubble, images.length, webviewImages.length])
 
   const showName = !compact && !continued && !(group && own)
   const className = ['message', continued && 'continued', continues && 'continues', focused && 'focused', own && 'message-own'].filter(Boolean).join(' ')
 
-  const actions = (
+  const actions = !webview && (
         <div className="message-actions" role="toolbar" aria-label={`Actions for ${name}'s message`}>
           <button
             className="icon-button"
@@ -72,7 +76,7 @@ export function MessageView({ channel, message, continued, continues = false }: 
   )
 
   return (
-    <div className={`message-row${continued ? ' continued' : ''}${own ? ' message-row-own' : ''}${group ? ' message-row-group' : ''}`}>
+    <div data-message-ts={message.ts} className={`message-row${continued ? ' continued' : ''}${own ? ' message-row-own' : ''}${group ? ' message-row-group' : ''}`}>
       {group && !own && !continues && (
         <div className="group-message-avatar">
           <Avatar url={authorAvatar(message, context.users)} name={name} size="small" />
@@ -140,6 +144,7 @@ export function MessageView({ channel, message, continued, continues = false }: 
           )}
           {actions}
         </div>}
+        {webview && message.images?.length ? <div className="message-images">{message.images.map((image) => <WebviewImage key={image.src} image={image} />)}</div> : null}
         {images.length > 0 && (
           <div className="message-images">
             {images.map((file) => <FileAttachment key={file.id} file={file} />)}

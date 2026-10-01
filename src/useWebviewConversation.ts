@@ -1,0 +1,78 @@
+import { useEffect, useRef, useState } from 'react'
+import { compareTs } from './slack/timestamps'
+import type { WebviewConversation, WebviewMessage } from './slack/webview'
+
+export function useWebviewConversation(channel: string, enabled: boolean) {
+  const [snapshot, setSnapshot] = useState<WebviewConversation>()
+  const [error, setError] = useState<string>()
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const observed = useRef(new Map<string, WebviewMessage>())
+  const reader = useRef<(direction?: 'older' | 'latest') => Promise<void>>(async () => {})
+  useEffect(() => {
+    const bridge = window.slackDesktop
+    if (!enabled || !bridge) return
+    let cancelled = false
+    let busy = false
+    let queued: 'older' | 'latest' | undefined
+    let older: { before?: string; started: number } | undefined
+    let signature = ''
+    let timer: ReturnType<typeof setTimeout>
+    const openedAt = Date.now()
+    const read = async (direction?: 'older' | 'latest') => {
+      if (cancelled) return
+      if (busy) { if (direction) queued = direction; return }
+      if (direction === 'older' && older) return
+      busy = true
+      if (direction === 'older') {
+        older = { before: [...observed.current.keys()].sort(compareTs)[0], started: Date.now() }
+        setLoadingOlder(true)
+      }
+      try {
+        const next = await bridge.readConversation(channel, direction)
+        if (cancelled) return
+        if (!next.ready) {
+          if (Date.now() - openedAt > 15000) setError('Slack has not rendered this conversation yet. Open Slack to check its screen.')
+          return
+        }
+        // Slack removes offscreen rows. Keep everything observed in this panel
+        // so fetching an older window cannot discard the newer conversation.
+        for (const message of next.messages) {
+          const previous = observed.current.get(message.ts)
+          observed.current.set(message.ts, {
+            ...message, user: message.user ?? previous?.user, username: message.username ?? previous?.username,
+          })
+        }
+        const messages = [...observed.current.values()].sort((a, b) => compareTs(a.ts, b.ts))
+        const merged = { ...next, messages }
+        const nextSignature = JSON.stringify(merged)
+        if (nextSignature !== signature) { signature = nextSignature; setSnapshot(merged) }
+        setError(undefined)
+        if (older && (!older.before || (messages[0] && compareTs(messages[0].ts, older.before) < 0) || Date.now() - older.started > 2000)) {
+          older = undefined
+          setLoadingOlder(false)
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : 'Could not read the Slack timeline.')
+          older = undefined
+          setLoadingOlder(false)
+        }
+      } finally {
+        busy = false
+        if (queued && !cancelled) { const direction = queued; queued = undefined; void read(direction) }
+      }
+    }
+    reader.current = read
+    const poll = async () => {
+      await read()
+      if (!cancelled) timer = setTimeout(poll, 750)
+    }
+    setError(undefined)
+    setLoadingOlder(false)
+    void bridge.openConversation(channel).then(poll).catch((cause) => {
+      if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not open Slack.')
+    })
+    return () => { cancelled = true; clearTimeout(timer); reader.current = async () => {} }
+  }, [channel, enabled])
+  return { snapshot, error, loadingOlder, scroll: (direction: 'older' | 'latest') => void reader.current(direction) }
+}

@@ -103,6 +103,7 @@ export class SyncEngine {
     private readonly client: SlackClient,
     mode: CredentialMode,
     classifierOptions?: ClassifierOptions,
+    externalRealtime = false,
   ) {
     this.status = {
       mode,
@@ -131,7 +132,7 @@ export class SyncEngine {
         () => this.changed(),
         () => this.requestSync(),
       )
-      this.realtime = new RealtimeConnection(client, {
+      if (!externalRealtime) this.realtime = new RealtimeConnection(client, {
         onEvent: (event) => this.handleRealtimeEvent(event),
         onStateChange: (realtime) => {
           if (realtime !== 'connected') this.messageHistory.invalidateLive()
@@ -140,6 +141,21 @@ export class SyncEngine {
         onConnected: () => this.requestSync(),
       })
     }
+  }
+
+  reauthenticate() {
+    this.sessionVerified = false
+    this.requestSync()
+  }
+
+  observeRealtime(event: RealtimeEvent) {
+    this.handleRealtimeEvent(event)
+  }
+
+  setExternalRealtime(connected: boolean) {
+    if (!connected) this.messageHistory.invalidateLive()
+    this.setStatus({ realtime: connected ? 'connected' : 'connecting' })
+    if (connected) this.requestSync()
   }
 
   start() {
