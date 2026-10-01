@@ -326,6 +326,11 @@ kbd {
   cursor: pointer;
 }
 
+.account-button .avatar {
+  width: 36px;
+  height: 36px;
+}
+
 .account-menu {
   position: fixed;
   inset: auto auto 80px 16px;
@@ -390,12 +395,17 @@ kbd {
   flex: 1;
   height: 40px;
   padding: 8px 14px;
-  border: 1px solid #303030;
   border-radius: 24px;
-  background: #191919;
-  color: var(--text);
   text-decoration: none;
   font-size: 14px;
+}
+
+.workspace-link,
+.sidebar-footer > .icon-button {
+  border: 1px solid #303030;
+  background: #191919;
+  color: #bcbcbc;
+  transition: background 120ms, color 120ms;
 }
 
 .sidebar-footer > .icon-button {
@@ -403,8 +413,11 @@ kbd {
   height: 40px;
 }
 
-.workspace-link:hover {
+.workspace-link:hover,
+.sidebar-footer > .icon-button:hover:not(:disabled) {
   background: #252525;
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .item-list {
