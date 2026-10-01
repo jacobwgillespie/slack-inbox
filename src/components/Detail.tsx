@@ -12,7 +12,7 @@ import { Composer } from './Composer'
 import { TypingIndicator } from './TypingIndicator'
 import { Toast } from './Toast'
 import { MessageList } from './MessageList'
-import { ArrowLeftIcon, CheckIcon, ClockIcon, ExternalIcon, MuteIcon, SwapIcon } from './Icons'
+import { ArrowLeftIcon, ClockIcon, MuteIcon, SwapIcon } from './Icons'
 
 export function Detail() {
   return <Suspense fallback={<section className="detail detail-empty"><p className="muted">Opening conversation…</p><Toast /></section>}><DeferredDetail /></Suspense>
@@ -62,7 +62,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const session = useStore((state) => state.session)
   const reading = useStore((state) => state.mode === 'reading')
   const pending = useStore((state) => isConversationView(view) && state.selectedId !== item?.id)
-  const { markDone, saveForLater, toggleMute, recategorize, openInSlack } = inboxStore.getState()
+  const { saveForLater, toggleMute, recategorize } = inboxStore.getState()
 
   useLayoutEffect(() => {
     const header = headerRef.current
@@ -106,14 +106,6 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           </div>
         </div>
         <div className="detail-actions">
-          <button
-            className="icon-button"
-            onClick={() => markDone([id])}
-            title={view === 'done' ? 'Restore to inbox (E)' : view === 'later' ? 'Complete (E)' : 'Mark done (E)'}
-            aria-label={view === 'done' ? 'Restore to inbox' : view === 'later' ? 'Complete' : 'Mark done'}
-          >
-            {view === 'done' ? <ArrowLeftIcon /> : <CheckIcon />}
-          </button>
           {view !== 'later' && !isConversationView(view) && (
             <>
               <button
@@ -146,9 +138,6 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
               )}
             </>
           )}
-          <button className="icon-button" onClick={openInSlack} title="Open in Slack (U)" aria-label="Open in Slack">
-            <ExternalIcon />
-          </button>
         </div>
       </header>
       <MessageList item={item} fullHistory={isConversationView(view)} />

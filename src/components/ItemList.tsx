@@ -7,7 +7,7 @@ import type { InboxItem } from '../slack/types'
 import { ConversationIcon } from './Avatar'
 import { useTyping } from '../typing'
 import { TypingDots } from './TypingIndicator'
-import { CheckIcon, ClockIcon, MuteIcon } from './Icons'
+import { ArrowLeftIcon, CheckIcon, ClockIcon, MuteIcon } from './Icons'
 
 const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
   important: { title: 'All caught up', detail: 'No unread direct messages or mentions.' },
@@ -143,17 +143,19 @@ function ItemRow({ item }: { item: InboxItem }) {
   }
 
   const className = ['item-row', selected && 'selected', checked && 'checked'].filter(Boolean).join(' ')
+  const doneLabel = view === 'done' ? 'Restore to inbox' : view === 'later' ? 'Complete' : 'Mark done'
 
   return (
     <li data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
-      {!isConversationView(view) && <button
+      <button
         className="done-button"
-        title={view === 'later' ? 'Mark complete (E)' : 'Mark as read (E)'}
+        title={`${doneLabel} (E)`}
+        aria-label={`${doneLabel}: ${label}`}
         onClick={action((ids) => markDone(ids))}
+        onDoubleClick={(event) => event.stopPropagation()}
       >
-        <CheckIcon />
+        {view === 'done' ? <ArrowLeftIcon /> : <CheckIcon />}
       </button>
-      }
       <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
       <div className="item-body">
         <div className="item-heading">
