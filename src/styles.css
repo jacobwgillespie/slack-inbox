@@ -1549,9 +1549,10 @@ a:focus-visible {
   align-items: center;
   gap: 14px;
   padding: 10px 14px;
-  border-radius: 8px;
-  color: var(--background);
-  background: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  color: #bcbcbc;
+  background: var(--surface-raised);
   box-shadow: var(--shadow);
   transform: translateX(-50%);
   max-width: calc(100% - 32px);
@@ -1562,17 +1563,16 @@ a:focus-visible {
 }
 
 .toast .link-button {
-  color: var(--background);
+  color: var(--text);
 }
 
-.toast kbd {
-  border-color: transparent;
-  color: var(--text);
-  background: var(--background);
+.toast .link-button.subtle {
+  color: var(--text-muted);
 }
 
 .toast-error {
-  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .overlay {
