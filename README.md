@@ -135,6 +135,8 @@ Cached history and archive markers survive app restarts. Background sync collect
 
 Sending a reply marks the conversation read and keeps it open. Only an explicit Done action archives it.
 
+Viewing a conversation at the bottom marks its latest displayed messages read. Viewing older history keeps newer messages unread.
+
 ## Limits
 
 - Unread replies in threads you follow need a session token. With only a user token, the inbox shows unread top-level messages only. You can still expand threads and reply in them.

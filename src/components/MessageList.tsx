@@ -4,6 +4,7 @@ import type { InboxItem, Message } from '../slack/types'
 import { useStore } from '../store'
 import { useTimestampReveal } from '../useTimestampReveal'
 import { useCachedConversation } from '../useCachedConversation'
+import { useReadAtBottom } from '../useReadAtBottom'
 import { MessageView } from './Message'
 import { ArrowUpIcon } from './Icons'
 
@@ -40,6 +41,7 @@ export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistor
   }, [fullHistory, fromWebview, item.id, loadHistory])
 
   const messages = fromWebview ? webview.snapshot?.messages ?? [] : fullHistory && !history?.item ? [] : item.messages
+  useReadAtBottom(ref, item.id, messages.at(-1)?.ts, atBottom, fullHistory)
 
   const rememberPosition = (element: HTMLDivElement) => {
     if (!element.clientHeight) return
