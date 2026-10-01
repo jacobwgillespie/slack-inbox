@@ -25,6 +25,10 @@ ipcRenderer.on('slack:read-markers-enabled', (_event, enabled: boolean) => {
 // Slack gets no exposed bridge; this preload only reports timeline changes.
 window.addEventListener('DOMContentLoaded', () => {
   if (location.origin !== 'https://app.slack.com') return
+  // Embedded Slack sits behind our UI; its drag regions must not intercept clicks.
+  const style = document.createElement('style')
+  style.textContent = '* { -webkit-app-region: no-drag !important; }'
+  document.head.append(style)
   let scheduled = false
   const notify = () => {
     if (scheduled) return

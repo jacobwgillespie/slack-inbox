@@ -1525,14 +1525,18 @@ a:focus-visible {
 }
 .desktop-slack-toolbar button { border: 0; background: none; color: #eee; cursor: pointer; }
 
-.desktop .header,
+.desktop .sidebar-heading,
 .desktop .detail-header,
 .desktop .desktop-slack-toolbar {
   -webkit-app-region: drag;
   user-select: none;
 }
 
-.desktop :is(button, a, input, textarea, select) {
+.desktop :is(button, a, input, textarea, select),
+.desktop .section-tabs,
+.desktop .section-tabs *,
+.desktop .tabs,
+.desktop .tabs * {
   -webkit-app-region: no-drag;
 }
 
