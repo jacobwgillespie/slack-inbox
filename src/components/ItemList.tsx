@@ -27,6 +27,25 @@ export function ItemList() {
   const [moreBelow, setMoreBelow] = useState(false)
   useLayoutEffect(() => {
     const list = listRef.current
+    const row = list?.querySelector<HTMLElement>('li[aria-selected="true"]')
+    if (!list || !row) return
+    const previous = row.previousElementSibling
+    const next = row.nextElementSibling
+    if (!previous) {
+      list.scrollTop = 0
+    } else if (!next) {
+      list.scrollTop = list.scrollHeight - list.clientHeight
+    } else {
+      // Keep a neighboring row visible between the selection and either fade.
+      const bounds = list.getBoundingClientRect()
+      const top = previous.getBoundingClientRect().top - 8
+      const bottom = next.getBoundingClientRect().bottom + 8
+      if (top < bounds.top) list.scrollTop += top - bounds.top
+      else if (bottom > bounds.bottom) list.scrollTop += bottom - bounds.bottom
+    }
+  }, [selected, view])
+  useLayoutEffect(() => {
+    const list = listRef.current
     if (!list) return
     const update = () => {
       setScrolled(list.scrollTop > 0)
@@ -102,17 +121,12 @@ function ItemRow({ item }: { item: InboxItem }) {
   const reading = useStore((state) => state.mode === 'reading')
   const conversation = useStore((state) => state.directMessages[id] ?? state.channels[id])
   const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = inboxStore.getState()
-  const ref = useRef<HTMLLIElement>(null)
 
   const latest = item.messages[item.messages.length - 1]
   const label = conversationLabel(item.conversation, context.users, session)
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
   const mentioned = item.conversation.kind !== 'dm' && mentionsSelf(item, session)
   const unread = isConversationView(view) && conversation && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0
-
-  useEffect(() => {
-    if (selected) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [selected])
 
   const onClick = (event: MouseEvent) => {
     event.currentTarget.closest<HTMLElement>('.item-list')?.focus({ preventScroll: true })
@@ -129,7 +143,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const className = ['item-row', selected && 'selected', checked && 'checked'].filter(Boolean).join(' ')
 
   return (
-    <li ref={ref} data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
+    <li data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
       {!isConversationView(view) && <button
         className="done-button"
         title={view === 'later' ? 'Mark complete (E)' : 'Mark as read (E)'}
