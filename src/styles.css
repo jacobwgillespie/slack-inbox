@@ -1048,6 +1048,20 @@ kbd {
   align-items: flex-end;
 }
 
+.message::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 120px;
+}
+
+.message-own::before {
+  left: auto;
+  right: 100%;
+}
+
 .message-bubble {
   padding: 12px 16px 10px;
   border-radius: 20px;
@@ -1078,8 +1092,8 @@ kbd {
   padding: 16px 8px;
 }
 
-.message-actions:hover,
-.message-actions:focus-within {
+.message:hover .message-actions,
+.message:focus-within .message-actions {
   opacity: 1;
 }
 
@@ -1956,6 +1970,6 @@ a:focus-visible {
 
 .thread-reply { position: relative; padding-right: 32px; }
 .thread-save { position: absolute; top: 0; right: 0; opacity: 0; }
-.thread-save:hover,
-.thread-save:focus-visible { opacity: 1; }
+.thread-reply:hover > .thread-save,
+.thread-reply:focus-within > .thread-save { opacity: 1; }
 .thread-save::before { content: ""; position: absolute; inset: -8px; }
