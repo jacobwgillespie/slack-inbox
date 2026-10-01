@@ -1638,6 +1638,11 @@ a:focus-visible {
 }
 .desktop-slack-toolbar button { border: 0; background: none; color: #eee; cursor: pointer; }
 
+/* Covered headers must not contribute native window drag regions. */
+.desktop:has(.desktop-slack-toolbar) :is(.workspace, .setup) {
+  visibility: hidden;
+}
+
 .desktop .sidebar-heading,
 .desktop .detail-header,
 .desktop .desktop-slack-toolbar {
