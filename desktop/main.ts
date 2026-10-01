@@ -73,6 +73,12 @@ async function start() {
     preload: join(__dirname, 'slack-preload.cjs'), additionalArguments: ['--slack-background-collector'],
     session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, focusOnNavigation: false,
   } })
+  // A view's webContents getter can become undefined after its contents close.
+  const uiContents = ui.webContents
+  const slackContents = slack.webContents
+  const collectorContents = collectorView.webContents
+  const slackContentsId = slackContents.id
+  const collectorContentsId = collectorContents.id
   collectorView.webContents.setUserAgent(slackSession.getUserAgent())
   collectorView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.contentView.addChildView(collectorView)
@@ -114,7 +120,7 @@ async function start() {
   let composer: { channel: string; generation: number } | undefined
   let composerGeneration = 0
   const bindComposer = () => {
-    if (!slack.webContents.isDestroyed()) slack.webContents.send('slack:composer-bind', composer)
+    if (!slackContents.isDestroyed()) slackContents.send('slack:composer-bind', composer)
   }
   ipcMain.handle('slack:composer-follow', (event, channel: unknown) => {
     if (!ownRenderer(event) || !validChannel(channel)) throw new Error('Invalid composer')
@@ -156,7 +162,7 @@ async function start() {
   })
   slack.webContents.on('dom-ready', bindComposer)
   const cacheChanged = (channel?: string) => {
-    if (!ui.webContents.isDestroyed()) ui.webContents.send('slack:cache-changed', channel)
+    if (!uiContents.isDestroyed()) uiContents.send('slack:cache-changed', channel)
   }
   const collector = new ConversationCollector(collectorView.webContents, database, engine, cacheChanged)
   const unsubscribeCache = engine.subscribe(() => cacheChanged())
@@ -164,7 +170,7 @@ async function start() {
   slackSession.webRequest.onBeforeRequest({ urls: ['https://*.slack.com/api/*'] }, (details, callback) => {
     const method = new URL(details.url).pathname.split('/').pop()
     const mark = ['conversations.mark', 'im.mark', 'mpim.mark', 'channels.mark', 'groups.mark'].includes(method ?? '')
-    callback({ cancel: mark && (details.webContentsId === collectorView.webContents.id || (details.webContentsId === slack.webContents.id && !slackVisible)) })
+    callback({ cancel: mark && (details.webContentsId === collectorContentsId || (details.webContentsId === slackContentsId && !slackVisible)) })
   })
   ipcMain.on('slack:timeline-changed', (event, channel: unknown) => {
     if (event.sender !== collectorView.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') || !validChannel(channel)) return
@@ -259,9 +265,9 @@ async function start() {
   window.on('closed', () => {
     collector.stop()
     unsubscribeCache()
-    if (!collectorView.webContents.isDestroyed()) collectorView.webContents.close()
-    if (!slack.webContents.isDestroyed()) slack.webContents.close()
-    if (!ui.webContents.isDestroyed()) ui.webContents.close()
+    if (!collectorContents.isDestroyed()) collectorContents.close()
+    if (!slackContents.isDestroyed()) slackContents.close()
+    if (!uiContents.isDestroyed()) uiContents.close()
     server.close()
     void engine.stop().finally(() => { database.close(); app.quit() })
   })
