@@ -115,8 +115,8 @@ export function SlackComposer({ item }: { item: InboxItem }) {
 
   return (
     <div className="composer slack-composer">
-      {!ready && <div className="composer-row muted">Connecting Slack composer…</div>}
       <div className="composer-row">
+        {!ready && <div className="composer-connecting muted" role="status">Connecting Slack composer…</div>}
         <div
           ref={host}
           className="slack-composer-copy"

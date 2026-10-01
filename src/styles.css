@@ -1423,6 +1423,11 @@ a.message-time:hover {
   border-color: #747474;
 }
 
+.composer-connecting {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
 .send-button {
   display: grid;
   place-items: center;
