@@ -127,6 +127,10 @@ kbd {
   color: var(--text);
 }
 
+.section-tabs button:focus {
+  outline: none;
+}
+
 .section-tabs span {
   font-size: 11px;
   color: var(--text-muted);
