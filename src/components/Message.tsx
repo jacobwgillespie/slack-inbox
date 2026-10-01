@@ -34,7 +34,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   const webviewImages = message.images ?? []
   const images = webview && webviewImages.length ? [] : message.files?.filter(isImageFile) ?? []
   const files = message.files?.filter((file) => !isImageFile(file) && !message.attachments?.some((attachment) => attachment.title === file.name || attachment.title_link === file.permalink)) ?? []
-  const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count || (!webview && thread))
+  const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count || thread)
   useLayoutEffect(() => {
     const article = ref.current
     const row = article?.parentElement
@@ -58,7 +58,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   const showName = !compact && !continued && !(group && own)
   const className = ['message', continued && 'continued', continues && 'continues', focused && 'focused', own && 'message-own'].filter(Boolean).join(' ')
 
-  const actions = !webview && (
+  const actions = (
         <div className="message-actions" role="toolbar" aria-label={`Actions for ${name}'s message`}>
           <button
             className="icon-button"

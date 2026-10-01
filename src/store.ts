@@ -1,4 +1,4 @@
-import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection, reconcile } from './collections'
+import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection, messageCollection, reconcile } from './collections'
 import { openDesktopSlack } from './desktop'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
@@ -152,7 +152,8 @@ export function threadTargetFor(item: InboxItem, threadTarget?: string): string 
 }
 
 export function findMessage(item: InboxItem, ts: string): Message | undefined {
-  return item.thread?.root.ts === ts ? item.thread.root : item.messages.find((message) => message.ts === ts)
+  return item.thread?.root.ts === ts ? item.thread.root :
+    item.messages.find((message) => message.ts === ts) ?? messageCollection.get(`${item.conversation.id}:${ts}`)
 }
 
 const isMutedChannelItem = (item: InboxItem, muted: Record<string, true>) =>

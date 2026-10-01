@@ -899,10 +899,6 @@ kbd {
   transition: opacity 120ms;
 }
 
-.message-bubble > .message-actions {
-  top: 50%;
-}
-
 .message-own .message-actions {
   left: auto;
   right: 100%;
