@@ -508,9 +508,9 @@ kbd {
 }
 
 .done-button:hover {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-text);
+  border-color: var(--text);
+  background: var(--text);
+  color: #191919;
 }
 
 .avatar {
