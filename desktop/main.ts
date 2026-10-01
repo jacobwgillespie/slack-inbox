@@ -122,11 +122,20 @@ async function start() {
     if (!team) return
     composer = { channel, generation: ++composerGeneration }
     const destination = `https://app.slack.com/client/${team}/${channel}`
-    if (slack.webContents.getURL().split('?')[0] === destination) bindComposer()
-    else void slack.webContents.loadURL(destination).catch((error) => {
+    const generation = composer.generation
+    bindComposer()
+    if (slack.webContents.getURL().split('?')[0] !== destination) void (async () => {
+      const clicked = slack.webContents.getURL().startsWith('https://app.slack.com/client/') && await slack.webContents.executeJavaScript(`(() => {
+        const destination = ${JSON.stringify(destination)};
+        const link = [...document.querySelectorAll('.p-channel_sidebar a[href]')].find(link => link.href.split('?')[0] === destination);
+        if (!link) return false;
+        link.click(); return true;
+      })()`)
+      if (!clicked && composer?.generation === generation) await slack.webContents.loadURL(destination)
+    })().catch((error) => {
       if (error.code !== 'ERR_ABORTED') console.warn('Could not follow Slack composer', error.message)
     })
-    return composer.generation
+    return generation
   })
   ipcMain.handle('slack:composer-stop', (event, generation: unknown) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')

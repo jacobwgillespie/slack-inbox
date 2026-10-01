@@ -75,7 +75,7 @@ if (!process.argv.includes('--slack-background-collector')) {
     }
   }
   const findEditor = () => [...document.querySelectorAll<HTMLElement>('.ql-editor[contenteditable="true"]')]
-    .find((element) => !element.closest('.p-thread_view'))
+    .find((element) => !element.closest('.p-thread_view') && element.closest('[data-channel-id]')?.getAttribute('data-channel-id') === binding?.channel)
   const ready = () => binding && location.origin === 'https://app.slack.com' && location.pathname.split('/')[3] === binding.channel
   const sync = () => {
     scheduled = false
@@ -202,7 +202,7 @@ if (!process.argv.includes('--slack-background-collector')) {
           element?.querySelector('.ql-editor, [role="listbox"], [role="menu"], [role="dialog"]')
       }
       if (!composerRoot?.isConnected || records.some((record) => relevant(record.target) || [...record.addedNodes, ...record.removedNodes].some(relevant))) schedule()
-    }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'aria-expanded', 'aria-selected', 'class'] })
+    }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'aria-expanded', 'aria-selected', 'class', 'data-channel-id'] })
     document.addEventListener('input', schedule)
     schedule()
   })

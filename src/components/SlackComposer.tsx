@@ -54,7 +54,7 @@ export function SlackComposer({ item }: { item: InboxItem }) {
         id: send.dataset.slackAction,
         disabled: send.disabled || send.getAttribute('aria-disabled') === 'true',
       } : undefined)
-      scratch.querySelector('[role="toolbar"][aria-label="Composer actions"]')?.remove()
+      scratch.replaceChildren(remoteEditor, ...scratch.querySelectorAll('[data-slack-suggestions]'))
       // Keep the live local editor and its selection during typing. Replace the
       // surrounding copied controls so Slack can update buttons and suggestions.
       const authoritative = snapshot.source === 'inbox' && snapshot.action !== 'input' && remoteEditor.innerHTML !== localEditor?.innerHTML
