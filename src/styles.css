@@ -1683,7 +1683,6 @@ a:focus-visible {
 
 .setup-intro { color: var(--text-muted); font-size: 17px; line-height: 1.7; margin: 0 0 36px; }
 .setup-actions { display: grid; gap: 16px; max-width: 320px; }
-.setup-signin-note { color: var(--text-muted); font-size: 13px; text-align: center; }
 .setup-actions [role="alert"] { color: var(--danger); font-size: 13px; }
 
 @media (max-width: 700px) {

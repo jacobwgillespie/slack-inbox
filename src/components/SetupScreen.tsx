@@ -17,7 +17,6 @@ export function SetupScreen() {
         {!needsSignIn && error && <p role="alert" className="setup-error">{error.message}</p>}
         {needsSignIn ? <div className="setup-actions">
           <BrowserSigninButton className="onboarding-start" />
-          <span className="setup-signin-note">Continue in your browser, then return here.</span>
         </div> : <button className="onboarding-start" onClick={refresh}>Try again</button>}
       </div>
     </main>
