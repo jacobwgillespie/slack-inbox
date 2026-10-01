@@ -244,6 +244,7 @@ kbd {
 }
 
 .sidebar {
+  user-select: none;
   display: flex;
   flex-direction: column;
   min-height: 0;
