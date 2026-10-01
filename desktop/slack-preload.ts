@@ -22,7 +22,7 @@ ipcRenderer.on('slack:read-markers-enabled', (_event, enabled: boolean) => {
   }, args: [enabled] })
 })
 
-// Slack gets no exposed bridge; this preload only reports timeline changes.
+// Slack gets no exposed bridge; only the preload can report changes over IPC.
 window.addEventListener('DOMContentLoaded', () => {
   if (location.origin !== 'https://app.slack.com') return
   // Embedded Slack sits behind our UI; its drag regions must not intercept clicks.
@@ -49,3 +49,58 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('popstate', notify)
   notify()
 })
+
+// The manual view owns drafts. The collector never edits a composer.
+if (!process.argv.includes('--slack-background-collector')) {
+  let binding: { channel: string; generation: number; text?: string } | undefined
+  let editor: HTMLElement | null = null
+  let lastText: string | undefined
+  let applying = false
+  let scheduled = false
+  const readText = (element: HTMLElement) => element.innerText.replace(/\n$/, '')
+  const sync = () => {
+    scheduled = false
+    if (!binding || location.origin !== 'https://app.slack.com' || location.pathname.split('/')[3] !== binding.channel) return
+    const next = [...document.querySelectorAll<HTMLElement>('.ql-editor[contenteditable="true"]')]
+      .find((element) => !element.closest('.p-thread_view'))
+    if (!next) return
+    if (next !== editor) { editor = next; lastText = undefined }
+    const source = binding.text === undefined ? 'slack' : 'inbox'
+    if (binding.text !== undefined && readText(editor) !== binding.text) {
+      applying = true
+      // Native editing commands notify Quill and preserve Slack's draft handling.
+      // Setting innerHTML alone would only change the DOM, not its editor state.
+      editor.focus({ preventScroll: true })
+      const range = document.createRange()
+      range.selectNodeContents(editor)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+      if (binding.text) document.execCommand('insertText', false, binding.text)
+      else document.execCommand('delete')
+      applying = false
+    }
+    binding.text = undefined
+    const text = readText(editor)
+    if (text === lastText) return
+    lastText = text
+    ipcRenderer.send('slack:composer-changed', { channel: binding.channel, generation: binding.generation, text, source })
+  }
+  const schedule = () => {
+    if (scheduled) return
+    scheduled = true
+    requestAnimationFrame(sync)
+  }
+  ipcRenderer.on('slack:composer-bind', (_event, next: typeof binding) => {
+    if (next?.generation !== binding?.generation) { editor = null; lastText = undefined }
+    binding = next
+    schedule()
+  })
+  window.addEventListener('DOMContentLoaded', () => {
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true })
+    document.addEventListener('input', (event) => {
+      if (!applying && event.target instanceof Element && event.target.closest('.ql-editor')) schedule()
+    })
+    schedule()
+  })
+}

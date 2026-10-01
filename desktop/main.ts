@@ -111,6 +111,43 @@ async function start() {
     return showSlack(channel as string | undefined)
   })
   const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[CDG][A-Z0-9]+$/.test(channel)
+  let composer: { channel: string; generation: number; text?: string } | undefined
+  let composerGeneration = 0
+  const bindComposer = () => {
+    if (!slack.webContents.isDestroyed()) slack.webContents.send('slack:composer-bind', composer)
+  }
+  ipcMain.handle('slack:composer-follow', (event, channel: unknown, text: unknown) => {
+    if (!ownRenderer(event) || !validChannel(channel) || (text !== undefined && typeof text !== 'string')) throw new Error('Invalid composer')
+    const team = database.getMetadata<{ teamId: string }>('session')?.teamId
+    if (!team) return
+    composer = { channel, generation: ++composerGeneration, text: text as string | undefined }
+    const destination = `https://app.slack.com/client/${team}/${channel}`
+    if (slack.webContents.getURL().split('?')[0] === destination) bindComposer()
+    else void slack.webContents.loadURL(destination).catch((error) => {
+      if (error.code !== 'ERR_ABORTED') console.warn('Could not follow Slack composer', error.message)
+    })
+    return composer.generation
+  })
+  ipcMain.handle('slack:composer-stop', (event, generation: unknown) => {
+    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    if (composer?.generation !== generation) return
+    composer = undefined
+    bindComposer()
+  })
+  ipcMain.handle('slack:composer-write', (event, generation: unknown, text: unknown) => {
+    if (!ownRenderer(event) || typeof text !== 'string') throw new Error('Invalid composer')
+    if (!composer || composer.generation !== generation) return
+    composer.text = text
+    bindComposer()
+  })
+  ipcMain.on('slack:composer-changed', (event, draft: { channel: string; generation: number; text: string; source: 'slack' | 'inbox' }) => {
+    if (event.sender !== slack.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') ||
+        !composer || draft?.generation !== composer.generation || draft.channel !== composer.channel || typeof draft.text !== 'string') return
+    if (draft.source === 'slack') composer.text = draft.text
+    if (!slackVisible) ui.webContents.focus()
+    ui.webContents.send('slack:composer-changed', draft)
+  })
+  slack.webContents.on('dom-ready', bindComposer)
   const cacheChanged = (channel?: string) => {
     if (!ui.webContents.isDestroyed()) ui.webContents.send('slack:cache-changed', channel)
   }

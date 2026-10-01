@@ -4,6 +4,10 @@ declare global {
   interface Window {
     slackDesktop?: {
       platform: string
+      followComposer(channel: string, text?: string): Promise<number | undefined>
+      stopComposer(generation: number): Promise<void>
+      writeComposer(generation: number, text: string): Promise<void>
+      onComposerChange(callback: (draft: { channel: string; generation: number; text: string; source: 'slack' | 'inbox' }) => void): () => void
       readCache(channel?: string, options?: { before?: string; after?: string }): Promise<CachedConversation[]>
       watchConversations(channels: string[], selected?: string): Promise<void>
       refreshConversation(channel: string, older?: boolean): Promise<void>
