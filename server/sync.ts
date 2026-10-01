@@ -467,6 +467,9 @@ export class SyncEngine {
     this.sessionVerified = true
     this.database.setMetadata('session', session)
     this.database.setMetadata('signed-out', false)
+    await this.client.call<{ user: RawUser }>('users.info', { user: session.userId })
+      .then(({ user }) => this.database.upsertUser(toUser(user)))
+      .catch((error) => console.warn('Could not refresh your Slack profile', error))
   }
 
   private isStale(key: DirectoryKey) {

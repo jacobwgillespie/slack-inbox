@@ -60,6 +60,7 @@ export interface User {
   id: string
   handle: string
   displayName: string
+  firstName?: string
   avatar?: string
 }
 

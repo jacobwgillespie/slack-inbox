@@ -3,9 +3,10 @@ import { useStore } from '../store'
 import { CheckIcon, ClockIcon, ThreadIcon } from './Icons'
 
 export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void }) {
-  const name = useStore((state) => state.session
-    ? state.users[state.session.userId]?.displayName.trim()
-    : undefined)
+  const name = useStore((state) => {
+    const user = state.session ? state.users[state.session.userId] : undefined
+    return user?.firstName || user?.displayName.trim()
+  })
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const element = dialog.current!

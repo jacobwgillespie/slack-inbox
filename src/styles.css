@@ -1920,7 +1920,7 @@ a:focus-visible {
   font-weight: 600;
   margin: 0;
 }
-.onboarding-intro { font-size: 18px; line-height: 1.5; margin: 20px 0 30px; }
+.onboarding-intro { color: var(--text-muted); font-size: 18px; line-height: 1.5; margin: 20px 0 30px; }
 .onboarding-steps { display: grid; gap: 24px; }
 .onboarding-step { display: flex; gap: 16px; align-items: flex-start; }
 .onboarding-step-icon {
