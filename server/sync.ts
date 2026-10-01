@@ -271,6 +271,16 @@ export class SyncEngine {
     return this.preferences.save(channel, ts)
   }
 
+  async addReaction(channel: string, ts: string, name: string) {
+    try {
+      await this.client.call('reactions.add', { channel, timestamp: ts, name })
+    } catch (error) {
+      if (!(error instanceof SlackError && error.code === 'already_reacted')) throw error
+    }
+    const result = await this.client.call<{ message: Message }>('reactions.get', { channel, timestamp: ts })
+    return { reactions: toMessage(result.message).reactions ?? [] }
+  }
+
   completeLater(channel: string, ts: string) {
     return this.preferences.complete(channel, ts)
   }

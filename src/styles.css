@@ -1958,8 +1958,60 @@ a:focus-visible {
 .later-button { right: 38px; }
 .message-row.saved-message .message-bubble { outline: 1px solid var(--text-muted); outline-offset: 3px; }
 
-.thread-reply { position: relative; padding-right: 32px; }
-.thread-save { position: absolute; top: 0; right: 0; opacity: 0; }
+.thread-reply { position: relative; padding-right: 64px; }
+.thread-save { position: absolute; display: flex; top: 0; right: 0; opacity: 0; }
 .thread-reply:hover > .thread-save,
 .thread-reply:focus-within > .thread-save { opacity: 1; }
 .thread-save::before { content: ""; position: absolute; inset: -8px; }
+
+.reaction-picker {
+  position: fixed;
+  inset: auto;
+  width: 304px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 35%);
+}
+
+.reaction-picker input {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+}
+
+.reaction-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.reaction-picker-grid button {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.reaction-picker-grid button:hover,
+.reaction-picker-grid button:focus-visible {
+  background: rgb(255 255 255 / 10%);
+}
+
+.reaction-picker-grid .emoji { width: 24px; height: 24px; }
+.reaction-picker-error { color: #f1a5a5; font-size: 12px; margin: 8px 0 0; }

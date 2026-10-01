@@ -1,13 +1,20 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { authorAvatar, authorName, formatMessageTime, renderEmoji, renderMrkdwn, isSameAuthorGroup } from '../format'
 import { useFormatContext } from '../hooks'
 import { inboxStore, threadKey, useStore } from '../store'
 import type { WebviewMessage } from '../slack/webview'
 import { WebviewImage } from './WebviewImage'
-import type { Classification, Message } from '../slack/types'
+import type { Classification, Message, Reaction } from '../slack/types'
 import { Avatar } from './Avatar'
 import { FileAttachment, isImageFile } from './FileAttachment'
 import { BookmarkIcon, ReplyIcon, ThreadIcon } from './Icons'
+import { ReactionPicker } from './ReactionPicker'
+
+function useReactions(message: Message) {
+  const [reactions, setReactions] = useState<Reaction[] | undefined>(message.reactions)
+  useEffect(() => setReactions(message.reactions), [message.reactions])
+  return [reactions, setReactions] as const
+}
 
 export function MessageView({ channel, message, continued, continues = false, webview = false }: {
   channel: string
@@ -17,6 +24,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   continues?: boolean
 }) {
   const context = useFormatContext(message.emoji)
+  const [reactions, setReactions] = useReactions(message)
   const session = useStore((state) => state.session)
   const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
@@ -67,6 +75,7 @@ export function MessageView({ channel, message, continued, continues = false, we
             <ReplyIcon />
           </button>
           <SaveLaterButton channel={channel} message={message} />
+          <ReactionPicker channel={channel} ts={message.ts} onReact={setReactions} />
         </div>
   )
 
@@ -146,9 +155,9 @@ export function MessageView({ channel, message, continued, continues = false, we
             {images.map((file) => <FileAttachment key={file.id} file={file} />)}
           </div>
         )}
-        {message.reactions?.length ? (
+        {reactions?.length ? (
           <div className="reactions">
-            {message.reactions.map((reaction) => (
+            {reactions.map((reaction) => (
               <span key={reaction.name} className="reaction">
                 {renderEmoji(reaction.name, context)} {reaction.count}
               </span>
@@ -174,11 +183,15 @@ function ClassificationTag({ classification }: { classification: Classification 
 
 function ThreadReply({ channel, message, continued, compact }: { channel: string; message: Message; continued: boolean; compact: boolean }) {
   const context = useFormatContext(message.emoji)
+  const [reactions, setReactions] = useReactions(message)
   const name = authorName(message, context.users)
 
   return (
     <div className={`thread-reply${continued ? ' continued' : ''}`}>
-      <SaveLaterButton channel={channel} message={message} className="thread-save" />
+      <div className="thread-save" role="toolbar" aria-label={`Actions for ${name}'s reply`}>
+        <SaveLaterButton channel={channel} message={message} />
+        <ReactionPicker channel={channel} ts={message.ts} onReact={setReactions} />
+      </div>
       <div className="message-gutter">
         {!continued && <Avatar url={authorAvatar(message, context.users)} name={name} size="small" />}
       </div>
@@ -190,6 +203,9 @@ function ThreadReply({ channel, message, continued, compact }: { channel: string
           </header>
         )}
         <div className="mrkdwn">{renderMrkdwn(message.text, context)}</div>
+        {reactions?.length ? <div className="reactions">{reactions.map((reaction) => (
+          <span key={reaction.name} className="reaction">{renderEmoji(reaction.name, context)} {reaction.count}</span>
+        ))}</div> : null}
         {message.files?.length ? (
           <div className="files">
             {message.files.map((file) => <FileAttachment key={file.id} file={file} />)}

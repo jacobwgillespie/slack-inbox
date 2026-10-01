@@ -160,6 +160,11 @@ export function localApi(engine: SyncEngine) {
     'POST /local/later': async (request, response) => {
       sendJson(response, 200, await engine.saveForLater(...readReference(await readJson(request))))
     },
+    'POST /local/reaction': async (request, response) => {
+      const body = await readJson(request)
+      const [channel, ts] = readReference(body)
+      sendJson(response, 200, await engine.addReaction(channel, ts, requireString(body.name, 'name')))
+    },
     'POST /local/later/complete': async (request, response) => {
       await engine.completeLater(...readReference(await readJson(request)))
       sendJson(response, 200, { ok: true })

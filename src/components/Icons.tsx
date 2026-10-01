@@ -124,3 +124,9 @@ export const ArrowLeftIcon = () => (
 export const BookmarkIcon = () => (
   <Icon><path d="M6 4h12v17l-6-4-6 4z" /></Icon>
 )
+
+export const ReactionIcon = () => (
+  <Icon>
+    <path d="M20 13a8 8 0 1 1-9-9M8 14a4 4 0 0 0 8 0M8.5 9h.01M14.5 9h.01M19 3v6M16 6h6" />
+  </Icon>
+)

@@ -21,7 +21,9 @@
         "chat:write",
         "files:read",
         "users:read",
-        "emoji:read"
+        "emoji:read",
+        "reactions:read",
+        "reactions:write"
       ]
     }
   },
