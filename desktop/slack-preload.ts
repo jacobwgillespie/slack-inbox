@@ -1,3 +1,4 @@
+import { readComposerSelection, restoreComposerSelection, type ComposerAction } from '../src/slack/composer'
 import { contextBridge, ipcRenderer } from 'electron'
 
 // Both embedded views start in the background. Only the manual Slack view
@@ -50,41 +51,103 @@ window.addEventListener('DOMContentLoaded', () => {
   notify()
 })
 
-// The manual view owns drafts. The collector never edits a composer.
+// Copy DOM from the manual view; the collector never owns an editor.
 if (!process.argv.includes('--slack-background-collector')) {
-  let binding: { channel: string; generation: number; text?: string } | undefined
-  let editor: HTMLElement | null = null
-  let lastText: string | undefined
-  let applying = false
+  let binding: { channel: string; generation: number } | undefined
+  let lastHtml: string | undefined
+  let composerRoot: HTMLElement | undefined
   let scheduled = false
-  const readText = (element: HTMLElement) => element.innerText.replace(/\n$/, '')
+  let source: 'slack' | 'inbox' = 'slack'
+  let actionType: ComposerAction['type'] | undefined
+  const targets = new Map<string, HTMLElement>()
+  const ids = new WeakMap<HTMLElement, string>()
+  let nextId = 0
+  const targetId = (element: HTMLElement) => {
+    let id = ids.get(element)
+    if (!id) { id = String(++nextId); ids.set(element, id) }
+    targets.set(id, element)
+    return id
+  }
+  const findEditor = () => [...document.querySelectorAll<HTMLElement>('.ql-editor[contenteditable="true"]')]
+    .find((element) => !element.closest('.p-thread_view'))
+  const ready = () => binding && location.origin === 'https://app.slack.com' && location.pathname.split('/')[3] === binding.channel
   const sync = () => {
     scheduled = false
-    if (!binding || location.origin !== 'https://app.slack.com' || location.pathname.split('/')[3] !== binding.channel) return
-    const next = [...document.querySelectorAll<HTMLElement>('.ql-editor[contenteditable="true"]')]
-      .find((element) => !element.closest('.p-thread_view'))
-    if (!next) return
-    if (next !== editor) { editor = next; lastText = undefined }
-    const source = binding.text === undefined ? 'slack' : 'inbox'
-    if (binding.text !== undefined && readText(editor) !== binding.text) {
-      applying = true
-      // Native editing commands notify Quill and preserve Slack's draft handling.
-      // Setting innerHTML alone would only change the DOM, not its editor state.
-      editor.focus({ preventScroll: true })
-      const range = document.createRange()
-      range.selectNodeContents(editor)
-      const selection = window.getSelection()
-      selection?.removeAllRanges()
-      selection?.addRange(range)
-      if (binding.text) document.execCommand('insertText', false, binding.text)
-      else document.execCommand('delete')
-      applying = false
+    if (!ready()) return
+    const editor = findEditor()
+    if (!editor || !binding) return
+    // Find the smallest editor ancestor that also includes Slack's controls.
+    let root = editor.parentElement ?? editor
+    for (let depth = 0; depth < 6 && !root.querySelector('button'); depth++) {
+      if (!root.parentElement || root.parentElement === document.body) break
+      root = root.parentElement
     }
-    binding.text = undefined
-    const text = readText(editor)
-    if (text === lastText) return
-    lastText = text
-    ipcRenderer.send('slack:composer-changed', { channel: binding.channel, generation: binding.generation, text, source })
+    composerRoot = root
+    const clone = root.cloneNode(true) as HTMLElement
+    targets.clear()
+    const originals = [root, ...root.querySelectorAll<HTMLElement>('*')]
+    const copies = [clone, ...clone.querySelectorAll<HTMLElement>('*')]
+    originals.forEach((element, index) => {
+      const copy = copies[index]!
+      if (element === editor) {
+        copy.dataset.slackEditor = 'true'
+        copy.setAttribute('contenteditable', 'true')
+      }
+      if (element.matches('button, [role="button"], [role="option"], [role="menuitem"]')) {
+        const id = targetId(element)
+        copy.dataset.slackAction = id
+        if (copy.tagName === 'BUTTON') copy.setAttribute('type', 'button')
+      }
+      // Preserve layout and icons without importing Slack's global stylesheet.
+      const computed = getComputedStyle(element)
+      for (const property of ['display', 'flex-direction', 'align-items', 'justify-content', 'gap', 'padding', 'margin', 'width', 'height']) {
+        if (element === editor || element.contains(editor) || property === 'width' || property === 'height') continue
+        copy.style.setProperty(property, computed.getPropertyValue(property))
+      }
+      if (copy.localName === 'svg') {
+        copy.style.width = '20px'
+        copy.style.height = '20px'
+      }
+      copy.removeAttribute('id')
+      // The copied document must not autofocus or submit a local form.
+      copy.removeAttribute('autofocus')
+    })
+    const placeholder = clone.querySelector('.c-texty_input__placeholder')
+    const copiedEditor = clone.querySelector<HTMLElement>('[data-slack-editor]')
+    if (placeholder && copiedEditor) {
+      copiedEditor.dataset.placeholder = placeholder.textContent ?? ''
+      placeholder.remove()
+    }
+    // Slack's autocomplete is rendered outside the composer, in a portal.
+    const portals = [...document.querySelectorAll<HTMLElement>('[role="listbox"], [role="menu"], [role="dialog"]')]
+      .filter((element) => !root.contains(element) && !element.parentElement?.closest('[role="listbox"], [role="menu"], [role="dialog"]'))
+    for (const portal of portals) {
+      const popup = portal.cloneNode(true) as HTMLElement
+      popup.removeAttribute('style')
+      popup.dataset.slackSuggestions = 'true'
+      const originals = [portal, ...portal.querySelectorAll<HTMLElement>('*')]
+      const copies = [popup, ...popup.querySelectorAll<HTMLElement>('*')]
+      originals.forEach((element, index) => {
+        const copy = copies[index]!
+        copy.removeAttribute('id')
+        if (element.matches('button, [role="button"], [role="option"], [role="menuitem"]')) {
+          copy.dataset.slackAction = targetId(element)
+          if (copy.tagName === 'BUTTON') copy.setAttribute('type', 'button')
+        }
+        if (copy.localName === 'svg') { copy.style.width = '20px'; copy.style.height = '20px' }
+      })
+      clone.append(popup)
+    }
+    const html = clone.outerHTML
+    if (html !== lastHtml || source === 'inbox') {
+      lastHtml = html
+      ipcRenderer.send('slack:composer-changed', {
+        channel: binding.channel, generation: binding.generation, html,
+        selection: readComposerSelection(editor), action: actionType, source,
+      })
+    }
+    source = 'slack'
+    actionType = undefined
   }
   const schedule = () => {
     if (scheduled) return
@@ -92,15 +155,46 @@ if (!process.argv.includes('--slack-background-collector')) {
     requestAnimationFrame(sync)
   }
   ipcRenderer.on('slack:composer-bind', (_event, next: typeof binding) => {
-    if (next?.generation !== binding?.generation) { editor = null; lastText = undefined }
     binding = next
+    lastHtml = undefined
+    schedule()
+  })
+  ipcRenderer.on('slack:composer-action', (_event, generation: number, action: ComposerAction) => {
+    if (!ready() || binding?.generation !== generation) return
+    const editor = findEditor()
+    if (!editor) return
+    source = 'inbox'
+    actionType = action.type
+    editor.focus({ preventScroll: true })
+    if (action.type === 'input') {
+      if (editor.innerHTML !== action.html) {
+        const range = document.createRange()
+        range.selectNodeContents(editor)
+        window.getSelection()?.removeAllRanges()
+        window.getSelection()?.addRange(range)
+        document.execCommand('insertHTML', false, action.html || '<p><br></p>')
+      }
+      restoreComposerSelection(editor, action.selection)
+    } else {
+      restoreComposerSelection(editor, action.selection)
+      if (action.type === 'click') targets.get(action.id)?.click()
+      else {
+        const codes: Record<string, number> = { Enter: 13, Escape: 27, Tab: 9, ArrowUp: 38, ArrowDown: 40 }
+        editor.dispatchEvent(new KeyboardEvent('keydown', { key: action.key, code: action.key, keyCode: codes[action.key], which: codes[action.key], bubbles: true, cancelable: true }))
+      }
+    }
     schedule()
   })
   window.addEventListener('DOMContentLoaded', () => {
-    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true })
-    document.addEventListener('input', (event) => {
-      if (!applying && event.target instanceof Element && event.target.closest('.ql-editor')) schedule()
-    })
+    new MutationObserver((records) => {
+      const relevant = (node: Node) => {
+        const element = node instanceof Element ? node : node.parentElement
+        return composerRoot?.contains(node) || element?.closest('[role="listbox"], [role="menu"], [role="dialog"]') ||
+          element?.querySelector('.ql-editor, [role="listbox"], [role="menu"], [role="dialog"]')
+      }
+      if (!composerRoot?.isConnected || records.some((record) => relevant(record.target) || [...record.addedNodes, ...record.removedNodes].some(relevant))) schedule()
+    }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'aria-expanded', 'aria-selected', 'class'] })
+    document.addEventListener('input', schedule)
     schedule()
   })
 }

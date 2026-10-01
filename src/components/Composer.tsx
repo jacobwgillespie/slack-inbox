@@ -4,15 +4,17 @@ import { useFormatContext } from '../hooks'
 import { inboxStore, findMessage, threadTargetFor, useStore } from '../store'
 import type { InboxItem } from '../slack/types'
 import { ArrowUpIcon } from './Icons'
+import { SlackComposer } from './SlackComposer'
 
 export function Composer({ item }: { item: InboxItem }) {
+  const threadTarget = useStore((state) => state.threadTarget)
+  if (window.slackDesktop && !threadTargetFor(item, threadTarget)) return <SlackComposer item={item} />
+  return <PlainComposer item={item} />
+}
+
+function PlainComposer({ item }: { item: InboxItem }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
-  const selected = useStore((state) => state.selectedId === item.id)
-  const draft = useRef(text)
-  const draftGeneration = useRef<number | undefined>(undefined)
-  const edited = useRef(false)
-  const draftWrite = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const ref = useRef<HTMLTextAreaElement>(null)
   const context = useFormatContext()
   const session = useStore((state) => state.session)
@@ -35,49 +37,6 @@ export function Composer({ item }: { item: InboxItem }) {
   }, [text])
 
   const replyThread = threadTargetFor(item, threadTarget)
-  useEffect(() => {
-    const desktop = window.slackDesktop
-    if (!desktop || !selected || replyThread) return
-    let cancelled = false
-    let generation: number | undefined
-    let initial: { channel: string; generation: number; text: string; source: 'slack' | 'inbox' } | undefined
-    edited.current = false
-    const accept = (update: { channel: string; generation: number; text: string; source: 'slack' | 'inbox' }) => {
-      if (cancelled || update.channel !== item.conversation.id) return
-      if (generation === undefined) { initial = update; return }
-      if (update.generation !== generation || update.source === 'inbox' ||
-          (edited.current && document.hasFocus() && document.activeElement === ref.current)) return
-      draft.current = update.text
-      setText(update.text)
-    }
-    const unsubscribe = desktop.onComposerChange(accept)
-    void desktop.followComposer(item.conversation.id, draft.current || undefined).then((value) => {
-      generation = value
-      if (value === undefined) return
-      if (cancelled) { void desktop.stopComposer(value); return }
-      draftGeneration.current = value
-      if (edited.current) void desktop.writeComposer(value, draft.current)
-      else if (initial) accept(initial)
-    }).catch(console.error)
-    return () => {
-      cancelled = true
-      clearTimeout(draftWrite.current)
-      unsubscribe()
-      draftGeneration.current = undefined
-      if (generation !== undefined) void desktop.stopComposer(generation)
-    }
-  }, [selected, item.conversation.id, replyThread])
-
-  const updateText = (value: string) => {
-    draft.current = value
-    edited.current = true
-    setText(value)
-    clearTimeout(draftWrite.current)
-    // Let a typing burst finish before focusing Slack's native editor.
-    draftWrite.current = setTimeout(() => {
-      if (draftGeneration.current !== undefined) void window.slackDesktop?.writeComposer(draftGeneration.current, draft.current).catch(console.error)
-    }, 180)
-  }
   const threadParent = replyThread ? findMessage(item, replyThread) : undefined
   const label = conversationLabel(item.conversation, context.users, session)
   const placeholder = replyThread ? 'Reply in thread' : `Message ${label}`
@@ -85,13 +44,10 @@ export function Composer({ item }: { item: InboxItem }) {
   const submit = async () => {
     if (sending || !text.trim()) return
     setSending(true)
-    const generation = draftGeneration.current
     const sent = await send(text)
     setSending(false)
     if (sent) {
-      updateText('')
-      clearTimeout(draftWrite.current)
-      if (generation !== undefined) void window.slackDesktop?.writeComposer(generation, '').catch(console.error)
+      setText('')
       ref.current?.blur()
     }
   }
@@ -132,7 +88,7 @@ export function Composer({ item }: { item: InboxItem }) {
           value={text}
           placeholder={placeholder}
           aria-label={placeholder}
-          onChange={(event) => updateText(event.target.value)}
+          onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           disabled={sending}
         />

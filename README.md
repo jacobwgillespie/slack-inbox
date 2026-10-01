@@ -43,7 +43,9 @@ Messages and reactions support Slack emoji shortcodes and skin tones. The webvie
 
 Slack's own WebSocket frames feed messages, edits, deletions, reactions, and read markers into the existing sync engine. Our sync engine does not open its own realtime socket; each embedded Slack view manages its normal connection. SQLite still supplies the UI, caches image bytes and history pages, and records history coverage. Polling and reconnection checks remain available when observed realtime updates stop.
 
-**Open Slack** in a conversation explicitly reveals that conversation in the real Slack client, where its composer provides mentions, slash commands, and other workflows. Selecting DMs or channels in our viewer does not navigate Slack. Composer contents and keystrokes are not mirrored; the two editors retain independent drafts. Opening the real Slack client can mark its active conversation read as Slack normally does.
+The desktop composer experiments with copying Slack's editor and controls into our renderer. The manual Slack view follows the selected conversation in the background. Sanitized HTML snapshots provide the editor, buttons, and suggestion menus; draft edits, selection, supported keys, and control clicks are proxied back to Slack. Rich-text drafts and mention completion have been checked in Linear without sending messages. Sending uses Slack's own composer. Search fields inside popups, file dialogs, and media controls are not fully integrated or verified. Replies in Slack threads and the browser version retain the existing composer.
+
+**Open Slack** reveals the full client for the selected conversation, sharing the same draft. The hidden composer view cannot write read markers; revealing Slack can mark its active conversation read as Slack normally does.
 
 This first experiment targets one workspace. It uses a separate database at Electron's `userData/slack.sqlite`, so it can run alongside the browser app without two engines writing the same cache. Override it with `SLACK_DESKTOP_DATABASE_PATH`. The local renderer uses port 5174; override with `SLACK_DESKTOP_PORT` if needed. `pnpm desktop:build` builds without launching; after building, `pnpm exec electron electron-dist/main.cjs` launches directly.
 
@@ -157,7 +159,7 @@ Viewing a conversation at the bottom marks its latest displayed messages read. V
 
 ### Desktop conversation sync
 
-The Electron DM and channel views read a durable SQLite cache through TanStack DB live collections. Switching conversations does not navigate Slack or wait for its DOM. React Activities retain the eight most recently opened panels and their scroll positions. The browser version continues to use API-backed SQLite history.
+The Electron DM and channel views read a durable SQLite cache through TanStack DB live collections. Switching conversations reads the cache immediately. The manual view separately follows the selection for composer sync; message rendering does not wait for that view. React Activities retain the eight most recently opened panels and their scroll positions. The browser version continues to use API-backed SQLite history.
 
 A dedicated background Slack view collects rendered messages into SQLite, keyed by conversation ID and Slack message timestamp. It is separate from the Slack view opened by **Open Slack**, so inspecting Slack does not interrupt collection. A MutationObserver reports rendered changes immediately. The collector prioritizes the selected conversation, incoming unread messages observed on Slack's realtime connection, then visible sidebar rows. Visible conversations with stale caches are refreshed when the sidebar reports them; unchanged caches younger than a minute are reused.
 

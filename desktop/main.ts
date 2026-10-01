@@ -111,16 +111,16 @@ async function start() {
     return showSlack(channel as string | undefined)
   })
   const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[CDG][A-Z0-9]+$/.test(channel)
-  let composer: { channel: string; generation: number; text?: string } | undefined
+  let composer: { channel: string; generation: number } | undefined
   let composerGeneration = 0
   const bindComposer = () => {
     if (!slack.webContents.isDestroyed()) slack.webContents.send('slack:composer-bind', composer)
   }
-  ipcMain.handle('slack:composer-follow', (event, channel: unknown, text: unknown) => {
-    if (!ownRenderer(event) || !validChannel(channel) || (text !== undefined && typeof text !== 'string')) throw new Error('Invalid composer')
+  ipcMain.handle('slack:composer-follow', (event, channel: unknown) => {
+    if (!ownRenderer(event) || !validChannel(channel)) throw new Error('Invalid composer')
     const team = database.getMetadata<{ teamId: string }>('session')?.teamId
     if (!team) return
-    composer = { channel, generation: ++composerGeneration, text: text as string | undefined }
+    composer = { channel, generation: ++composerGeneration }
     const destination = `https://app.slack.com/client/${team}/${channel}`
     if (slack.webContents.getURL().split('?')[0] === destination) bindComposer()
     else void slack.webContents.loadURL(destination).catch((error) => {
@@ -134,17 +134,15 @@ async function start() {
     composer = undefined
     bindComposer()
   })
-  ipcMain.handle('slack:composer-write', (event, generation: unknown, text: unknown) => {
-    if (!ownRenderer(event) || typeof text !== 'string') throw new Error('Invalid composer')
+  ipcMain.handle('slack:composer-action', (event, generation: unknown, action: import('../src/slack/composer').ComposerAction) => {
+    if (!ownRenderer(event) || !action || !['input', 'key', 'click'].includes(action.type)) throw new Error('Invalid composer action')
     if (!composer || composer.generation !== generation) return
-    composer.text = text
-    bindComposer()
+    slack.webContents.send('slack:composer-action', generation, action)
   })
-  ipcMain.on('slack:composer-changed', (event, draft: { channel: string; generation: number; text: string; source: 'slack' | 'inbox' }) => {
+  ipcMain.on('slack:composer-changed', (event, draft: import('../src/slack/composer').ComposerSnapshot) => {
     if (event.sender !== slack.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') ||
-        !composer || draft?.generation !== composer.generation || draft.channel !== composer.channel || typeof draft.text !== 'string') return
-    if (draft.source === 'slack') composer.text = draft.text
-    if (!slackVisible) ui.webContents.focus()
+        !composer || draft?.generation !== composer.generation || draft.channel !== composer.channel || typeof draft.html !== 'string') return
+    if (!slackVisible && draft.source === 'inbox') ui.webContents.focus()
     ui.webContents.send('slack:composer-changed', draft)
   })
   slack.webContents.on('dom-ready', bindComposer)

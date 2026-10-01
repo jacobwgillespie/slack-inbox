@@ -1,12 +1,13 @@
+import type { ComposerAction, ComposerSnapshot } from '../src/slack/composer'
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('slackDesktop', {
   platform: process.platform,
-  followComposer: (channel: string, text?: string) => ipcRenderer.invoke('slack:composer-follow', channel, text),
+  followComposer: (channel: string) => ipcRenderer.invoke('slack:composer-follow', channel),
   stopComposer: (generation: number) => ipcRenderer.invoke('slack:composer-stop', generation),
-  writeComposer: (generation: number, text: string) => ipcRenderer.invoke('slack:composer-write', generation, text),
-  onComposerChange: (callback: (draft: { channel: string; generation: number; text: string; source: 'slack' | 'inbox' }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, draft: { channel: string; generation: number; text: string; source: 'slack' | 'inbox' }) => callback(draft)
+  composerAction: (generation: number, action: ComposerAction) => ipcRenderer.invoke('slack:composer-action', generation, action),
+  onComposerChange: (callback: (draft: ComposerSnapshot) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, draft: ComposerSnapshot) => callback(draft)
     ipcRenderer.on('slack:composer-changed', listener)
     return () => ipcRenderer.removeListener('slack:composer-changed', listener)
   },
