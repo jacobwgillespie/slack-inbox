@@ -25,6 +25,8 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
   const history = useStore((state) => state.histories[item.id])
   const loadHistory = useStore((state) => state.loadHistory)
   const ref = useRef<HTMLDivElement>(null)
+  const olderRef = useRef<HTMLDivElement>(null)
+  const automaticBefore = useRef<string | undefined>(undefined)
   const revealRef = useRef<HTMLDivElement>(null)
   useTimestampReveal(revealRef)
   const position = useRef<{ top: number; atBottom: boolean; anchor?: { ts: string; offset: number } }>({ top: 0, atBottom: true })
@@ -75,12 +77,30 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
   }, [dms])
 
   const showEarlier = () => {
+    if (!webview.snapshot?.hasMore || webview.loadingOlder || webview.error) return
     if (ref.current) {
       position.current.atBottom = false
       rememberPosition(ref.current)
     }
     webview.scroll('older')
   }
+
+  // Observe the top of our timeline, rather than depending on wheel input.
+  // Recheck after prepending messages in case the viewport is still near it.
+  useEffect(() => {
+    const element = ref.current
+    const sentinel = olderRef.current
+    if (!fromWebview || !element || !sentinel || webview.loadingOlder || !webview.snapshot?.hasMore || webview.error) return
+    const observer = new IntersectionObserver(([entry]) => {
+      const first = messages[0]?.ts
+      if (entry?.isIntersecting && first && automaticBefore.current !== first) {
+        automaticBefore.current = first
+        showEarlier()
+      }
+    }, { root: element, rootMargin: '200px 0px 0px 0px' })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [fromWebview, messages[0]?.ts, webview.loadingOlder, webview.snapshot?.hasMore, webview.error])
 
   const scrollToLatest = () => {
     if (fromWebview) webview.scroll('latest')
@@ -99,7 +119,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
             ref={ref}
             className="message-list"
             onWheel={(event) => {
-              if (fromWebview && event.deltaY < 0 && event.currentTarget.scrollTop < 80 && !webview.loadingOlder) showEarlier()
+              if (fromWebview && event.deltaY < 0 && event.currentTarget.scrollTop < 200) showEarlier()
             }}
             onScroll={(event) => {
               const element = event.currentTarget
@@ -107,12 +127,14 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
               position.current.atBottom = bottom
               rememberPosition(element)
               setAtBottom(bottom)
+              if (fromWebview && element.scrollTop < 200) showEarlier()
               if (!fromWebview && dms && element.scrollTop < 80 && history?.item && history.hasMore && !history.loading && !history.error) {
                 void loadHistory(item.id, 'older')
               }
             }}
           >
             <div className="message-track">
+              {fromWebview && <div ref={olderRef} aria-hidden="true" />}
               {dms && !fromWebview && (
                 <div className="history-status" role="status">
                   {history?.error ? (
@@ -132,11 +154,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
               {fromWebview && (
                 <div className="history-status" role="status">
                   {webview.error ? <span className="scan-error">{webview.error}</span> : !webview.snapshot ? 'Reading Slack webview…' : (
-                    <><span>From Slack webview · {messages.length} observed messages</span>
-                      <button className="link-button" disabled={webview.loadingOlder} onClick={showEarlier}>
-                        {webview.loadingOlder ? 'Scrolling Slack…' : 'Show earlier messages'}
-                      </button>
-                    </>
+                    <span>{webview.loadingOlder ? 'Loading earlier messages…' : !webview.snapshot.hasMore ? 'Beginning of conversation' : `From Slack webview · ${messages.length} observed messages`}</span>
                   )}
                 </div>
               )}
