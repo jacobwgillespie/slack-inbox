@@ -5,6 +5,8 @@ import { inboxStore, latestTs, mentionsSelf, isConversationView, useStore, type 
 import { compareTs } from '../slack/timestamps'
 import type { InboxItem } from '../slack/types'
 import { ConversationIcon } from './Avatar'
+import { useTyping } from '../typing'
+import { TypingDots } from './TypingIndicator'
 import { CheckIcon, ClockIcon, MuteIcon } from './Icons'
 
 const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
@@ -113,6 +115,7 @@ export function ItemList() {
 
 function ItemRow({ item }: { item: InboxItem }) {
   const { id } = item
+  const typing = useTyping(item.conversation.id)
   const context = useFormatContext()
   const session = useStore((state) => state.session)
   const view = useStore((state) => state.view)
@@ -167,13 +170,12 @@ function ItemRow({ item }: { item: InboxItem }) {
             {authorName(item.thread.root, context.users)}: {messageSummary(item.thread.root, context)}
           </p>
         )}
-        {latest && (
+        {typing.length > 0 ? <p className="item-preview"><TypingDots /></p> : latest ? (
           <p className="item-preview">
             {item.conversation.kind !== 'dm' && <span className="item-author">{authorName(latest, context.users)}: </span>}
             {messageSummary(latest, context)}
           </p>
-        )}
-        {isConversationView(view) && !latest && <p className="item-preview">Open conversation</p>}
+        ) : isConversationView(view) ? <p className="item-preview">Open conversation</p> : null}
       </div>
       <div className="item-actions">
         {view !== 'later' && !isConversationView(view) && (

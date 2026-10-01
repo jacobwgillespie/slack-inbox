@@ -9,6 +9,7 @@ import { useCurrentItem, useFormatContext } from '../hooks'
 import { inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
 import { Composer } from './Composer'
+import { TypingIndicator } from './TypingIndicator'
 import { Toast } from './Toast'
 import { MessageList } from './MessageList'
 import { ArrowLeftIcon, CheckIcon, ClockIcon, ExternalIcon, MuteIcon, SwapIcon } from './Icons'
@@ -153,6 +154,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
       <MessageList item={item} fullHistory={isConversationView(view)} />
       <div className="conversation-composer">
         <Toast />
+        <TypingIndicator channel={item.conversation.id} />
         <Composer item={item} />
       </div>
     </section>

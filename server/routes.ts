@@ -72,10 +72,12 @@ function streamEvents(engine: SyncEngine): Handler {
     const send = (version: number) => response.write(`data: ${JSON.stringify({ version })}\n\n`)
     send(engine.inbox().version)
     const unsubscribe = engine.subscribe(send)
+    const unsubscribeTyping = engine.subscribeTyping((event) => response.write(`event: typing\ndata: ${JSON.stringify(event)}\n\n`))
     const heartbeat = setInterval(() => response.write(': heartbeat\n\n'), 25 * 1000)
     request.on('close', () => {
       clearInterval(heartbeat)
       unsubscribe()
+      unsubscribeTyping()
     })
   }
 }

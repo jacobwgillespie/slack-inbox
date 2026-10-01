@@ -3,6 +3,7 @@ import { dmCollection, channelCollection, inboxCollection, laterCollection, user
 import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { subscribeToChanges } from './api'
+import { updateTyping, clearTyping } from './typing'
 import type { FormatContext } from './format'
 import { computeCounts, computeVisible, isConversationView, useStore, VIEWS, type InboxState } from './store'
 
@@ -111,6 +112,7 @@ export function useInboxSync() {
         const previousRealtime = useStore.getState().sync?.realtime
         await load()
         const state = useStore.getState()
+        if (state.sync?.realtime !== 'connected') clearTyping()
         if (isConversationView(state.view) && state.selectedId && state.histories[state.selectedId]?.item) {
           await state.loadHistory(state.selectedId,
             previousRealtime !== 'connected' && state.sync?.realtime === 'connected' ? 'latest' : 'cached',
@@ -121,10 +123,11 @@ export function useInboxSync() {
     }
     void loadEmoji()
     void reload()
-    return subscribeToChanges(() => {
+    const unsubscribe = subscribeToChanges(() => {
       void reload()
       if (!Object.keys(useStore.getState().emoji).length) void loadEmoji()
-    })
+    }, updateTyping, clearTyping)
+    return () => { unsubscribe(); clearTyping() }
   }, [])
 }
 

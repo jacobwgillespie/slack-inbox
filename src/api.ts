@@ -7,6 +7,7 @@ import type {
   SavedItemReference,
   SyncError,
   ThreadPayload,
+  TypingEvent,
 } from './slack/types'
 
 export class LocalApiError extends Error {
@@ -66,8 +67,10 @@ export const localApi = {
   },
 }
 
-export function subscribeToChanges(onChange: (version: number) => void): () => void {
+export function subscribeToChanges(onChange: (version: number) => void, onTyping: (event: TypingEvent) => void, onDisconnect: () => void): () => void {
   const events = new EventSource('/local/events')
+  events.addEventListener('typing', (event) => onTyping(JSON.parse((event as MessageEvent).data) as TypingEvent))
+  events.onerror = onDisconnect
   events.onmessage = (event) => onChange((JSON.parse(event.data) as { version: number }).version)
   return () => events.close()
 }

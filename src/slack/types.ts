@@ -163,3 +163,9 @@ export interface ThreadPayload {
   messages: Message[]
   users: Record<string, User>
 }
+
+export interface TypingEvent {
+  channel: string
+  user: string
+  active: boolean
+}

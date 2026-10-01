@@ -13,6 +13,7 @@ import type {
   SyncStatus,
   ThreadPayload,
   HistoryPayload,
+  TypingEvent,
 } from '../src/slack/types.ts'
 import { Classifier, type ClassifierOptions } from './classifier.ts'
 import type { Database, StoredConversation } from './database.ts'
@@ -90,6 +91,7 @@ export class SyncEngine {
   private timer?: ReturnType<typeof setTimeout>
   private notifyTimer?: ReturnType<typeof setTimeout>
   private readonly listeners = new Set<(version: number) => void>()
+  private readonly typingListeners = new Set<(event: TypingEvent) => void>()
   private readonly requestedUsers = new Set<string>()
   private readonly realtime?: RealtimeConnection
   private readonly preferences: Preferences
@@ -170,12 +172,18 @@ export class SyncEngine {
     clearTimeout(this.timer)
     clearTimeout(this.notifyTimer)
     this.listeners.clear()
+    this.typingListeners.clear()
     await this.running?.catch(() => undefined)
   }
 
   subscribe(listener: (version: number) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  subscribeTyping(listener: (event: TypingEvent) => void): () => void {
+    this.typingListeners.add(listener)
+    return () => this.typingListeners.delete(listener)
   }
 
   webviewChanged() { this.changed() }
@@ -348,6 +356,11 @@ export class SyncEngine {
 
   private handleRealtimeEvent(event: RealtimeEvent) {
     const channel = typeof event.channel === 'string' ? event.channel : undefined
+    if (channel && typeof event.user === 'string' && event.user !== this.session?.userId &&
+        (event.type === 'user_typing' || (event.type === 'message' && !event.subtype))) {
+      const typing = { channel, user: event.user, active: event.type === 'user_typing' }
+      for (const listener of this.typingListeners) listener(typing)
+    }
     if (event.type === 'message' && channel) {
       this.handleMessageEvent(channel, event)
     } else if (READ_MARKER_EVENTS.has(event.type) && channel && typeof event.ts === 'string') {
