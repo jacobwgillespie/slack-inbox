@@ -1,121 +1,75 @@
-import { spawn } from 'node:child_process'
-import { access, mkdir } from 'node:fs/promises'
-import type { Readable, Writable } from 'node:stream'
+import { AuthRequest } from 'electron-native-auth'
 import type { Session } from 'electron'
 
-interface ChromeCookie {
-  name: string
-  value: string
-  domain: string
-  path: string
-  secure: boolean
-  httpOnly: boolean
-  expires: number
-  sameSite?: 'Strict' | 'Lax' | 'None'
-}
-interface Target { targetId: string; type: string; url: string }
+interface MagicLogin { host: string; tokens: string[] }
 
-/** A dedicated Chrome profile handles SSO. Its DevTools pipe is private to this process. */
+// Slack's desktop callback carries one-time keys, not the browser's cookies.
+export function parseMagicLogin(callback: string): MagicLogin[] {
+  const url = new URL(callback)
+  if (url.protocol !== 'slack:') throw new Error('Slack returned an unexpected sign-in link.')
+  const groups: MagicLogin[] = []
+  if (url.hostname === 'login-v2') {
+    for (let index = 0; url.searchParams.has(`${index}.tokens`); index++) {
+      if (url.searchParams.get(`${index}.dpop`) === '1') throw new Error('This workspace requires device-bound sign-in, which is not supported yet.')
+      groups.push({ host: url.searchParams.get(`${index}.host`) ?? '', tokens: url.searchParams.get(`${index}.tokens`)!.split('_') })
+    }
+  } else {
+    const match = /^slack:\/\/([TE][A-Z0-9]+)\/magic-login\/([A-Za-z0-9-]+)\/?(?:\?|$)/i.exec(callback)
+    if (match) groups.push({ host: url.searchParams.get('host') ?? 'slack.com', tokens: [`z-app-${match[1]!.toUpperCase()}-${match[2]}`] })
+    if (url.searchParams.get('dpop') === '1') throw new Error('This workspace requires device-bound sign-in, which is not supported yet.')
+  }
+  if (!groups.length || groups.some(({ host, tokens }) =>
+    !/^(?:[a-z0-9-]+\.)*slack\.com$/.test(host) || !tokens.length || tokens.some((token) => !/^z-app-[TE][A-Z0-9]+-[A-Za-z0-9-]+$/.test(token)))) {
+    throw new Error('Slack returned an invalid sign-in link.')
+  }
+  return groups
+}
+
 export class BrowserSignin {
   private running?: Promise<void>
-  private cancel?: () => void
+  private request?: AuthRequest
+  private abort?: AbortController
 
-  constructor(private readonly profile: string, private readonly destination: Session) {}
+  constructor(private readonly destination: Session, private readonly windowHandle: () => Buffer) {}
 
   start() {
-    this.running ??= this.signin().finally(() => { this.running = undefined })
+    this.running ??= this.signin().finally(() => { this.running = undefined; this.request = undefined; this.abort = undefined })
     return this.running
   }
 
   async stop() {
-    this.cancel?.()
+    this.request?.cancel()
+    this.abort?.abort()
     await this.running?.catch(() => undefined)
   }
 
   private async signin() {
-    const executable = process.env.SLACK_SIGNIN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-    await access(executable).catch(() => { throw new Error('Install Google Chrome or set SLACK_SIGNIN_CHROME to its executable.') })
-    await mkdir(this.profile, { recursive: true })
-    const child = spawn(executable, [
-      `--user-data-dir=${this.profile}`, '--remote-debugging-pipe', '--no-first-run',
-      '--no-default-browser-check', '--new-window', 'https://slack.com/signin',
-    ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] })
-    const input = child.stdio[3] as Writable
-    const output = child.stdio[4] as Readable
-    let nextId = 0
-    let closed = false
-    let buffered = ''
-    const pending = new Map<number, { resolve: (result: unknown) => void; reject: (error: Error) => void }>()
-    const close = () => {
-      closed = true
-      for (const request of pending.values()) request.reject(new Error('Browser sign-in was closed.'))
-      pending.clear()
-    }
-    child.on('exit', close)
-    child.on('error', close)
-    input.on('error', close)
-    output.on('error', close)
-    output.setEncoding('utf8')
-    output.on('data', (data: string) => {
-      buffered += data
-      let boundary: number
-      while ((boundary = buffered.indexOf('\0')) !== -1) {
-        const message = JSON.parse(buffered.slice(0, boundary))
-        buffered = buffered.slice(boundary + 1)
-        const request = pending.get(message.id)
-        if (!request) continue
-        pending.delete(message.id)
-        if (message.error) request.reject(new Error(message.error.message))
-        else request.resolve(message.result)
-      }
+    if (!AuthRequest.isAvailable()) throw new Error('Browser sign-in currently requires macOS.')
+    this.abort = new AbortController()
+    this.request = new AuthRequest({
+      url: 'https://slack.com/ssb/signin?aswebauth=1',
+      callbackScheme: 'slack',
+      windowHandle: this.windowHandle(),
     })
-    const command = <T = Record<string, unknown>>(method: string, params: object = {}, sessionId?: string): Promise<T> => {
-      if (closed) return Promise.reject(new Error('Browser sign-in was closed.'))
-      const id = ++nextId
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => { pending.delete(id); reject(new Error('Browser sign-in did not respond.')) }, 15000)
-        pending.set(id, {
-          resolve: (result) => { clearTimeout(timeout); resolve(result as T) },
-          reject: (error) => { clearTimeout(timeout); reject(error) },
-        })
-        input.write(JSON.stringify({ id, method, params, sessionId }) + '\0')
-      })
-    }
-    this.cancel = () => { close(); child.kill() }
-    try {
-      const deadline = Date.now() + 20 * 60 * 1000
-      while (!closed && Date.now() < deadline) {
-        const { targetInfos } = await command('Target.getTargets') as { targetInfos: Target[] }
-        const target = targetInfos.find((candidate) => candidate.type === 'page' &&
-          /^https:\/\/app\.slack\.com\/client\/T[A-Z0-9]+(?:[/?#]|$)/.test(candidate.url))
-        if (target) {
-          const { sessionId } = await command<{ sessionId: string }>('Target.attachToTarget', { targetId: target.targetId, flatten: true })
-          const { cookies } = await command('Network.getCookies', { urls: ['https://slack.com/', 'https://app.slack.com/'] }, sessionId) as { cookies: ChromeCookie[] }
-          const slackCookies = cookies.filter((cookie) => cookie.domain === 'slack.com' || cookie.domain === '.slack.com' || cookie.domain.endsWith('.slack.com'))
-          if (slackCookies.some((cookie) => cookie.name === 'd' && cookie.value)) {
-            for (const cookie of slackCookies) {
-              await this.destination.cookies.set({
-                url: `https://${cookie.domain.replace(/^\./, '')}${cookie.path}`,
-                name: cookie.name, value: cookie.value,
-                domain: cookie.domain.startsWith('.') ? cookie.domain : undefined,
-                path: cookie.path, secure: cookie.secure, httpOnly: cookie.httpOnly,
-                expirationDate: cookie.expires > 0 ? cookie.expires : undefined,
-                sameSite: cookie.sameSite === 'Strict' ? 'strict' : cookie.sameSite === 'Lax' ? 'lax' : cookie.sameSite === 'None' ? 'no_restriction' : 'unspecified',
-              })
-            }
-            await this.destination.cookies.flushStore()
-            await command('Browser.close').catch(() => undefined)
-            return
-          }
-          await command('Target.detachFromTarget', { sessionId })
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+    let callback: string
+    try { callback = await this.request.start() }
+    catch { throw new Error('Browser sign-in was cancelled or could not complete. Please try again.') }
+    finally { this.request = undefined }
+    for (const { host, tokens } of parseMagicLogin(callback)) {
+      const url = new URL(`https://${host}/api/auth.loginMagicBulk`)
+      url.searchParams.set('magic_tokens', tokens.join(','))
+      url.searchParams.set('ssb', '1')
+      // Session.fetch applies Slack's Set-Cookie headers to the embedded profile.
+      const response = await this.destination.fetch(url.href, { credentials: 'include', signal: AbortSignal.any([this.abort.signal, AbortSignal.timeout(30_000)]) })
+        .catch(() => { throw new Error('Could not finish connecting to Slack. Please try again.') })
+      const result = await response.json() as { ok?: boolean; token_results?: Record<string, { team?: { id?: string }; auth_redir?: string }> }
+      if (!response.ok || !result.ok || !Object.values(result.token_results ?? {}).some((entry) => entry.team?.id && !entry.auth_redir)) {
+        throw new Error('Slack could not complete the sign-in handoff. Please sign in again.')
       }
-      throw new Error('Browser sign-in timed out or was closed. Please try again.')
-    } finally {
-      this.cancel = undefined
-      close()
-      child.kill()
+    }
+    await this.destination.cookies.flushStore()
+    if (!(await this.destination.cookies.get({ name: 'd' })).some((cookie) => cookie.value)) {
+      throw new Error('Slack did not establish a session. Please sign in again.')
     }
   }
 }

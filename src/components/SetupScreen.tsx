@@ -1,5 +1,4 @@
 import { BrowserSigninButton } from './BrowserSigninButton'
-import { openDesktopSlack } from '../desktop'
 import { useStore } from '../store'
 
 const AUTH_ERRORS = new Set(['not_authed', 'invalid_auth', 'token_revoked', 'token_expired', 'account_inactive'])
@@ -18,8 +17,8 @@ export function SetupScreen() {
         {!needsToken && error && <p role="alert" className="setup-error">{error.message}</p>}
         {error?.needed && <p>The token is missing the <code>{error.needed}</code> scope. Add it to the Slack app and reinstall the app.</p>}
         {window.slackDesktop && needsToken ? <div className="setup-actions">
-          <button className="onboarding-start" onClick={() => openDesktopSlack()}>Sign in to Slack</button>
-          <BrowserSigninButton className="setup-browser-signin" label="Use Chrome for SSO or passkeys" />
+          <BrowserSigninButton className="onboarding-start" />
+          <span className="setup-signin-note">Continue in your browser, then return here.</span>
         </div> : needsToken ? <ol>
           <li>Go to <a href="https://api.slack.com/apps?new_app=1">api.slack.com/apps</a> and create an app from <code>slack-app-manifest.json</code>.</li>
           <li>Install the app to your workspace.</li>

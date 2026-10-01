@@ -2,3 +2,4 @@ allowBuilds:
   esbuild: true
   electron: true
   electron-winstaller: false
+  electron-native-auth: true

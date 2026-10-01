@@ -35,6 +35,7 @@
   "dependencies": {
     "@tanstack/react-db": "^0.4.1",
     "dompurify": "^3.4.16",
+    "electron-native-auth": "0.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zustand": "^5.0.15"
@@ -52,6 +53,7 @@
     "electron-builder": "^26.15.3",
     "emoji-datasource": "16.0.0",
     "esbuild": "^0.28.2",
+    "node-gyp": "^13.0.2",
     "sharp": "^0.35.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"

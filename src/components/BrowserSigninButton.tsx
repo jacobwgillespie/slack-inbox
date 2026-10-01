@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export function BrowserSigninButton({ className, label = 'Sign in with Chrome / passkey' }: { className?: string; label?: string }) {
+export function BrowserSigninButton({ className, label = 'Sign in to Slack' }: { className?: string; label?: string }) {
   const [waiting, setWaiting] = useState(false)
   const [error, setError] = useState<string>()
   return <>
@@ -16,7 +16,7 @@ export function BrowserSigninButton({ className, label = 'Sign in with Chrome / 
       } finally {
         setWaiting(false)
       }
-    }}>{waiting ? 'Complete sign-in in Chrome…' : label}</button>
+    }}>{waiting ? 'Waiting for browser…' : label}</button>
     {error && <span role="alert">{error}</span>}
   </>
 }

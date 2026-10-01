@@ -23,7 +23,6 @@ async function start() {
   slackSession.setUserAgent(app.userAgentFallback.replace(/\s(?:Electron|slack-inbox|SlackInbox)\/[^ ]+/gi, ''))
   slackSession.setPermissionRequestHandler((_contents, permission, callback) => callback(permission === 'clipboard-sanitized-write'))
   slackSession.setPermissionCheckHandler((_contents, permission) => permission === 'clipboard-sanitized-write')
-  const browserSignin = new BrowserSignin(join(app.getPath('userData'), 'signin-chrome'), slackSession)
   const credentials: SlackCredentials = { origin: 'https://slack.com' }
   const logoutMarker = join(app.getPath('userData'), 'disable-configured-session')
   const skipConfiguredSession = await access(logoutMarker).then(() => true, () => false)
@@ -62,6 +61,7 @@ async function start() {
     width: 1440, height: 1000, backgroundColor: '#080808',
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 20, y: 35 } } : {}),
   })
+  const browserSignin = new BrowserSignin(slackSession, () => window.getNativeWindowHandle())
   const ui = new WebContentsView({ webPreferences: {
     preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false,
   } })
@@ -209,8 +209,9 @@ async function start() {
   ipcMain.handle('slack:signin', async (event) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
     await browserSignin.start()
-    await slack.webContents.loadURL('https://app.slack.com/client')
-    await collectorView.webContents.loadURL('https://app.slack.com/client')
+    await slackContents.loadURL('https://app.slack.com/client').catch((error) => {
+      if (error.code !== 'ERR_ABORTED') throw error
+    })
   })
   ipcMain.handle('slack:logout', async (event) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
