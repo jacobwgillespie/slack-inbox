@@ -1,5 +1,5 @@
 import { useViewCounts } from '../hooks'
-import { inboxStore, useStore, VIEWS, type View } from '../store'
+import { inboxStore, useStore, isConversationView, VIEWS, type View } from '../store'
 import { RefreshIcon } from './Icons'
 
 const VIEW_LABELS: Record<View, string> = {
@@ -8,6 +8,7 @@ const VIEW_LABELS: Record<View, string> = {
   later: 'Later',
   muted: 'Muted',
   dms: 'DMs',
+  channels: 'Channels',
 }
 
 export function Header() {
@@ -42,15 +43,18 @@ export function Header() {
           </button>
         </div>
       </div>
-      <nav className="section-tabs" aria-label="Inbox or direct messages">
-        <button className={view !== 'dms' ? 'active' : ''} aria-pressed={view !== 'dms'} onClick={() => setView('important')}>Inbox</button>
+      <nav className="section-tabs" aria-label="Inbox, direct messages, or channels">
+        <button className={!isConversationView(view) ? 'active' : ''} aria-pressed={!isConversationView(view)} onClick={() => setView('important')}>Inbox</button>
         <button className={view === 'dms' ? 'active' : ''} aria-pressed={view === 'dms'} onClick={() => setView('dms')}>
           DMs <span>{counts.dms}</span>
         </button>
+        <button className={view === 'channels' ? 'active' : ''} aria-pressed={view === 'channels'} onClick={() => setView('channels')}>
+          Channels <span>{counts.channels}</span>
+        </button>
       </nav>
-      {view !== 'dms' && (
+      {!isConversationView(view) && (
         <nav className="tabs" aria-label="Views">
-          {VIEWS.filter((candidate) => candidate !== 'dms').map((candidate, index) => (
+          {VIEWS.filter((candidate) => !isConversationView(candidate)).map((candidate, index) => (
             <button
               key={candidate}
               className={`tab${candidate === view ? ' active' : ''}`}

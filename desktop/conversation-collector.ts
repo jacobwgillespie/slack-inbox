@@ -7,7 +7,7 @@ import { readConversation, scrollConversation } from './conversation.ts'
 
 interface Job { channel: string; older: boolean; priority: number; before?: string; until?: string }
 
-export class DmCollector {
+export class ConversationCollector {
   private queue = new Map<string, Job>()
   private running = false
   private stopped = false
@@ -19,12 +19,12 @@ export class DmCollector {
 
   constructor(private contents: WebContents, private database: Database, private engine: SyncEngine,
     private changed: (channel: string) => void) {
-    for (const dm of database.directMessages()) this.latest.set(dm.id, dm.latestTs)
+    for (const conversation of database.conversationSummaries()) this.latest.set(conversation.id, conversation.latestTs)
     this.unsubscribe = engine.subscribe(() => {
-      for (const dm of database.directMessages()) {
-        const previous = this.latest.get(dm.id)
-        this.latest.set(dm.id, dm.latestTs)
-        if (previous !== undefined && dm.latestTs !== '0' && dm.latestTs !== previous && compareTs(dm.latestTs, dm.lastRead ?? '0') > 0) this.enqueue(dm.id, false, 0)
+      for (const conversation of database.conversationSummaries()) {
+        const previous = this.latest.get(conversation.id)
+        this.latest.set(conversation.id, conversation.latestTs)
+        if (previous !== undefined && conversation.latestTs !== '0' && conversation.latestTs !== previous && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0) this.enqueue(conversation.id, false, 0)
       }
     })
   }

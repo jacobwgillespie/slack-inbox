@@ -9,6 +9,8 @@ import type {
   ClassificationLabel,
   Conversation,
   DirectMessage,
+  ConversationSummary,
+  ConversationKind,
   InboxItem,
   LaterItem,
   Message,
@@ -338,13 +340,21 @@ export class Database {
   }
 
   directMessages(channel?: string): DirectMessage[] {
+    return this.conversationSummaries(channel, ['dm', 'group'])
+  }
+
+  channels(): ConversationSummary[] {
+    return this.conversationSummaries(undefined, ['channel', 'private'])
+  }
+
+  conversationSummaries(channel?: string, kinds: ConversationKind[] = ['dm', 'group', 'channel', 'private']): ConversationSummary[] {
     const rows = this.db.prepare(
       `SELECT c.id, c.data, c.last_read, c.latest_ts,
          (SELECT m.data FROM messages m WHERE m.conversation_id = c.id AND ${topLevel('m.')}
           ORDER BY m.ts DESC LIMIT 1) AS message
-       FROM conversations c WHERE c.is_member = 1 AND json_extract(c.data, '$.kind') IN ('dm', 'group')
+       FROM conversations c WHERE c.is_member = 1 AND json_extract(c.data, '$.kind') IN (${kinds.map(() => '?').join(', ')})
        ${channel ? 'AND c.id = ?' : ''}`,
-    ).all(...(channel ? [channel] : [])) as { id: string; data: string; last_read: string | null; latest_ts: string | null; message: string | null }[]
+    ).all(...kinds, ...(channel ? [channel] : [])) as { id: string; data: string; last_read: string | null; latest_ts: string | null; message: string | null }[]
     return rows.map((row) => {
       const message = row.message ? JSON.parse(row.message) as Message : undefined
       return {

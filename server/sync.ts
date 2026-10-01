@@ -208,7 +208,8 @@ export class SyncEngine {
       : []
     const later = this.preferences.later()
     const directMessages = this.database.directMessages()
-    const ids = referencedUserIds([...items, ...later, ...directMessages])
+    const channels = this.database.channels()
+    const ids = referencedUserIds([...items, ...later, ...directMessages, ...channels])
     if (this.session) ids.push(this.session.userId)
     const users = this.database.usersById(ids)
     this.requestMissingUsers(ids.filter((id) => !users[id]))
@@ -218,6 +219,7 @@ export class SyncEngine {
       sync: this.status,
       items,
       directMessages,
+      channels,
       later,
       muted: this.database.mutedConversationIds(),
       preferenceSource: this.preferences.source,

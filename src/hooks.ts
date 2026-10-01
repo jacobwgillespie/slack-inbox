@@ -1,10 +1,10 @@
 import { useLiveQuery } from '@tanstack/react-db'
-import { dmCollection, inboxCollection, laterCollection, userCollection } from './collections'
+import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection } from './collections'
 import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { subscribeToChanges } from './api'
 import type { FormatContext } from './format'
-import { computeCounts, computeVisible, useStore, VIEWS, type InboxState } from './store'
+import { computeCounts, computeVisible, isConversationView, useStore, VIEWS, type InboxState } from './store'
 
 export function useFormatContext(): FormatContext {
   const { data: users } = useLiveQuery(userCollection)
@@ -15,6 +15,7 @@ export function useFormatContext(): FormatContext {
 function useVisibleSource() {
   const { data: items } = useLiveQuery(inboxCollection)
   const { data: dms } = useLiveQuery(dmCollection)
+  const { data: channels } = useLiveQuery(channelCollection)
   const { data: later } = useLiveQuery(laterCollection)
   const controls = useStore(
     useShallow((state) => ({
@@ -23,7 +24,7 @@ function useVisibleSource() {
       session: state.session,
     })),
   )
-  return { ...controls, items: Object.fromEntries(items.map((row) => [row.id, row])), directMessages: Object.fromEntries(dms.map((row) => [row.id, row])), later: Object.fromEntries(later.map((row) => [row.id, row])) }
+  return { ...controls, items: Object.fromEntries(items.map((row) => [row.id, row])), channels: Object.fromEntries(channels.map((row) => [row.id, row])), directMessages: Object.fromEntries(dms.map((row) => [row.id, row])), later: Object.fromEntries(later.map((row) => [row.id, row])) }
 }
 
 export function useVisibleItems() {
@@ -41,7 +42,10 @@ export function useCurrentItem() {
   const id = useStore((state) => state.selectedId)
   const history = useStore((state) => id ? state.histories[id]?.item : undefined)
   if (!id) return undefined
-  if (source.view === 'dms') return window.slackDesktop ? source.directMessages[id] : history ?? source.directMessages[id]
+  if (isConversationView(source.view)) {
+    const item = source.view === 'channels' ? source.channels[id] : source.directMessages[id]
+    return window.slackDesktop ? item : history ?? item
+  }
   return source.view === 'later' ? source.later[id] : source.items[id]
 }
 
@@ -106,7 +110,7 @@ export function useInboxSync() {
         const previousRealtime = useStore.getState().sync?.realtime
         await load()
         const state = useStore.getState()
-        if (state.view === 'dms' && state.selectedId && state.histories[state.selectedId]?.item) {
+        if (isConversationView(state.view) && state.selectedId && state.histories[state.selectedId]?.item) {
           await state.loadHistory(state.selectedId,
             previousRealtime !== 'connected' && state.sync?.realtime === 'connected' ? 'latest' : 'cached',
           )

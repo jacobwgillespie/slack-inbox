@@ -1,4 +1,4 @@
-import { dmCollection, inboxCollection, laterCollection, userCollection, reconcile } from './collections'
+import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection, reconcile } from './collections'
 import { openDesktopSlack } from './desktop'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
@@ -10,6 +10,7 @@ import type {
   Classification,
   ClassificationEntry,
   DirectMessage,
+  ConversationSummary,
   InboxItem,
   InboxPayload,
   LaterItem,
@@ -20,8 +21,9 @@ import type {
   User,
 } from './slack/types'
 
-export type View = 'important' | 'other' | 'later' | 'muted' | 'dms'
-export const VIEWS: View[] = ['important', 'other', 'later', 'muted', 'dms']
+export type View = 'important' | 'other' | 'later' | 'muted' | 'dms' | 'channels'
+export const isConversationView = (view: View) => view === 'dms' || view === 'channels'
+export const VIEWS: View[] = ['important', 'other', 'later', 'muted', 'dms', 'channels']
 
 type Mode = 'list' | 'reading'
 
@@ -58,6 +60,7 @@ export interface InboxState {
   emoji: Record<string, string>
   items: Record<string, InboxItem>
   directMessages: Record<string, DirectMessage>
+  channels: Record<string, ConversationSummary>
   histories: Record<string, HistoryState>
   later: Record<string, LaterItem>
   muted: Record<string, true>
@@ -103,7 +106,7 @@ export interface InboxState {
   dismissToast: () => void
 }
 
-type VisibleSource = Pick<InboxState, 'items' | 'directMessages' | 'later' | 'muted' | 'view' | 'session'>
+type VisibleSource = Pick<InboxState, 'items' | 'directMessages' | 'channels' | 'later' | 'muted' | 'view' | 'session'>
 
 const OVERRIDE_LIFETIME = 2 * 60 * 1000
 const TOAST_DURATION = 7000
@@ -161,6 +164,10 @@ const bySavedAt = (a: LaterItem, b: LaterItem) => b.savedAt - a.savedAt
 export function computeVisible(state: VisibleSource): InboxItem[] {
   const inbox = Object.values(state.items)
   switch (state.view) {
+    case 'channels':
+      return Object.values(state.channels).sort((a, b) =>
+        compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
+      )
     case 'dms':
       return Object.values(state.directMessages).sort((a, b) =>
         compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
@@ -188,7 +195,7 @@ export function computeCounts(state: VisibleSource): Record<View, number> {
 
 export function currentItem(state: InboxState): InboxItem | undefined {
   if (!state.selectedId) return undefined
-  if (state.view === 'dms') return state.histories[state.selectedId]?.item ?? state.directMessages[state.selectedId]
+  if (isConversationView(state.view)) return state.histories[state.selectedId]?.item ?? (state.view === 'channels' ? state.channels[state.selectedId] : state.directMessages[state.selectedId])
   return state.view === 'later' ? state.later[state.selectedId] : state.items[state.selectedId]
 }
 
@@ -285,7 +292,7 @@ export const inboxStore = create<InboxState>()(
         const item = id ? currentItem({ ...state, selectedId: id }) : undefined
         return {
           selectedId: id,
-          focusedTs: state.view === 'dms' ? item?.messages.at(-1)?.ts : item?.messages[0]?.ts,
+          focusedTs: isConversationView(state.view) ? item?.messages.at(-1)?.ts : item?.messages[0]?.ts,
           threadTarget: undefined,
           mode: item ? state.mode : ('list' as const),
         }
@@ -402,6 +409,7 @@ export const inboxStore = create<InboxState>()(
             users: { ...state.users, ...payload.users },
             items,
             directMessages: Object.fromEntries(payload.directMessages.map((item) => [item.id, item])),
+            channels: Object.fromEntries(payload.channels.map((item) => [item.id, item])),
             later,
             muted,
             cursors,
@@ -437,6 +445,7 @@ export const inboxStore = create<InboxState>()(
         emoji: {},
         items: {},
         directMessages: {},
+        channels: {},
         histories: {},
         later: {},
         muted: {},
@@ -475,8 +484,8 @@ export const inboxStore = create<InboxState>()(
         loadHistory: async (channel, mode = 'latest') => {
           if (window.slackDesktop) return
           const previous = get().histories[channel]
-          const dm = get().directMessages[channel]
-          if (!dm || previous?.loading || (mode === 'older' && !previous?.hasMore)) return
+          const conversation = get().directMessages[channel] ?? get().channels[channel]
+          if (!conversation || previous?.loading || (mode === 'older' && !previous?.hasMore)) return
           set((state) => ({
             histories: {
               ...state.histories,
@@ -507,7 +516,7 @@ export const inboxStore = create<InboxState>()(
               histories: {
                 ...state.histories,
                 [channel]: {
-                  item: { id: channel, conversation: dm.conversation, messages },
+                  item: { id: channel, conversation: conversation.conversation, messages },
                   hasMore: payload.hasMore,
                   before: payload.before,
                   loading: false,
@@ -532,7 +541,7 @@ export const inboxStore = create<InboxState>()(
         refresh: () => {
           run(localApi.sync())
           const state = get()
-          if (state.view === 'dms' && state.selectedId) run(state.loadHistory(state.selectedId))
+          if (isConversationView(state.view) && state.selectedId) run(state.loadHistory(state.selectedId))
         },
 
         setView: (view) => {
@@ -577,7 +586,7 @@ export const inboxStore = create<InboxState>()(
         },
 
         toggleChecked: (id = get().selectedId) => {
-          if (!id || get().view === 'dms') return
+          if (!id || isConversationView(get().view)) return
           const checked = { ...get().checked }
           if (checked[id]) delete checked[id]
           else checked[id] = true
@@ -588,7 +597,7 @@ export const inboxStore = create<InboxState>()(
           const state = get()
           if (!ids.length) return
 
-          if (state.view === 'dms') {
+          if (isConversationView(state.view)) {
             for (const id of ids) {
               const item = currentItem({ ...state, selectedId: id })
               if (!item?.messages.length) continue
@@ -619,7 +628,7 @@ export const inboxStore = create<InboxState>()(
 
         saveForLater: (ids = targetIds()) => {
           const state = get()
-          if (!ids.length || state.view === 'later' || state.view === 'dms') return
+          if (!ids.length || state.view === 'later' || isConversationView(state.view)) return
           const moved = ids.map((id) => state.items[id]).filter((item) => item !== undefined)
           const saved = moved.map(toLaterItem).filter((item) => item !== undefined)
           const requests = saved.map((item) => localApi.saveForLater(item.conversation.id, item.ts))
@@ -649,9 +658,9 @@ export const inboxStore = create<InboxState>()(
         toggleMute: (ids = targetIds()) => {
           const state = get()
           if (!ids.length || state.view === 'later') return
-          const muting = state.view === 'dms' ? !state.muted[ids[0] ?? ''] : state.view !== 'muted'
+          const muting = isConversationView(state.view) ? !state.muted[ids[0] ?? ''] : state.view !== 'muted'
           const targets = ids
-            .map((id) => state.view === 'dms' ? state.directMessages[id] : state.items[id])
+            .map((id) => isConversationView(state.view) ? state.directMessages[id] ?? state.channels[id] : state.items[id])
             .filter((item): item is InboxItem => item !== undefined && !item.thread)
           if (!targets.length) return
           const targetIds = targets.map((item) => item.id)
@@ -660,7 +669,7 @@ export const inboxStore = create<InboxState>()(
             setMuteOverrides(channels, muted)
             for (const channel of channels) run(localApi.setMuted(channel, muted))
           }
-          if (state.view === 'dms') apply(muting)
+          if (isConversationView(state.view)) apply(muting)
           else removeAndAdvance(targetIds, () => apply(muting))
           showToast(`${muting ? 'Muted' : 'Unmuted'} ${pluralize(channels.length, 'conversation')}`, {
             undo: () => {
@@ -750,7 +759,7 @@ export const inboxStore = create<InboxState>()(
             return false
           }
           set({ threadTarget: undefined })
-          if (state.view === 'dms') {
+          if (isConversationView(state.view)) {
             await get().loadHistory(item.id, get().sync?.realtime === 'connected' ? 'cached' : 'latest')
             const updated = get().histories[item.id]?.item ?? item
             run(localApi.markRead(item.conversation.id, latestTs(updated)).then(() => get().load()))
@@ -818,6 +827,7 @@ export const useStore = inboxStore
 // Keep command/optimistic state compatible while UI reads live collections.
 useStore.subscribe((state, previous) => {
   if (state.directMessages !== previous.directMessages) reconcile(dmCollection, Object.values(state.directMessages))
+  if (state.channels !== previous.channels) reconcile(channelCollection, Object.values(state.channels))
   if (state.items !== previous.items) reconcile(inboxCollection, Object.values(state.items))
   if (state.later !== previous.later) reconcile(laterCollection, Object.values(state.later))
   if (state.users !== previous.users) reconcile(userCollection, Object.values(state.users))

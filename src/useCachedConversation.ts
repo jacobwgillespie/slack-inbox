@@ -5,6 +5,7 @@ import { applyCache, cacheCollection, messageCollection } from './collections'
 
 const windows = new Map<string, string>()
 const activeChannels = new Set<string>()
+const requestedOlder = new Map<string, string | undefined>()
 
 export async function readCachedConversation(channel: string, before?: string) {
   const bridge = window.slackDesktop
@@ -29,7 +30,14 @@ export function useCacheSync() {
       if (pending.has(channel)) { dirty.add(channel); return }
       pending.add(channel)
       try {
-        do { dirty.delete(channel); await readCachedConversation(channel) } while (dirty.has(channel) && !disposed)
+        do {
+          dirty.delete(channel)
+          if (requestedOlder.has(channel)) {
+            const page = await readCachedConversation(channel, requestedOlder.get(channel))
+            if (page?.messages.length || !page?.hasMore || page.error) requestedOlder.delete(channel)
+          }
+          await readCachedConversation(channel)
+        } while (dirty.has(channel) && !disposed)
       } finally { pending.delete(channel) }
     }
     const unsubscribe = bridge.onCacheChange((channel) => {
@@ -70,7 +78,10 @@ export function useCachedConversation(channel: string, enabled: boolean) {
     setReadingOlder(true)
     try {
       const snapshot = await readCachedConversation(channel, messages[0]?.ts)
-      if (!snapshot?.messages.length && snapshot?.hasMore) await window.slackDesktop.refreshConversation(channel, true)
+      if (!snapshot?.messages.length && snapshot?.hasMore) {
+        requestedOlder.set(channel, messages[0]?.ts)
+        await window.slackDesktop.refreshConversation(channel, true)
+      }
     } finally { setReadingOlder(false) }
   }
   return { snapshot: state ? { ...state, messages, ready: true } : undefined, error: state?.error,

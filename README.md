@@ -1,6 +1,6 @@
 # Slack Inbox
 
-A keyboard-driven inbox for unread Slack messages and a viewer for direct messages. Each unread conversation is one inbox row. Mark a row as read, save it for later, mute it, or reply without leaving the list. The **DMs** tab shows read and unread conversations with messages from both sides.
+A keyboard-driven inbox for unread Slack messages and a viewer for direct messages and channels. Each unread conversation is one inbox row. Mark a row as read, save it for later, mute it, or reply without leaving the list. The **DMs** and **Channels** tabs show read and unread conversations with their full history.
 
 ## Setup
 
@@ -39,7 +39,7 @@ The desktop shell hosts the React app and a separate, sandboxed Slack `WebConten
 
 Slack's own WebSocket frames feed messages, edits, deletions, reactions, and read markers into the existing sync engine. Our sync engine does not open its own realtime socket; each embedded Slack view manages its normal connection. SQLite still supplies the UI, caches image bytes and history pages, and records history coverage. Polling and reconnection checks remain available when observed realtime updates stop.
 
-**Open Slack** in a conversation explicitly reveals that conversation in the real Slack client, where its composer provides mentions, slash commands, and other workflows. Selecting DMs in our viewer does not navigate Slack. Composer contents and keystrokes are not mirrored; the two editors retain independent drafts. Opening the real Slack client can mark its active conversation read as Slack normally does.
+**Open Slack** in a conversation explicitly reveals that conversation in the real Slack client, where its composer provides mentions, slash commands, and other workflows. Selecting DMs or channels in our viewer does not navigate Slack. Composer contents and keystrokes are not mirrored; the two editors retain independent drafts. Opening the real Slack client can mark its active conversation read as Slack normally does.
 
 This first experiment targets one workspace. It uses a separate database at Electron's `userData/slack.sqlite`, so it can run alongside the browser app without two engines writing the same cache. Override it with `SLACK_DESKTOP_DATABASE_PATH`. The local renderer uses port 5174; override with `SLACK_DESKTOP_PORT` if needed. `pnpm desktop:build` builds without launching; after building, `pnpm exec electron electron-dist/main.cjs` launches directly.
 
@@ -52,7 +52,7 @@ The Vite server runs a sync process that copies your Slack data into a local SQL
 - Users, custom emoji, and the list of conversations refresh once an hour.
 - With a session token, the server keeps a real-time connection to Slack. New messages, edits, deletions, reactions, and conversations you read in other Slack apps appear at once. A full check of unread state also runs every 5 minutes, and after each reconnection, to catch anything the connection missed. The header shows **Live** while the connection is open.
 - With a user token, Slack does not offer a real-time connection, so the server checks unread state continuously.
-- Unread message history is fetched only for conversations that have new messages. DM history loads when you open a conversation or scroll to an earlier page.
+- Unread message history is fetched only for conversations that have new messages. DM and channel history loads when you open a conversation or scroll to an earlier page.
 - When you mark a conversation as read or send a reply, the server updates Slack and the database.
 - The server tells the browser when data changes, so the inbox updates without a reload.
 
@@ -115,10 +115,11 @@ Message text and the context the model reads are sent to OpenAI.
 | Later     | Messages in your Slack **Later** list                                              |
 | Muted     | Muted conversations that have unread messages                                      |
 | DMs       | All direct and group messages, including read and muted conversations              |
+| Channels  | Joined public and private channels, sorted by latest activity              |
 
-In **DMs**, opening a conversation shows its latest messages. The eight most recently opened DMs retain their rendered panels, scroll positions, and unsent drafts when you switch conversations. Hidden panels pause effects. Scroll up or select **Load earlier messages** to load older messages, 100 at a time. The app preserves your scroll position as messages load. The arrow above the composer returns you to the latest messages. Hover over a bubble to reply in a thread. Swipe or drag left to reveal timestamps on the right; they spring closed when you release. Group DMs show other participants' names at the start of each message group; one-to-one DMs omit sender names.
+In **DMs** and **Channels**, opening a conversation shows its latest messages. The eight most recently opened conversations retain their rendered panels, scroll positions, and unsent drafts when you switch conversations. Hidden panels pause effects. Scroll up or select **Load earlier messages** to load older messages, 100 at a time. The app preserves your scroll position as messages load. The arrow above the composer returns you to the latest messages. Hover over a bubble to reply in a thread. Swipe or drag left to reveal timestamps on the right; they spring closed when you release. Channels and group DMs show other participants' names at the start of each message group; one-to-one DMs omit sender names.
 
-Fetched pages stay in SQLite across app restarts. The server tracks which time ranges are complete, so messages saved by the inbox do not hide gaps in history. Opening the sidebar does not fetch every DM's history. With a live connection, new messages update the cache immediately, and the selected conversation checks its latest page at most once every 5 minutes. Without a live connection, this check runs once a minute. Reconnecting also checks for missed messages. Earlier cached pages load without another Slack request.
+Fetched pages stay in SQLite across app restarts. The server tracks which time ranges are complete, so messages saved by the inbox do not hide gaps in history. Opening the sidebar does not fetch every conversation's history. With a live connection, new messages update the cache immediately, and the selected conversation checks its latest page at most once every 5 minutes. Without a live connection, this check runs once a minute. Reconnecting also checks for missed messages. Earlier cached pages load without another Slack request.
 
 With a session token, each thread you follow that has unread replies appears in Important as its own row. The row shows the thread's first message and the unread replies. Pressing `E` marks the thread as read in Slack, and `R` replies in the thread. Muting a channel does not hide its threads, which matches Slack's Threads view.
 
@@ -145,26 +146,26 @@ Mute changes made in Slack appear at once. Later changes made in Slack appear at
 | `R`             | Reply in the conversation                                |
 | `T`             | Reply in the thread of the current message               |
 | `U`             | Open in Slack                                            |
-| `Tab` / `1`–`5` | Change view                                              |
+| `Tab` / `1`–`6` | Change view                                              |
 | `Shift+R`       | Refresh                                                  |
 | `?`             | Show all shortcuts                                       |
 
-Sending a reply also marks the conversation as read. In **DMs**, the conversation stays open after you send or mark it as read.
+Sending a reply also marks the conversation as read. In **DMs** and **Channels**, the conversation stays open after you send or mark it as read.
 
 ## Limits
 
 - Unread replies in threads you follow need a session token. With only a user token, the inbox shows unread top-level messages only. You can still expand threads and reply in them.
-- The inbox loads up to 100 unread messages for each conversation. The **DMs** view loads additional history as you scroll.
+- The inbox loads up to 100 unread messages for each conversation. The **DMs** and **Channels** views load additional history as you scroll.
 - With a user token, each scan checks every conversation you belong to, which takes minutes in a large workspace. Direct messages are checked first. See [Faster scans with a session token](#faster-scans-with-a-session-token-optional).
 
-### Desktop DM sync
+### Desktop conversation sync
 
-The Electron DM view reads a durable SQLite cache through TanStack DB live collections. Switching conversations does not navigate Slack or wait for its DOM. React Activities retain the eight most recently opened panels and their scroll positions. The browser version continues to use API-backed SQLite history.
+The Electron DM and channel views read a durable SQLite cache through TanStack DB live collections. Switching conversations does not navigate Slack or wait for its DOM. React Activities retain the eight most recently opened panels and their scroll positions. The browser version continues to use API-backed SQLite history.
 
-A dedicated background Slack view collects rendered messages into SQLite, keyed by conversation ID and Slack message timestamp. It is separate from the Slack view opened by **Open Slack**, so inspecting Slack does not interrupt collection. A MutationObserver reports rendered changes immediately. The collector prioritizes the selected DM, incoming unread messages observed on Slack's realtime connection, then visible sidebar rows. Visible conversations with stale caches are refreshed when the sidebar reports them; unchanged caches younger than a minute are reused.
+A dedicated background Slack view collects rendered messages into SQLite, keyed by conversation ID and Slack message timestamp. It is separate from the Slack view opened by **Open Slack**, so inspecting Slack does not interrupt collection. A MutationObserver reports rendered changes immediately. The collector prioritizes the selected conversation, incoming unread messages observed on Slack's realtime connection, then visible sidebar rows. Visible conversations with stale caches are refreshed when the sidebar reports them; unchanged caches younger than a minute are reused.
 
 History collection reads overlapping virtualized windows, yields between batches of four, and resumes at its cached message timestamp. Visible threads continue backfilling in the background; scrolling our timeline reads cached pages of 100 before requesting more collection. Newer messages stay in SQLite and in the UI when older pages arrive. Collection errors leave cached messages readable and expose **Retry sync**. Only Slack's rendered beginning-of-conversation marker marks a history complete. Background HTTP and WebSocket read-marker writes are blocked, including in the manual view while it is hidden; explicit read actions and the visible manual Slack view continue to work normally.
 
-TanStack DB owns the reactive message, DM, inbox, saved-item, and user collections used by the UI. SQLite remains their persistent source. The existing Zustand command layer still handles selection, drafts, shortcuts, and optimistic inbox actions, publishing its domain snapshots into those collections. Incoming realtime events update SQLite and active collections immediately, while the collector supplements them with rendered rich content. Image previews are also persisted in SQLite.
+TanStack DB owns the reactive message, DM, channel, inbox, saved-item, and user collections used by the UI. SQLite remains their persistent source. The existing Zustand command layer still handles selection, drafts, shortcuts, and optimistic inbox actions, publishing its domain snapshots into those collections. Incoming realtime events update SQLite and active collections immediately, while the collector supplements them with rendered rich content. Image previews are also persisted in SQLite.
 
 Sending, marking read, workspace discovery, and inbox synchronization still use the existing API transport. This is not a complete replacement for Slack's API surface: rich text, reactions, and images are extracted from the DOM, while complex app cards and unfurls still need adapters. First visits suspend until local cache hydration or the first collected page is ready, retaining the previous conversation during navigation. Image previews for recently collected messages are warmed in the background. One collector keeps Slack rendering and request load bounded; additional workers are not yet needed for cached navigation.

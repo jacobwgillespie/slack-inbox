@@ -1,12 +1,13 @@
 import { createCollection, localOnlyCollectionOptions } from '@tanstack/react-db'
 import type { CachedConversation } from './slack/dm-cache'
 import type { WebviewMessage } from './slack/webview'
-import type { DirectMessage, InboxItem, LaterItem, User } from './slack/types'
+import type { DirectMessage, ConversationSummary, InboxItem, LaterItem, User } from './slack/types'
 
 function local<T extends { id: string }>(id: string) {
   return createCollection(localOnlyCollectionOptions<T, string>({ id, getKey: (row) => row.id }))
 }
 export const dmCollection = local<DirectMessage>('dms')
+export const channelCollection = local<ConversationSummary>('channels')
 export const inboxCollection = local<InboxItem>('inbox')
 export const laterCollection = local<LaterItem>('later')
 export const userCollection = local<User>('users')

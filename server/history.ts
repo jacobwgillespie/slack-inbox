@@ -33,14 +33,14 @@ export class History {
   async page(channel: string, options: { before?: string; after?: string; cached?: boolean; maxAge: number; live?: boolean }): Promise<Omit<HistoryPayload, 'users'>> {
     const { before, after, cached, maxAge, live } = options
     const connectionVersion = this.connectionVersion
-    const dm = this.database.directMessages(channel)[0]
-    if (!dm) throw new SlackError('conversations.history', 'channel_not_found')
+    const conversation = this.database.conversationSummaries(channel)[0]
+    if (!conversation) throw new SlackError('conversations.history', 'channel_not_found')
     this.opened.add(channel)
     let range = this.database.historyRange(channel, before)
     if (!cached) {
       if (!before) {
         const checkedAt = this.database.getMetadata<number>(`history_checked_at:${channel}`) ?? 0
-        if (!range || Date.now() - checkedAt > maxAge || compareTs(dm.latestTs, range.newest) > 0) {
+        if (!range || Date.now() - checkedAt > maxAge || compareTs(conversation.latestTs, range.newest) > 0) {
           await this.fetch(channel)
         }
       } else {

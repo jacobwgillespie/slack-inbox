@@ -19,8 +19,8 @@ function messageDay(ts: string): string {
   })
 }
 
-export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
-  const fromWebview = dms && Boolean(window.slackDesktop)
+export function MessageList({ item, fullHistory }: { item: InboxItem; fullHistory: boolean }) {
+  const fromWebview = fullHistory && Boolean(window.slackDesktop)
   const webview = useCachedConversation(item.id, fromWebview)
   const history = useStore((state) => state.histories[item.id])
   const loadHistory = useStore((state) => state.loadHistory)
@@ -33,13 +33,13 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
   const [atBottom, setAtBottom] = useState(true)
 
   useEffect(() => {
-    if (!dms || fromWebview) return
+    if (!fullHistory || fromWebview) return
     void loadHistory(item.id)
     const timer = setInterval(() => void loadHistory(item.id), 60 * 1000)
     return () => clearInterval(timer)
-  }, [dms, fromWebview, item.id, loadHistory])
+  }, [fullHistory, fromWebview, item.id, loadHistory])
 
-  const messages = fromWebview ? webview.snapshot?.messages ?? [] : dms && !history?.item ? [] : item.messages
+  const messages = fromWebview ? webview.snapshot?.messages ?? [] : fullHistory && !history?.item ? [] : item.messages
 
   const rememberPosition = (element: HTMLDivElement) => {
     if (!element.clientHeight) return
@@ -65,18 +65,18 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
   }
 
   useLayoutEffect(() => {
-    if (ref.current && dms) restorePosition(ref.current)
-  }, [dms, messages, history?.loading])
+    if (ref.current && fullHistory) restorePosition(ref.current)
+  }, [fullHistory, messages, history?.loading])
 
   useLayoutEffect(() => {
     const element = ref.current
-    if (!element || !dms) return
+    if (!element || !fullHistory) return
     restorePosition(element)
     const observer = new ResizeObserver(() => restorePosition(element))
     observer.observe(element)
     if (element.firstElementChild) observer.observe(element.firstElementChild)
     return () => observer.disconnect()
-  }, [dms])
+  }, [fullHistory])
 
   const showEarlier = () => {
     if (!webview.snapshot?.hasMore || webview.loadingOlder) return
@@ -111,7 +111,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
 
   const sameGroup = (previous: Message | undefined, message: Message) =>
     Boolean(previous && messageDay(previous.ts) === messageDay(message.ts) &&
-      isSameAuthorGroup(previous, message, dms ? Infinity : undefined))
+      isSameAuthorGroup(previous, message, fullHistory ? Infinity : undefined))
 
   return (
     <div className="timeline">
@@ -131,14 +131,14 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
               rememberPosition(element)
               setAtBottom(bottom)
               if (fromWebview && element.scrollTop < 200) showEarlier()
-              if (!fromWebview && dms && element.scrollTop < 80 && history?.item && history.hasMore && !history.loading && !history.error) {
+              if (!fromWebview && fullHistory && element.scrollTop < 80 && history?.item && history.hasMore && !history.loading && !history.error) {
                 void loadHistory(item.id, 'older')
               }
             }}
           >
             <div className="message-track">
               {fromWebview && <div ref={olderRef} aria-hidden="true" />}
-              {dms && !fromWebview && (
+              {fullHistory && !fromWebview && (
                 <div className="history-status" role="status">
                   {history?.error ? (
                     <>
@@ -184,12 +184,12 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
                   </Fragment>
                 )
               })}
-              {dms && !fromWebview && history?.item && !item.messages.length && <p className="conversation-empty muted">No messages in this conversation yet.</p>}
+              {fullHistory && !fromWebview && history?.item && !item.messages.length && <p className="conversation-empty muted">No messages in this conversation yet.</p>}
             </div>
           </div>
         </div>
       </div>
-      {dms && !atBottom && (
+      {fullHistory && !atBottom && (
         <button className="jump-to-latest button" onClick={scrollToLatest} aria-label="Scroll to latest messages" title="Scroll to latest messages">
           <ArrowUpIcon />
         </button>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, type MouseEvent } from 'react'
 import { conversationLabel, formatListTime, messageSummary, authorName } from '../format'
 import { useFormatContext, useVisibleItems } from '../hooks'
-import { inboxStore, latestTs, mentionsSelf, useStore, type View } from '../store'
+import { inboxStore, latestTs, mentionsSelf, isConversationView, useStore, type View } from '../store'
 import { compareTs } from '../slack/timestamps'
 import type { InboxItem } from '../slack/types'
 import { ConversationIcon } from './Avatar'
@@ -12,6 +12,7 @@ const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
   other: { title: 'Nothing else unread', detail: 'Every channel is read.' },
   later: { title: 'Nothing saved', detail: 'Press L on a conversation, or save a message for later in Slack.' },
   muted: { title: 'No muted unreads', detail: 'Muted conversations with unread messages appear here.' },
+  channels: { title: 'No channels yet', detail: 'Your joined Slack channels will appear here after syncing.' },
   dms: { title: 'No direct messages yet', detail: 'Your Slack conversations will appear here after syncing.' },
 }
 
@@ -24,7 +25,7 @@ export function ItemList() {
   useEffect(() => {
     const bridge = window.slackDesktop
     const list = listRef.current
-    if (!bridge || !list || view !== 'dms') return
+    if (!bridge || !list || !isConversationView(view)) return
     const visible = new Set<string>()
     let timer: ReturnType<typeof setTimeout>
     const watch = () => {
@@ -78,7 +79,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const selected = useStore((state) => state.selectedId === id)
   const checked = useStore((state) => Boolean(state.checked[id]))
   const reading = useStore((state) => state.mode === 'reading')
-  const dm = useStore((state) => state.directMessages[id])
+  const conversation = useStore((state) => state.directMessages[id] ?? state.channels[id])
   const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = inboxStore.getState()
   const ref = useRef<HTMLLIElement>(null)
 
@@ -86,7 +87,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const label = conversationLabel(item.conversation, context.users, session)
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
   const mentioned = item.conversation.kind !== 'dm' && mentionsSelf(item, session)
-  const unread = view === 'dms' && dm && compareTs(dm.latestTs, dm.lastRead ?? '0') > 0
+  const unread = isConversationView(view) && conversation && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0
 
   useEffect(() => {
     if (selected) ref.current?.scrollIntoView({ block: 'nearest' })
@@ -94,7 +95,7 @@ function ItemRow({ item }: { item: InboxItem }) {
 
   const onClick = (event: MouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey) toggleChecked(id)
-    else if (view === 'dms' || (selected && !reading)) open(id)
+    else if (isConversationView(view) || (selected && !reading)) open(id)
     else select(id)
   }
 
@@ -107,7 +108,7 @@ function ItemRow({ item }: { item: InboxItem }) {
 
   return (
     <li ref={ref} data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
-      {view !== 'dms' && <button
+      {!isConversationView(view) && <button
         className="done-button"
         title={view === 'later' ? 'Mark complete (E)' : 'Mark as read (E)'}
         onClick={action((ids) => markDone(ids))}
@@ -120,7 +121,7 @@ function ItemRow({ item }: { item: InboxItem }) {
         <div className="item-heading">
           <span className="item-title">{label}</span>
           {unread && <span className="unread-dot" aria-label="Unread" />}
-          {view !== 'dms' && item.messages.length > 1 && <span className="item-count">{item.messages.length}</span>}
+          {!isConversationView(view) && item.messages.length > 1 && <span className="item-count">{item.messages.length}</span>}
           {item.thread && <span className="item-flag item-flag-thread">Thread</span>}
           {mentioned && <span className="item-flag">Mention</span>}
           <time className="item-time">{latestTs(item) !== '0' && formatListTime(latestTs(item))}</time>
@@ -136,10 +137,10 @@ function ItemRow({ item }: { item: InboxItem }) {
             {messageSummary(latest, context)}
           </p>
         )}
-        {view === 'dms' && !latest && <p className="item-preview">Open conversation</p>}
+        {isConversationView(view) && !latest && <p className="item-preview">Open conversation</p>}
       </div>
       <div className="item-actions">
-        {view !== 'later' && view !== 'dms' && (
+        {view !== 'later' && !isConversationView(view) && (
           <>
             <button title="Save for later (L)" onClick={action(saveForLater)}>
               <ClockIcon />

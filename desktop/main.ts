@@ -8,7 +8,7 @@ import { SyncEngine } from '../server/sync.ts'
 import { localApi } from '../server/routes.ts'
 import { configuredSession } from './configured-session.ts'
 import { BrowserSignin } from './browser-signin.ts'
-import { DmCollector } from './dm-collector.ts'
+import { ConversationCollector } from './conversation-collector.ts'
 import { observeSlack } from './slack-session.ts'
 
 app.setName('Slack Inbox')
@@ -111,7 +111,7 @@ async function start() {
   const cacheChanged = (channel?: string) => {
     if (!ui.webContents.isDestroyed()) ui.webContents.send('slack:cache-changed', channel)
   }
-  const collector = new DmCollector(collectorView.webContents, database, engine, cacheChanged)
+  const collector = new ConversationCollector(collectorView.webContents, database, engine, cacheChanged)
   const unsubscribeCache = engine.subscribe(() => cacheChanged())
   // Background navigation must not mark conversations read.
   slackSession.webRequest.onBeforeRequest({ urls: ['https://*.slack.com/api/*'] }, (details, callback) => {
@@ -127,7 +127,7 @@ async function start() {
     if (!ownRenderer(event) || (channel != null && !validChannel(channel))) throw new Error('Invalid conversation')
     options ??= {}
     if ([options.before, options.after].some((ts) => ts !== undefined && (typeof ts !== 'string' || !/^\d+\.\d+$/.test(ts)))) throw new Error('Invalid message cursor')
-    const channels = channel ? [channel] : database.directMessages().map((dm) => dm.id)
+    const channels = channel ? [channel] : database.conversationSummaries().map((conversation) => conversation.id)
     return channels.map((id) => ({ ...database.cachedConversation(id, options.before, options.after), syncing: collector.isSyncing(id) }))
   })
   ipcMain.handle('slack:cache-watch', (event, channels: unknown, selected: unknown) => {

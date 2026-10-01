@@ -1,12 +1,12 @@
 import { prepareConversation } from '../cacheConversationResource'
 import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
-import { dmCollection } from '../collections'
+import { dmCollection, channelCollection } from '../collections'
 import type { InboxItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
 import { useCurrentItem, useFormatContext } from '../hooks'
-import { inboxStore, useStore } from '../store'
+import { inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
@@ -19,7 +19,7 @@ export function Detail() {
 function DeferredDetail() {
   const item = useCurrentItem()
   const view = useStore((state) => state.view)
-  const selected = useDeferredValue(view === 'dms' ? item?.id : undefined)
+  const selected = useDeferredValue(isConversationView(view) ? item?.id : undefined)
   const [panels, setPanels] = useState<string[]>([])
   const [lastSelected, setLastSelected] = useState<string>()
   let retained = panels
@@ -35,21 +35,23 @@ function DeferredDetail() {
     <>
       {retained.map((id) => (
         <Activity key={id} mode={selected === id ? 'visible' : 'hidden'}>
-          <DirectMessageDetail id={id} active={selected === id} />
+          <RetainedConversation id={id} active={selected === id} />
         </Activity>
       ))}
-      {view !== 'dms' && <ConversationDetail key={`${view}:${item?.id}`} item={item} view={view} />}
-      {view === 'dms' && !selected && <ConversationDetail view={view} />}
+      {!isConversationView(view) && <ConversationDetail key={`${view}:${item?.id}`} item={item} view={view} />}
+      {isConversationView(view) && !selected && <ConversationDetail view={view} />}
     </>
   )
 }
 
-function DirectMessageDetail({ id, active }: { id: string; active: boolean }) {
+function RetainedConversation({ id, active }: { id: string; active: boolean }) {
   if (active && window.slackDesktop) use(prepareConversation(id))
   const { data } = useLiveQuery({ query: (q) => q.from({ dm: dmCollection }).where(({ dm }) => eq(dm.id, id)), queryKey: [id] })
+  const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: channelCollection }).where(({ channel }) => eq(channel.id, id)), queryKey: [id] })
   const history = useStore((state) => state.histories[id]?.item)
-  const item = window.slackDesktop ? data[0] : history ?? data[0]
-  return <ConversationDetail item={item} view="dms" />
+  const summary = data[0] ?? channels[0]
+  const item = window.slackDesktop ? summary : history ?? summary
+  return <ConversationDetail item={item} view={channels[0] ? 'channels' : 'dms'} />
 }
 
 function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
@@ -57,7 +59,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const context = useFormatContext()
   const session = useStore((state) => state.session)
   const reading = useStore((state) => state.mode === 'reading')
-  const pending = useStore((state) => view === 'dms' && state.selectedId !== item?.id)
+  const pending = useStore((state) => isConversationView(view) && state.selectedId !== item?.id)
   const { markDone, saveForLater, toggleMute, recategorize, openInSlack } = inboxStore.getState()
 
   useLayoutEffect(() => {
@@ -109,7 +111,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           >
             <CheckIcon />
           </button>
-          {view !== 'later' && view !== 'dms' && (
+          {view !== 'later' && !isConversationView(view) && (
             <>
               <button
                 className="icon-button"
@@ -146,7 +148,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           </button>
         </div>
       </header>
-      <MessageList item={item} dms={view === 'dms'} />
+      <MessageList item={item} fullHistory={isConversationView(view)} />
       <Composer item={item} />
     </section>
   )

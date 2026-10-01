@@ -81,10 +81,12 @@ export interface InboxItem {
   thread?: ThreadContext
 }
 
-export interface DirectMessage extends InboxItem {
+export interface ConversationSummary extends InboxItem {
   lastRead?: string
   latestTs: string
 }
+
+export type DirectMessage = ConversationSummary
 
 export interface HistoryPayload {
   messages: Message[]
@@ -134,6 +136,7 @@ export interface InboxPayload {
   sync: SyncStatus
   items: InboxItem[]
   directMessages: DirectMessage[]
+  channels: ConversationSummary[]
   later: LaterItem[]
   muted: string[]
   preferenceSource: PreferenceSource
