@@ -42,14 +42,15 @@ export function SlackComposer({ item }: { item: InboxItem }) {
       if (token === undefined) { initial = snapshot; return }
       if (snapshot.generation !== token || !host.current) return
       const localEditor = editor()
-      const editing = localEditor && document.hasFocus() && document.activeElement === localEditor
+      const editing = localEditor && document.activeElement === localEditor && !document.querySelector('.desktop-slack-toolbar')
       const scratch = document.createElement('div')
       scratch.innerHTML = clean(snapshot.html)
       const remoteEditor = scratch.querySelector<HTMLElement>('[data-slack-editor]')
       if (!remoteEditor) return
       // Keep the live local editor and its selection during typing. Replace the
       // surrounding copied controls so Slack can update buttons and suggestions.
-      const authoritative = snapshot.source === 'inbox' && snapshot.action !== 'input'
+      const authoritative = snapshot.source === 'inbox' && snapshot.action !== 'input' && remoteEditor.innerHTML !== localEditor?.innerHTML
+      const popupScroll = host.current.querySelector('[data-slack-suggestions]')?.scrollTop ?? 0
       if (localEditor && !authoritative && (editing || pending.current || composing.current)) {
         for (const button of scratch.querySelectorAll<HTMLButtonElement>('button[data-slack-action]')) {
           const local = host.current.querySelector<HTMLButtonElement>(`button[data-slack-action="${button.dataset.slackAction}"]`)
@@ -65,6 +66,17 @@ export function SlackComposer({ item }: { item: InboxItem }) {
         if (authoritative && editing) {
           editor()?.focus({ preventScroll: true })
           if (editor()) restoreComposerSelection(editor()!, snapshot.selection)
+        }
+      }
+      const popup = host.current.querySelector<HTMLElement>('[data-slack-suggestions]')
+      if (popup) {
+        popup.scrollTop = popupScroll
+        const active = popup.querySelector<HTMLElement>('[role="option"][aria-selected="true"], .c-texty_autocomplete__result--pseudo-selected')
+        if (active) {
+          const top = active.offsetTop
+          const bottom = top + active.offsetHeight
+          if (top < popup.scrollTop) popup.scrollTop = top
+          else if (bottom > popup.scrollTop + popup.clientHeight) popup.scrollTop = bottom - popup.clientHeight
         }
       }
       setReady(true)

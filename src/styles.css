@@ -1727,6 +1727,8 @@ a:focus-visible {
   max-height: 280px;
   overflow: auto;
   padding: 6px;
+  margin: 0;
+  list-style: none;
   border: 1px solid #3b3b3b;
   border-radius: 12px;
   background: #202020;
@@ -1738,3 +1740,27 @@ a:focus-visible {
 .slack-composer-copy [data-slack-suggestions] img { width: 24px; height: 24px; object-fit: contain; }
 .slack-composer-copy [data-slack-suggestions] [role="menuitem"] { padding: 6px 10px; cursor: pointer; }
 .slack-composer-copy [data-slack-suggestions] [role="menuitem"]:hover { background: #424242; }
+
+.slack-composer-copy .c-texty_autocomplete__result--pseudo-selected { background: #424242; }
+.slack-composer-copy .c-texty_autocomplete__result { display: flex; align-items: center; gap: 12px; }
+.slack-composer-copy .p-slash_commands_autocomplete_menu_entity__container {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+}
+.slack-composer-copy .p-slash_commands_autocomplete_menu_entity__icon { flex: 0 0 24px; }
+.slack-composer-copy .p-slash_commands_autocomplete_menu_entity__details { flex: 1; min-width: 0; }
+.slack-composer-copy .p-slash_commands_autocomplete_menu_entity__name { font-size: 14px; line-height: 20px; }
+.slack-composer-copy .p-slash_commands_autocomplete_menu_entity__description {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slack-composer-copy .p-slash_commands_autocomplete_menu_entity__usage { color: var(--text-muted); margin-left: 4px; }
+.slack-composer-copy .c-search_autocomplete__shortcut_hint { font-size: 11px; color: var(--text-muted); margin-left: auto; }

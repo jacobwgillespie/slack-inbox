@@ -68,6 +68,12 @@ if (!process.argv.includes('--slack-background-collector')) {
     targets.set(id, element)
     return id
   }
+  const copyImage = (element: HTMLElement, copy: HTMLElement) => {
+    if (element instanceof HTMLImageElement) {
+      copy.setAttribute('src', element.currentSrc || element.src)
+      copy.removeAttribute('srcset')
+    }
+  }
   const findEditor = () => [...document.querySelectorAll<HTMLElement>('.ql-editor[contenteditable="true"]')]
     .find((element) => !element.closest('.p-thread_view'))
   const ready = () => binding && location.origin === 'https://app.slack.com' && location.pathname.split('/')[3] === binding.channel
@@ -89,6 +95,7 @@ if (!process.argv.includes('--slack-background-collector')) {
     const copies = [clone, ...clone.querySelectorAll<HTMLElement>('*')]
     originals.forEach((element, index) => {
       const copy = copies[index]!
+      copyImage(element, copy)
       if (element === editor) {
         copy.dataset.slackEditor = 'true'
         copy.setAttribute('contenteditable', 'true')
@@ -120,7 +127,8 @@ if (!process.argv.includes('--slack-background-collector')) {
     }
     // Slack's autocomplete is rendered outside the composer, in a portal.
     const portals = [...document.querySelectorAll<HTMLElement>('[role="listbox"], [role="menu"], [role="dialog"]')]
-      .filter((element) => !root.contains(element) && !element.parentElement?.closest('[role="listbox"], [role="menu"], [role="dialog"]'))
+      .filter((element) => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden' &&
+        !root.contains(element) && !element.parentElement?.closest('[role="listbox"], [role="menu"], [role="dialog"]'))
     for (const portal of portals) {
       const popup = portal.cloneNode(true) as HTMLElement
       popup.removeAttribute('style')
@@ -129,6 +137,7 @@ if (!process.argv.includes('--slack-background-collector')) {
       const copies = [popup, ...popup.querySelectorAll<HTMLElement>('*')]
       originals.forEach((element, index) => {
         const copy = copies[index]!
+        copyImage(element, copy)
         copy.removeAttribute('id')
         if (element.matches('button, [role="button"], [role="option"], [role="menuitem"]')) {
           copy.dataset.slackAction = targetId(element)
