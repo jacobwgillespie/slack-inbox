@@ -1,6 +1,6 @@
 import { app, BaseWindow, WebContentsView, ipcMain, session, shell } from 'electron'
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { access, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve, extname } from 'node:path'
 import { Database } from '../server/database.ts'
 import { SlackClient, SlackError, type SlackCredentials } from '../server/slack-client.ts'
@@ -24,7 +24,9 @@ async function start() {
   slackSession.setPermissionCheckHandler((_contents, permission) => permission === 'clipboard-sanitized-write')
   const browserSignin = new BrowserSignin(join(app.getPath('userData'), 'signin-chrome'), slackSession)
   const credentials: SlackCredentials = { origin: 'https://slack.com' }
-  const configuredTeam = await configuredSession(root, slackSession, credentials)
+  const logoutMarker = join(app.getPath('userData'), 'disable-configured-session')
+  const skipConfiguredSession = await access(logoutMarker).then(() => true, () => false)
+  const configuredTeam = skipConfiguredSession ? undefined : await configuredSession(root, slackSession, credentials)
   const database = new Database(process.env.SLACK_DESKTOP_DATABASE_PATH || join(app.getPath('userData'), 'slack.sqlite'))
   const transport: typeof fetch = (input, init) => {
     if (!credentials.sessionToken) return Promise.reject(new SlackError('auth.test', 'not_authed'))
@@ -159,6 +161,24 @@ async function start() {
     await slack.webContents.loadURL('https://app.slack.com/client')
     await collectorView.webContents.loadURL('https://app.slack.com/client')
   })
+  ipcMain.handle('slack:logout', async (event) => {
+    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    // Do not re-import the development credentials after an explicit logout.
+    await writeFile(logoutMarker, '')
+    await browserSignin.stop()
+    collector.stop()
+    slack.webContents.close()
+    collectorView.webContents.close()
+    await engine.stop()
+    credentials.sessionToken = undefined
+    await slackSession.clearStorageData()
+    await slackSession.clearCache()
+    await slackSession.cookies.flushStore()
+    await rm(join(app.getPath('userData'), 'signin-chrome'), { recursive: true, force: true })
+    database.setMetadata('signed-out', true)
+    app.relaunch()
+    setTimeout(() => app.exit(0), 100)
+  })
   ipcMain.handle('slack:hide', (event) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
     slackVisible = false
@@ -182,7 +202,7 @@ async function start() {
       session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false,
     } } }
   })
-  const savedTeam = configuredTeam || database.getMetadata<{ teamId: string }>('session')?.teamId
+  const savedTeam = database.getMetadata<boolean>('signed-out') ? undefined : configuredTeam || database.getMetadata<{ teamId: string }>('session')?.teamId
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })
   slack.webContents.on('dom-ready', () => slack.webContents.send('slack:read-markers-enabled', slackVisible))

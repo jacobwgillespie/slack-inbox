@@ -123,7 +123,7 @@ export class SyncEngine {
         changed: () => this.changed(),
       })
     }
-    this.session = database.getMetadata<Session>('session')
+    this.session = database.getMetadata<boolean>('signed-out') ? undefined : database.getMetadata<Session>('session')
     this.preferences = new Preferences(database, client, mode === 'session', () => this.changed())
     if (mode === 'session') {
       this.threads = new Threads(
@@ -446,12 +446,14 @@ export class SyncEngine {
     if (this.sessionVerified) return
     const result = await this.client.call<{ user_id: string; user: string; team_id: string; url: string }>('auth.test')
     const session = { userId: result.user_id, handle: result.user, teamId: result.team_id, url: result.url }
-    if (this.session && (this.session.userId !== session.userId || this.session.teamId !== session.teamId)) {
+    const previousSession = this.session ?? this.database.getMetadata<Session>('session')
+    if (previousSession && (previousSession.userId !== session.userId || previousSession.teamId !== session.teamId)) {
       this.database.clearWorkspace()
     }
     this.session = session
     this.sessionVerified = true
     this.database.setMetadata('session', session)
+    this.database.setMetadata('signed-out', false)
   }
 
   private isStale(key: DirectoryKey) {

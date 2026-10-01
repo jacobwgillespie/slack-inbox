@@ -11,6 +11,7 @@ declare global {
       readImage(source: string): Promise<string>
       showSlack(channel?: string): Promise<void>
       signInWithBrowser(): Promise<void>
+      logOut(): Promise<void>
       hideSlack(): Promise<void>
     }
   }

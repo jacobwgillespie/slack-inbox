@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useViewCounts } from '../hooks'
 import { inboxStore, useStore, VIEWS, type View } from '../store'
-import { CheckIcon, HashIcon, RefreshIcon, ThreadIcon } from './Icons'
+import { CheckIcon, HashIcon, ThreadIcon } from './Icons'
 
 const VIEW_ICONS: Partial<Record<View, typeof CheckIcon>> = { dms: ThreadIcon, channels: HashIcon, done: CheckIcon }
 
@@ -21,7 +21,7 @@ export function Header() {
   const sync = useStore((state) => state.sync)
   const scanning = Boolean(sync?.running)
   const showProgress = scanning && (Boolean(sync?.total) || !sync?.lastCompletedAt)
-  const { setView, refresh, toggleHelp } = inboxStore.getState()
+  const { setView } = inboxStore.getState()
 
   return (
     <header className="header">
@@ -48,25 +48,7 @@ export function Header() {
             )
           })}
         </div>
-        <div className="header-tools">
-          <button
-            className={`icon-button${scanning ? ' spinning' : ''}`}
-            onClick={refresh}
-            disabled={scanning}
-            title="Refresh (Shift+R)"
-            aria-label="Refresh"
-          >
-            <RefreshIcon />
-          </button>
-          <button
-            className="icon-button"
-            onClick={toggleHelp}
-            title="Keyboard shortcuts (?)"
-            aria-label="Keyboard shortcuts"
-          >
-            ?
-          </button>
-        </div>
+
       </div>
       <div className="sync-status" role="status">
         {sync?.error && !scanning && (

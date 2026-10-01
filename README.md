@@ -37,6 +37,8 @@ Electron 44's macOS Touch ID credentials belong to the app and cannot use your e
 
 The desktop shell hosts the React app and a separate, sandboxed Slack `WebContentsView`. Slack cookies and storage persist in the app's own profile. The shell captures Slack's session token from its API requests in memory and uses that profile's Chromium network stack for API calls and image downloads. It does not copy credentials into `.env.local` or expose them to React.
 
+The avatar menu contains Help and Log out. Logging out clears the embedded Slack login and the dedicated Chrome sign-in profile, then restarts at sign-in. It also disables automatic import of `.env.local` credentials for future desktop launches. Your regular Chrome profile is unaffected. Local conversation and Done state remain available when you sign back into the same account; signing into a different account clears the previous workspace cache.
+
 Slack's own WebSocket frames feed messages, edits, deletions, reactions, and read markers into the existing sync engine. Our sync engine does not open its own realtime socket; each embedded Slack view manages its normal connection. SQLite still supplies the UI, caches image bytes and history pages, and records history coverage. Polling and reconnection checks remain available when observed realtime updates stop.
 
 **Open Slack** in a conversation explicitly reveals that conversation in the real Slack client, where its composer provides mentions, slash commands, and other workflows. Selecting DMs or channels in our viewer does not navigate Slack. Composer contents and keystrokes are not mirrored; the two editors retain independent drafts. Opening the real Slack client can mark its active conversation read as Slack normally does.

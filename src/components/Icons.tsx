@@ -23,6 +23,19 @@ export const CheckIcon = () => (
   </Icon>
 )
 
+export const HelpIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 16h.01" />
+  </Icon>
+)
+
+export const LogoutIcon = () => (
+  <Icon>
+    <path d="M14 4h5v16h-5M15 12H3m5-5-5 5 5 5" />
+  </Icon>
+)
+
 export const ClockIcon = () => (
   <Icon>
     <circle cx="12" cy="12" r="8.5" />

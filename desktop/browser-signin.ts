@@ -27,7 +27,10 @@ export class BrowserSignin {
     return this.running
   }
 
-  stop() { this.cancel?.() }
+  async stop() {
+    this.cancel?.()
+    await this.running?.catch(() => undefined)
+  }
 
   private async signin() {
     const executable = process.env.SLACK_SIGNIN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
