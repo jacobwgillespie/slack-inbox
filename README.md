@@ -6,9 +6,9 @@ An unofficial macOS app for working through your Slack conversations. Read and r
 
 ## Install
 
-Slack Inbox supports Apple Silicon and Intel Macs. Public releases are not available yet; see [Development](DEVELOPMENT.md) to run the app from source.
+Slack Inbox supports Apple Silicon and Intel Macs.
 
-When installing a packaged build from [GitHub Releases](https://github.com/jacobwgillespie/slack-inbox/releases):
+Download the latest version from [GitHub Releases](https://github.com/jacobwgillespie/slack-inbox/releases):
 
 1. Choose the `arm64.dmg` for Apple Silicon or `x64.dmg` for Intel.
 2. Open the DMG and drag **Slack Inbox** into **Applications**.
