@@ -58,11 +58,6 @@ export function Header() {
             Sync failed: {sync.error.code}
           </span>
         )}
-        {sync?.realtime === 'connected' && (
-          <span className="live-status" title="Receiving updates from Slack in real time">
-            Live
-          </span>
-        )}
         {sync?.realtime === 'disconnected' && <span className="scan-status">Reconnecting</span>}
         {sync?.classifier.error && (
           <span className="scan-status scan-error" title={sync.classifier.error}>
