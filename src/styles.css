@@ -1065,23 +1065,22 @@ kbd {
   left: 100%;
   display: flex;
   align-items: center;
-  padding-left: 8px;
+  padding: 16px 8px;
   transform: translateY(-50%);
   opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
   transition: opacity 120ms;
 }
 
 .message-own .message-actions {
   left: auto;
   right: 100%;
-  padding: 0 8px 0 0;
+  padding: 16px 8px;
 }
 
-.message:hover .message-actions,
-.message:focus-within .message-actions {
+.message-actions:hover,
+.message-actions:focus-within {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .message-actions .icon-button {
@@ -1957,5 +1956,6 @@ a:focus-visible {
 
 .thread-reply { position: relative; padding-right: 32px; }
 .thread-save { position: absolute; top: 0; right: 0; opacity: 0; }
-.thread-reply:hover > .thread-save,
-.thread-reply:focus-within > .thread-save { opacity: 1; }
+.thread-save:hover,
+.thread-save:focus-visible { opacity: 1; }
+.thread-save::before { content: ""; position: absolute; inset: -8px; }
