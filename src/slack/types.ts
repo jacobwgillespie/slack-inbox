@@ -137,6 +137,7 @@ export interface InboxPayload {
   items: InboxItem[]
   directMessages: DirectMessage[]
   channels: ConversationSummary[]
+  done: Record<string, string>
   later: LaterItem[]
   muted: string[]
   preferenceSource: PreferenceSource

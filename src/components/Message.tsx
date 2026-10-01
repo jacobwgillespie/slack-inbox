@@ -18,7 +18,7 @@ export function MessageView({ channel, message, continued, continues = false, we
 }) {
   const context = useFormatContext()
   const session = useStore((state) => state.session)
-  const compact = useStore((state) => state.view === 'dms' && state.directMessages[channel]?.conversation.kind === 'dm')
+  const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
   const focused = useStore((state) => state.mode === 'reading' && state.focusedTs === message.ts)
   const thread = useStore((state) => state.threads[threadKey(channel, message.ts)])

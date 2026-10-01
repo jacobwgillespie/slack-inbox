@@ -107,6 +107,7 @@ const SCHEMA = `
 `
 
 const COLUMN_MIGRATIONS = [
+  { table: 'conversations', column: 'done_ts', definition: 'TEXT' },
   { table: 'webview_history', column: 'oldest', definition: 'TEXT' },
   { table: 'webview_history', column: 'newest', definition: 'TEXT' },
   { table: 'conversations', column: 'is_muted', definition: 'INTEGER NOT NULL DEFAULT 0' },
@@ -337,6 +338,16 @@ export class Database {
       const update = this.db.prepare('UPDATE conversations SET latest_ts = ? WHERE id = ?')
       for (const [id, ts] of states) update.run(ts, id)
     })
+  }
+
+  doneConversations(): Record<string, string> {
+    const rows = this.db.prepare('SELECT id, done_ts FROM conversations WHERE is_member = 1 AND done_ts IS NOT NULL')
+      .all() as { id: string; done_ts: string }[]
+    return Object.fromEntries(rows.map((row) => [row.id, row.done_ts]))
+  }
+
+  setDone(channel: string, ts?: string) {
+    this.db.prepare('UPDATE conversations SET done_ts = ? WHERE id = ?').run(ts ?? null, channel)
   }
 
   directMessages(channel?: string): DirectMessage[] {

@@ -20,6 +20,7 @@ function useVisibleSource() {
   const controls = useStore(
     useShallow((state) => ({
       muted: state.muted,
+      done: state.done,
       view: state.view,
       session: state.session,
     })),
@@ -43,7 +44,7 @@ export function useCurrentItem() {
   const history = useStore((state) => id ? state.histories[id]?.item : undefined)
   if (!id) return undefined
   if (isConversationView(source.view)) {
-    const item = source.view === 'channels' ? source.channels[id] : source.directMessages[id]
+    const item = source.channels[id] ?? source.directMessages[id]
     return window.slackDesktop ? item : history ?? item
   }
   return source.view === 'later' ? source.later[id] : source.items[id]

@@ -1,5 +1,5 @@
 import { useViewCounts } from '../hooks'
-import { inboxStore, useStore, isConversationView, VIEWS, type View } from '../store'
+import { inboxStore, useStore, VIEWS, type View } from '../store'
 import { RefreshIcon } from './Icons'
 
 const VIEW_LABELS: Record<View, string> = {
@@ -9,6 +9,7 @@ const VIEW_LABELS: Record<View, string> = {
   muted: 'Muted',
   dms: 'DMs',
   channels: 'Channels',
+  done: 'Done',
 }
 
 export function Header() {
@@ -43,31 +44,14 @@ export function Header() {
           </button>
         </div>
       </div>
-      <nav className="section-tabs" aria-label="Inbox, direct messages, or channels">
-        <button className={!isConversationView(view) ? 'active' : ''} aria-pressed={!isConversationView(view)} onClick={() => setView('important')}>Inbox</button>
-        <button className={view === 'dms' ? 'active' : ''} aria-pressed={view === 'dms'} onClick={() => setView('dms')}>
-          DMs <span>{counts.dms}</span>
-        </button>
-        <button className={view === 'channels' ? 'active' : ''} aria-pressed={view === 'channels'} onClick={() => setView('channels')}>
-          Channels <span>{counts.channels}</span>
-        </button>
+      <nav className="section-tabs" aria-label="Conversations">
+        {VIEWS.map((candidate, index) => (
+          <button key={candidate} className={candidate === view ? 'active' : ''} aria-pressed={candidate === view}
+            onClick={() => setView(candidate)} title={`${index + 1}`}>
+            {VIEW_LABELS[candidate]} <span>{counts[candidate]}</span>
+          </button>
+        ))}
       </nav>
-      {!isConversationView(view) && (
-        <nav className="tabs" aria-label="Views">
-          {VIEWS.filter((candidate) => !isConversationView(candidate)).map((candidate, index) => (
-            <button
-              key={candidate}
-              className={`tab${candidate === view ? ' active' : ''}`}
-              onClick={() => setView(candidate)}
-              title={`${index + 1}`}
-              aria-pressed={candidate === view}
-            >
-              {VIEW_LABELS[candidate]}
-              <span className="tab-count">{counts[candidate]}</span>
-            </button>
-          ))}
-        </nav>
-      )}
       <div className="sync-status" role="status">
         {sync?.error && !scanning && (
           <span className="scan-status scan-error" title={sync.error.message}>

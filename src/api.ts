@@ -42,6 +42,7 @@ export const localApi = {
   emoji: () => request<Record<string, string>>('/local/emoji'),
   sync: () => post('/local/sync'),
   markRead: (channel: string, ts: string) => post('/local/mark', { channel, ts }),
+  setDone: (channel: string, ts?: string, markRead = true) => post('/local/done', { channel, ts: ts ?? null, markRead }),
   markThreadRead: (channel: string, threadTs: string, ts: string) =>
     post('/local/thread/mark', { channel, threadTs, ts }),
   postMessage: (channel: string, text: string, threadTs?: string) => post('/local/post', { channel, text, threadTs }),

@@ -35,7 +35,7 @@ function DeferredDetail() {
     <>
       {retained.map((id) => (
         <Activity key={id} mode={selected === id ? 'visible' : 'hidden'}>
-          <RetainedConversation id={id} active={selected === id} />
+          <RetainedConversation id={id} active={selected === id} view={view} />
         </Activity>
       ))}
       {!isConversationView(view) && <ConversationDetail key={`${view}:${item?.id}`} item={item} view={view} />}
@@ -44,14 +44,14 @@ function DeferredDetail() {
   )
 }
 
-function RetainedConversation({ id, active }: { id: string; active: boolean }) {
+function RetainedConversation({ id, active, view }: { id: string; active: boolean; view: View }) {
   if (active && window.slackDesktop) use(prepareConversation(id))
   const { data } = useLiveQuery({ query: (q) => q.from({ dm: dmCollection }).where(({ dm }) => eq(dm.id, id)), queryKey: [id] })
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: channelCollection }).where(({ channel }) => eq(channel.id, id)), queryKey: [id] })
   const history = useStore((state) => state.histories[id]?.item)
   const summary = data[0] ?? channels[0]
   const item = window.slackDesktop ? summary : history ?? summary
-  return <ConversationDetail item={item} view={channels[0] ? 'channels' : 'dms'} />
+  return <ConversationDetail item={item} view={view} />
 }
 
 function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
@@ -106,10 +106,10 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           <button
             className="icon-button"
             onClick={() => markDone([id])}
-            title={view === 'later' ? 'Complete (E)' : 'Mark read (E)'}
-            aria-label={view === 'later' ? 'Complete' : 'Mark read'}
+            title={view === 'done' ? 'Restore to inbox (E)' : view === 'later' ? 'Complete (E)' : 'Mark done (E)'}
+            aria-label={view === 'done' ? 'Restore to inbox' : view === 'later' ? 'Complete' : 'Mark done'}
           >
-            <CheckIcon />
+            {view === 'done' ? <ArrowLeftIcon /> : <CheckIcon />}
           </button>
           {view !== 'later' && !isConversationView(view) && (
             <>

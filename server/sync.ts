@@ -220,6 +220,7 @@ export class SyncEngine {
       items,
       directMessages,
       channels,
+      done: this.database.doneConversations(),
       later,
       muted: this.database.mutedConversationIds(),
       preferenceSource: this.preferences.source,
@@ -284,6 +285,13 @@ export class SyncEngine {
 
   emoji(): Record<string, string> {
     return this.database.emoji()
+  }
+
+  async setDone(channel: string, ts?: string, markRead = true) {
+    if (!this.database.hasConversation(channel)) throw new SlackError('conversations.mark', 'channel_not_found')
+    if (markRead && ts && ts !== '0') await this.markRead(channel, ts)
+    this.database.setDone(channel, ts)
+    this.changed()
   }
 
   async markRead(channel: string, ts: string) {

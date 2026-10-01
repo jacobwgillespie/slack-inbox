@@ -1,6 +1,6 @@
 # Slack Inbox
 
-A keyboard-driven inbox for unread Slack messages and a viewer for direct messages and channels. Each unread conversation is one inbox row. Mark a row as read, save it for later, mute it, or reply without leaving the list. The **DMs** and **Channels** tabs show read and unread conversations with their full history.
+A keyboard-driven inbox for Slack DMs and channels. Browse cached history, reply, and press E to mark a conversation read and move it to Done. New messages bring it back to the inbox.
 
 ## Setup
 
@@ -108,27 +108,13 @@ Message text and the context the model reads are sent to OpenAI.
 
 ## Views
 
-| View      | Contents                                                                           |
-| --------- | ---------------------------------------------------------------------------------- |
-| Important | Direct messages, group messages, channels that mention you, and threads you follow |
-| Other     | All other channels with unread messages                                            |
-| Later     | Messages in your Slack **Later** list                                              |
-| Muted     | Muted conversations that have unread messages                                      |
-| DMs       | All direct and group messages, including read and muted conversations              |
-| Channels  | Joined public and private channels, sorted by latest activity              |
+The selector contains **DMs**, **Channels**, and **Done**. DMs and Channels show conversations you have not explicitly marked done, including conversations already read in Slack. Both lists sort by latest activity. Channels includes joined public and private channels.
 
-In **DMs** and **Channels**, opening a conversation shows its latest messages. The eight most recently opened conversations retain their rendered panels, scroll positions, and unsent drafts when you switch conversations. Hidden panels pause effects. Scroll up or select **Load earlier messages** to load older messages, 100 at a time. The app preserves your scroll position as messages load. The arrow above the composer returns you to the latest messages. Hover over a bubble to reply in a thread. Swipe or drag left to reveal timestamps on the right; they spring closed when you release. Channels and group DMs show other participants' names at the start of each message group; one-to-one DMs omit sender names.
+Press **E** or select **Mark done** to mark a conversation read in Slack and move it to Done. SQLite records the conversation ID and the last message timestamp at that moment. Any newer message, including one you send, returns the conversation to its DM or channel list. Edits and reactions on existing messages do not reopen it. Done combines archived DMs and channels; press **E** there to restore a conversation without changing its Slack read position. **Z** undoes the last archive or restore. Marking a conversation read in another Slack client does not archive it here.
 
-Fetched pages stay in SQLite across app restarts. The server tracks which time ranges are complete, so messages saved by the inbox do not hide gaps in history. Opening the sidebar does not fetch every conversation's history. With a live connection, new messages update the cache immediately, and the selected conversation checks its latest page at most once every 5 minutes. Without a live connection, this check runs once a minute. Reconnecting also checks for missed messages. Earlier cached pages load without another Slack request.
+Opening a conversation shows its latest messages. React Activities retain the eight most recently opened panels, scroll positions, and unsent drafts. Scroll up to load older pages while keeping your position. Hover a bubble to reply in a thread. Swipe or drag left to reveal timestamps; they spring closed on release. Channels and group DMs show other participants' names above each message group, while one-to-one DMs omit names.
 
-With a session token, each thread you follow that has unread replies appears in Important as its own row. The row shows the thread's first message and the unread replies. Pressing `E` marks the thread as read in Slack, and `R` replies in the thread. Muting a channel does not hide its threads, which matches Slack's Threads view.
-
-With a session token, Later and Muted use your Slack settings:
-
-- The Later view shows the in-progress items from Slack's **Later** list, including items you save in Slack. Pressing `L` saves the newest message of a conversation to Slack's Later list and marks the conversation as read. Pressing `E` in the Later view marks the item complete in Slack.
-- Pressing `M` mutes or unmutes the conversation in Slack. Conversations you mute in Slack also appear as muted here.
-
-Mute changes made in Slack appear at once. Later changes made in Slack appear at the next full sync, within 5 minutes. With only a user token, Slack does not allow access to these settings, so the app keeps Later and Muted in the local database instead.
+Cached history and archive markers survive app restarts. Background sync collects new messages and fills older history without navigating our visible UI. Collection errors leave cached messages readable and offer **Retry sync**.
 
 ## Keyboard shortcuts
 
@@ -137,20 +123,17 @@ Mute changes made in Slack appear at once. Later changes made in Slack appear at
 | `J` / `K`       | Next or previous conversation (message while reading)    |
 | `Enter` / `O`   | Read conversation; while reading, show thread replies    |
 | `Esc`           | Return to list, clear selection, or cancel thread reply  |
-| `E`             | Mark as read in Slack (in Later: mark complete)          |
-| `L`             | Save the newest message for later and mark as read       |
+| `E`             | Mark done and read; in Done, restore to inbox           |
 | `M`             | Mute or unmute                                           |
-| `C`             | Move to Important or Other, and teach the classifier     |
-| `X`             | Select for a bulk action                                 |
 | `Z`             | Undo the last action                                     |
 | `R`             | Reply in the conversation                                |
 | `T`             | Reply in the thread of the current message               |
 | `U`             | Open in Slack                                            |
-| `Tab` / `1`–`6` | Change view                                              |
+| `Tab` / `1`–`3` | Switch between DMs, Channels, and Done                    |
 | `Shift+R`       | Refresh                                                  |
 | `?`             | Show all shortcuts                                       |
 
-Sending a reply also marks the conversation as read. In **DMs** and **Channels**, the conversation stays open after you send or mark it as read.
+Sending a reply marks the conversation read and keeps it open. Only an explicit Done action archives it.
 
 ## Limits
 

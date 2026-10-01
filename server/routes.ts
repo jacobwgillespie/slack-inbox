@@ -113,6 +113,13 @@ export function localApi(engine: SyncEngine) {
       engine.requestSync()
       sendJson(response, 202, { ok: true })
     },
+    'POST /local/done': async (request, response) => {
+      const body = await readJson(request)
+      const ts = body.ts == null ? undefined : requireString(body.ts, 'ts')
+      if (ts !== undefined && !/^(0|\d+\.\d+)$/.test(ts)) throw new RequestError(400, 'invalid_ts')
+      await engine.setDone(requireString(body.channel, 'channel'), ts, body.markRead !== false)
+      sendJson(response, 200, { ok: true })
+    },
     'POST /local/mark': async (request, response) => {
       const body = await readJson(request)
       await engine.markRead(requireString(body.channel, 'channel'), requireString(body.ts, 'ts'))

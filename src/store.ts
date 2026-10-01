@@ -21,9 +21,9 @@ import type {
   User,
 } from './slack/types'
 
-export type View = 'important' | 'other' | 'later' | 'muted' | 'dms' | 'channels'
-export const isConversationView = (view: View) => view === 'dms' || view === 'channels'
-export const VIEWS: View[] = ['important', 'other', 'later', 'muted', 'dms', 'channels']
+export type View = 'important' | 'other' | 'later' | 'muted' | 'dms' | 'channels' | 'done'
+export const isConversationView = (view: View) => view === 'dms' || view === 'channels' || view === 'done'
+export const VIEWS: View[] = ['dms', 'channels', 'done']
 
 type Mode = 'list' | 'reading'
 
@@ -61,6 +61,8 @@ export interface InboxState {
   items: Record<string, InboxItem>
   directMessages: Record<string, DirectMessage>
   channels: Record<string, ConversationSummary>
+  done: Record<string, string>
+  doneOverrides: Record<string, Override<string | undefined>>
   histories: Record<string, HistoryState>
   later: Record<string, LaterItem>
   muted: Record<string, true>
@@ -106,7 +108,7 @@ export interface InboxState {
   dismissToast: () => void
 }
 
-type VisibleSource = Pick<InboxState, 'items' | 'directMessages' | 'channels' | 'later' | 'muted' | 'view' | 'session'>
+type VisibleSource = Pick<InboxState, 'items' | 'directMessages' | 'channels' | 'done' | 'later' | 'muted' | 'view' | 'session'>
 
 const OVERRIDE_LIFETIME = 2 * 60 * 1000
 const TOAST_DURATION = 7000
@@ -163,18 +165,25 @@ const byLatest = (a: InboxItem, b: InboxItem) => compareTs(latestTs(b), latestTs
 const bySavedAt = (a: LaterItem, b: LaterItem) => b.savedAt - a.savedAt
 
 export function computeVisible(state: VisibleSource): InboxItem[] {
-  const inbox = Object.values(state.items)
+  const summaries = { ...state.directMessages, ...state.channels }
+  const archived = (item: InboxItem) => {
+    const through = state.done[item.conversation.id]
+    return through !== undefined && compareTs(summaries[item.conversation.id]?.latestTs ?? latestTs(item), through) <= 0
+  }
+  const inbox = Object.values(state.items).filter((item) => !archived(item))
   switch (state.view) {
+    case 'done':
+      return Object.values(summaries).filter(archived).sort((a, b) => compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name))
     case 'channels':
-      return Object.values(state.channels).sort((a, b) =>
+      return Object.values(state.channels).filter((item) => !archived(item)).sort((a, b) =>
         compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
       )
     case 'dms':
-      return Object.values(state.directMessages).sort((a, b) =>
+      return Object.values(state.directMessages).filter((item) => !archived(item)).sort((a, b) =>
         compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
       )
     case 'later':
-      return Object.values(state.later).sort(bySavedAt)
+      return Object.values(state.later).filter((item) => !archived(item)).sort(bySavedAt)
     case 'muted':
       return inbox.filter((item) => isMutedChannelItem(item, state.muted)).sort(byLatest)
     case 'important':
@@ -196,7 +205,7 @@ export function computeCounts(state: VisibleSource): Record<View, number> {
 
 export function currentItem(state: InboxState): InboxItem | undefined {
   if (!state.selectedId) return undefined
-  if (isConversationView(state.view)) return state.histories[state.selectedId]?.item ?? (state.view === 'channels' ? state.channels[state.selectedId] : state.directMessages[state.selectedId])
+  if (isConversationView(state.view)) return state.histories[state.selectedId]?.item ?? (state.channels[state.selectedId] ?? state.directMessages[state.selectedId])
   return state.view === 'later' ? state.later[state.selectedId] : state.items[state.selectedId]
 }
 
@@ -312,6 +321,27 @@ export const inboxStore = create<InboxState>()(
         if (id) set(selectionPatch(id))
       }
 
+      const doneRequests = new Map<string, Promise<void>>()
+      const setDone = (channel: string, ts?: string, markRead = true) => {
+        const previous = get().done[channel]
+        const pending = override(ts)
+        const apply = (value?: string) => set((state) => ({ done: value === undefined ? omit(state.done, [channel]) : { ...state.done, [channel]: value } }))
+        apply(ts)
+        set((state) => ({ doneOverrides: { ...state.doneOverrides, [channel]: pending } }))
+        const request = (doneRequests.get(channel) ?? Promise.resolve()).catch(() => {}).then(() => localApi.setDone(channel, ts, markRead)).then(async () => {
+          if (get().doneOverrides[channel] === pending) set((state) => ({ doneOverrides: omit(state.doneOverrides, [channel]) }))
+          await get().load()
+        }).catch((error) => {
+          if (get().doneOverrides[channel] === pending) {
+            apply(previous)
+            set((state) => ({ doneOverrides: omit(state.doneOverrides, [channel]) }))
+          }
+          throw error
+        })
+        doneRequests.set(channel, request)
+        run(request.finally(() => { if (doneRequests.get(channel) === request) doneRequests.delete(channel) }))
+      }
+
       const setLaterOverrides = (entries: [string, LaterItem | undefined][]) => {
         set((state) => {
           const laterOverrides = { ...state.laterOverrides }
@@ -401,6 +431,11 @@ export const inboxStore = create<InboxState>()(
             else delete muted[id]
           }
 
+          const done = { ...payload.done }
+          for (const [id, entry] of Object.entries(state.doneOverrides)) {
+            if (entry.value === undefined) delete done[id]
+            else done[id] = entry.value
+          }
           return {
             status: payload.session ? 'ready' : payload.sync.error ? 'error' : 'loading',
             error: payload.sync.error && !payload.session ? new LocalApiError(payload.sync.error) : undefined,
@@ -411,6 +446,7 @@ export const inboxStore = create<InboxState>()(
             items,
             directMessages: Object.fromEntries(payload.directMessages.map((item) => [item.id, item])),
             channels: Object.fromEntries(payload.channels.map((item) => [item.id, item])),
+            done,
             later,
             muted,
             cursors,
@@ -447,6 +483,8 @@ export const inboxStore = create<InboxState>()(
         items: {},
         directMessages: {},
         channels: {},
+        done: {},
+        doneOverrides: {},
         histories: {},
         later: {},
         muted: {},
@@ -454,7 +492,7 @@ export const inboxStore = create<InboxState>()(
         laterOverrides: {},
         muteOverrides: {},
         classificationOverrides: {},
-        view: 'important',
+        view: 'dms',
         mode: 'list',
         checked: {},
         threads: {},
@@ -599,12 +637,15 @@ export const inboxStore = create<InboxState>()(
           if (!ids.length) return
 
           if (isConversationView(state.view)) {
-            for (const id of ids) {
-              const item = currentItem({ ...state, selectedId: id })
-              if (!item?.messages.length) continue
-              run(localApi.markRead(item.conversation.id, latestTs(item)).then(() => get().load()))
-            }
-            showToast(message ?? 'Marked as read')
+            const targets = ids.map((id) => state.channels[id] ?? state.directMessages[id]).filter((item) => item !== undefined)
+            if (!targets.length) return
+            const previous = targets.map((item) => [item.id, state.done[item.id]] as const)
+            removeAndAdvance(ids, () => {
+              for (const item of targets) setDone(item.id, state.view === 'done' ? undefined : item.latestTs)
+            })
+            showToast(message ?? (state.view === 'done' ? 'Restored to inbox' : 'Marked done'), {
+              undo: () => { for (const [id, ts] of previous) setDone(id, ts, false); reselect(ids) },
+            })
             return
           }
 
@@ -815,9 +856,12 @@ export const inboxStore = create<InboxState>()(
     },
     {
       name: 'slack-inbox',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => resilientLocalStorage),
-      migrate: (persisted) => ({ view: (persisted as { view?: View } | undefined)?.view ?? 'important' }),
+      migrate: (persisted) => {
+        const view = (persisted as { view?: View } | undefined)?.view
+        return { view: view && VIEWS.includes(view) ? view : 'dms' }
+      },
       partialize: (state) => ({ view: state.view }),
     },
   ),
