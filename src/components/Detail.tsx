@@ -82,7 +82,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
 
   if (!item) {
     return (
-      <section className="detail detail-empty">
+      <section className={`detail detail-empty${view === 'inbox' ? ' detail-empty-inbox' : ''}`}>
         <header className="detail-header" />
         <Toast />
       </section>

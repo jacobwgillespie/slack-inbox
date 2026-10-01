@@ -715,6 +715,10 @@ kbd {
   justify-content: center;
 }
 
+.detail-empty-inbox {
+  background: var(--background) url('/backgrounds/moss-island.png') center / cover no-repeat;
+}
+
 .detail-empty .detail-header {
   position: absolute;
   inset: 0 0 auto;
