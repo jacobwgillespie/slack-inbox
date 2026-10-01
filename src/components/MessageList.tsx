@@ -42,6 +42,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
   const messages = fromWebview ? webview.snapshot?.messages ?? [] : dms && !history?.item ? [] : item.messages
 
   const rememberPosition = (element: HTMLDivElement) => {
+    if (!element.clientHeight) return
     const top = element.getBoundingClientRect().top
     const row = [...element.querySelectorAll<HTMLElement>('[data-message-ts]')].find((row) => row.getBoundingClientRect().bottom > top)
     position.current = {
@@ -51,6 +52,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
   }
 
   const restorePosition = (element: HTMLDivElement) => {
+    if (!element.clientHeight) return
     if (position.current.atBottom) {
       element.scrollTop = element.scrollHeight
     } else {
@@ -66,7 +68,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
     if (ref.current && dms) restorePosition(ref.current)
   }, [dms, messages, history?.loading])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = ref.current
     if (!element || !dms) return
     restorePosition(element)
@@ -123,6 +125,7 @@ export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
             }}
             onScroll={(event) => {
               const element = event.currentTarget
+              if (!element.clientHeight) return
               const bottom = element.scrollHeight - element.scrollTop - element.clientHeight < 80
               position.current.atBottom = bottom
               rememberPosition(element)

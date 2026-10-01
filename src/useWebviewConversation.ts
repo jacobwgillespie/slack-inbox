@@ -40,6 +40,10 @@ export function useWebviewConversation(channel: string, enabled: boolean) {
           const previous = observed.current.get(message.ts)
           observed.current.set(message.ts, {
             ...message, user: message.user ?? previous?.user, username: message.username ?? previous?.username,
+            images: message.images?.map((image) => {
+              const cached = previous?.images?.find((candidate) => candidate.src === image.src)
+              return { ...image, width: image.width ?? cached?.width, height: image.height ?? cached?.height }
+            }),
           })
         }
         const messages = [...observed.current.values()].sort((a, b) => compareTs(a.ts, b.ts))
