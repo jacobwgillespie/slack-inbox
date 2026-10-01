@@ -18,7 +18,7 @@ export function DesktopSlack() {
   if (!visible) return null
   return <div className="desktop-slack-toolbar">
     <button onClick={() => {
-      void window.slackDesktop?.hideSlack().then(() => setVisible(false))
+      void window.slackDesktop.hideSlack().then(() => setVisible(false))
     }}>← Back to Inbox</button>
     <span>Slack</span>
     {status === 'error' && <BrowserSigninButton />}

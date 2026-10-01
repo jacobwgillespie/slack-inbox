@@ -42,11 +42,10 @@ export function useViewCounts() {
 export function useCurrentItem() {
   const source = useVisibleSource()
   const id = useStore((state) => state.selectedId)
-  const history = useStore((state) => id ? state.histories[id]?.item : undefined)
   if (!id) return undefined
   if (isConversationView(source.view)) {
     const item = source.channels[id] ?? source.directMessages[id]
-    return window.slackDesktop ? item : history ?? item
+    return item
   }
   return source.view === 'later' ? source.later[id] : source.items[id]
 }
@@ -110,15 +109,9 @@ export function useInboxSync() {
       loading = true
       do {
         stale = false
-        const previousRealtime = useStore.getState().sync?.realtime
         await load()
         const state = useStore.getState()
         if (state.sync?.realtime !== 'connected') clearTyping()
-        if (isConversationView(state.view) && state.selectedId && state.histories[state.selectedId]?.item) {
-          await state.loadHistory(state.selectedId,
-            previousRealtime !== 'connected' && state.sync?.realtime === 'connected' ? 'latest' : 'cached',
-          )
-        }
       } while (stale)
       loading = false
     }

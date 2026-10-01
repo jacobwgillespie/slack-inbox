@@ -1,12 +1,11 @@
 import { app, BaseWindow, WebContentsView, ipcMain, session, shell } from 'electron'
 import { createServer } from 'node:http'
-import { access, readFile, rm, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join, resolve, extname } from 'node:path'
 import { Database } from '../server/database.ts'
 import { SlackClient, SlackError, type SlackCredentials } from '../server/slack-client.ts'
 import { SyncEngine } from '../server/sync.ts'
 import { localApi } from '../server/routes.ts'
-import { configuredSession } from './configured-session.ts'
 import { BrowserSignin } from './browser-signin.ts'
 import { ConversationCollector } from './conversation-collector.ts'
 import { observeSlack } from './slack-session.ts'
@@ -25,15 +24,12 @@ async function start() {
   slackSession.setPermissionRequestHandler((_contents, permission, callback) => callback(permission === 'clipboard-sanitized-write'))
   slackSession.setPermissionCheckHandler((_contents, permission) => permission === 'clipboard-sanitized-write')
   const credentials: SlackCredentials = { origin: 'https://slack.com' }
-  const logoutMarker = join(app.getPath('userData'), 'disable-configured-session')
-  const skipConfiguredSession = await access(logoutMarker).then(() => true, () => false)
-  const configuredTeam = skipConfiguredSession ? undefined : await configuredSession(root, slackSession, credentials)
   const database = new Database(process.env.SLACK_DESKTOP_DATABASE_PATH || join(app.getPath('userData'), 'slack.sqlite'))
   const transport: typeof fetch = (input, init) => {
     if (!credentials.sessionToken) return Promise.reject(new SlackError('auth.test', 'not_authed'))
     return slackSession.fetch(input instanceof Request ? input : String(input), { ...init, credentials: 'include' })
   }
-  const engine = new SyncEngine(database, new SlackClient(credentials, transport), 'session', undefined, true)
+  const engine = new SyncEngine(database, new SlackClient(credentials, transport))
   const api = localApi(engine)
   const contentTypes: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' }
   const server = createServer((request, response) => {
@@ -227,8 +223,6 @@ async function start() {
   })
   ipcMain.handle('slack:logout', async (event) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
-    // Do not re-import the development credentials after an explicit logout.
-    await writeFile(logoutMarker, '')
     await browserSignin.stop()
     collector.stop()
     slack.webContents.close()
@@ -238,7 +232,6 @@ async function start() {
     await slackSession.clearStorageData()
     await slackSession.clearCache()
     await slackSession.cookies.flushStore()
-    await rm(join(app.getPath('userData'), 'signin-chrome'), { recursive: true, force: true })
     database.setMetadata('signed-out', true)
     app.relaunch()
     setTimeout(() => app.exit(0), 100)
@@ -266,7 +259,7 @@ async function start() {
       session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false,
     } } }
   })
-  const savedTeam = database.getMetadata<boolean>('signed-out') ? undefined : configuredTeam || database.getMetadata<{ teamId: string }>('session')?.teamId
+  const savedTeam = database.getMetadata<boolean>('signed-out') ? undefined : database.getMetadata<{ teamId: string }>('session')?.teamId
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })
   slack.webContents.on('dom-ready', () => slack.webContents.send('slack:read-markers-enabled', slackVisible))

@@ -1,4 +1,4 @@
-import type { LegacyPreferences, Message, PreferenceSource, SavedItemReference } from '../src/slack/types.ts'
+import type { LegacyPreferences, Message, SavedItemReference } from '../src/slack/types.ts'
 import type { Database, SavedItemRecord } from './database.ts'
 import { SlackError, type SlackClient } from './slack-client.ts'
 import { toConversation, toMessage, type RawConversation } from './slack-data.ts'
@@ -38,20 +38,15 @@ function mutedChannels(preferences: NotificationPreferences): Set<string> {
 }
 
 export class Preferences {
-  readonly source: PreferenceSource
   private readonly pendingMessages = new Set<string>()
 
   constructor(
     private readonly database: Database,
     private readonly client: SlackClient,
-    usesSlack: boolean,
     private readonly changed: () => void,
-  ) {
-    this.source = usesSlack ? 'slack' : 'local'
-  }
+  ) {}
 
   async sync() {
-    if (this.source === 'local') return
     await Promise.all([this.syncSavedItems(), this.syncMuted()])
   }
 
@@ -69,10 +64,8 @@ export class Preferences {
   async save(channel: string, ts: string): Promise<{ created: boolean }> {
     const existing = this.database.savedItem(channel, ts)
     if (existing?.state === 'in_progress') return { created: false }
-    if (this.source === 'slack') {
-      if (existing) await this.updateSavedItem(channel, ts, 'uncompleted')
-      else await this.addSavedItem(channel, ts)
-    }
+    if (existing) await this.updateSavedItem(channel, ts, 'uncompleted')
+    else await this.addSavedItem(channel, ts)
     this.database.setSavedItem({
       channel,
       ts,
@@ -92,25 +85,21 @@ export class Preferences {
   }
 
   async remove(channel: string, ts: string) {
-    if (this.source === 'slack') {
-      await this.client.call('saved.delete', { item_type: 'message', item_id: channel, ts })
-    }
+    await this.client.call('saved.delete', { item_type: 'message', item_id: channel, ts })
     this.database.deleteSavedItem(channel, ts)
     this.changed()
   }
 
   async setMuted(channel: string, muted: boolean) {
-    if (this.source === 'slack') {
-      const result = await this.client.call<{ all_notifications_prefs?: unknown }>('users.prefs.setNotifications', {
-        name: 'muted',
-        value: String(muted),
-        global: false,
-        channel_id: channel,
-      })
-      if (result.all_notifications_prefs) {
-        this.applyNotificationPreferences(result.all_notifications_prefs)
-        return
-      }
+    const result = await this.client.call<{ all_notifications_prefs?: unknown }>('users.prefs.setNotifications', {
+      name: 'muted',
+      value: String(muted),
+      global: false,
+      channel_id: channel,
+    })
+    if (result.all_notifications_prefs) {
+      this.applyNotificationPreferences(result.all_notifications_prefs)
+      return
     }
     this.database.setMuted(channel, muted)
     this.changed()
@@ -123,9 +112,7 @@ export class Preferences {
 
   private async setSavedState(channel: string, ts: string, state: SavedItemRecord['state']) {
     const existing = this.database.savedItem(channel, ts)
-    if (this.source === 'slack') {
-      await this.updateSavedItem(channel, ts, state === 'completed' ? 'completed' : 'uncompleted')
-    }
+    await this.updateSavedItem(channel, ts, state === 'completed' ? 'completed' : 'uncompleted')
     this.database.setSavedItem({
       channel,
       ts,

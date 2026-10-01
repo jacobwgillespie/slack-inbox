@@ -10,7 +10,7 @@ export function loadImagePreview(source: string): Promise<ImagePreview> {
   const pending = imageLoads.get(source)
   if (pending) return pending
   const promise = (async () => {
-    const data = await window.slackDesktop!.readImage(source)
+    const data = await window.slackDesktop.readImage(source)
     const image = new Image()
     image.src = data
     await image.decode()

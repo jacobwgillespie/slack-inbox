@@ -92,21 +92,10 @@ export interface ConversationSummary extends InboxItem {
 
 export type DirectMessage = ConversationSummary
 
-export interface HistoryPayload {
-  messages: Message[]
-  users: Record<string, User>
-  hasMore: boolean
-  before?: string
-}
-
 export interface LaterItem extends InboxItem {
   ts: string
   savedAt: number
 }
-
-export type PreferenceSource = 'slack' | 'local'
-
-export type CredentialMode = 'session' | 'user' | 'none'
 
 export interface SyncError {
   code: string
@@ -116,17 +105,8 @@ export interface SyncError {
 
 export type RealtimeState = 'connecting' | 'connected' | 'disconnected' | 'unavailable'
 
-export interface ClassifierStatus {
-  enabled: boolean
-  running: boolean
-  pending: number
-  error?: string
-}
-
 export interface SyncStatus {
-  mode: CredentialMode
   realtime: RealtimeState
-  classifier: ClassifierStatus
   running: boolean
   done: number
   total: number
@@ -144,7 +124,6 @@ export interface InboxPayload {
   done: Record<string, string>
   later: LaterItem[]
   muted: string[]
-  preferenceSource: PreferenceSource
   users: Record<string, User>
 }
 
@@ -171,4 +150,9 @@ export interface TypingEvent {
   channel: string
   user: string
   active: boolean
+}
+
+export interface RealtimeEvent {
+  type: string
+  [key: string]: unknown
 }

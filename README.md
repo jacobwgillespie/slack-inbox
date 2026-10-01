@@ -1,207 +1,70 @@
 # Slack Inbox
 
-A keyboard-driven inbox for Slack DMs and channels. Browse cached history, reply, and press E to mark a conversation read and move it to Done. New messages bring it back to the inbox.
+An unofficial macOS app for working through your Slack conversations. Read and reply, save messages for later, and mark conversations done without losing their history.
 
-## Setup
+## Install
 
-1. Go to [api.slack.com/apps](https://api.slack.com/apps?new_app=1) and choose **Create New App → From a manifest**. Paste the contents of `slack-app-manifest.json`.
-2. Install the app to your workspace.
-3. Copy the **User OAuth Token** (it starts with `xoxp-`) into `.env.local`:
+Slack Inbox supports Apple Silicon and Intel Macs. Public releases are not available yet; see [Development](DEVELOPMENT.md) to run the app from source.
 
-   ```sh
-   cp .env.example .env.local
-   ```
+When installing a packaged build from [GitHub Releases](https://github.com/jacobwgillespie/slack-inbox/releases):
 
-4. Install dependencies and start the app:
+1. Choose the `arm64.dmg` for Apple Silicon or `x64.dmg` for Intel.
+2. Open the DMG and drag **Slack Inbox** into **Applications**.
+3. Open the app and choose **Sign in to Slack**. Complete sign-in in your browser, then return to Slack Inbox.
 
-   ```sh
-   pnpm install
-   pnpm dev
-   ```
+You don't need to create a Slack app or copy an API token. Your sign-in persists between launches.
 
-The app needs Node.js 22.13 or later.
+## Use your inbox
 
-React Compiler runs in development and production through Vite's `reactCompilerPreset`, targeting React 19. Components use TanStack DB live queries for data, `useStore` for interaction state, and `inboxStore` for imperative command access. The compiler leaves unsupported functions, including hooks with `try/finally`, unoptimized.
+The sidebar has three lists:
 
-A native macOS prototype built with GPUI is in [`gpui/`](gpui/README.md). It works on its own, without this web app.
+- **Inbox** contains DMs, group messages, and joined channels you haven't marked done, including conversations already read in Slack.
+- **Later** contains messages you've saved for later.
+- **Done** contains conversations you've finished handling.
 
-## Electron desktop experiment
+Press **E** to mark a conversation read in Slack and move it to Done. A new message returns it to Inbox; edits and reactions don't. Press **E** in Done to restore a conversation, or **Z** to undo the last action. Reading a conversation in another Slack client doesn't mark it done here.
 
-Run `pnpm desktop` to install Electron's runtime, build the app, and open the desktop window. If `.env.local` already has `SLACK_SESSION_TOKEN` and `SLACK_SESSION_COOKIE`, the desktop shell validates that session and reuses its Slack cookie automatically. Otherwise, use **Open Slack to sign in** for the first login. After signing in, return with **Back to Inbox**.
+Open a conversation to read its cached history. Scroll up for earlier messages, hover a message to reply in a thread, and swipe or drag left to reveal timestamps. Reading at the bottom marks the displayed messages read; browsing older history leaves newer messages unread. Sending a reply keeps the conversation open.
 
-The separate Chrome login is experimental: a fresh profile with debugging enabled may trigger repeated CAPTCHA challenges. Prefer the configured-session path when available.
-
-For macOS SSO requiring an existing passkey, choose **Sign in with Chrome / passkey**. This opens the installed Google Chrome in a dedicated `userData/signin-chrome` profile, where you can choose a physical security key or scan Chrome's QR code and use a passkey on your phone. Your regular Chrome profile and its extensions are not used. Once Slack opens, the app imports only Slack-domain cookies into its embedded profile, closes the dedicated Chrome window, and resumes sync automatically. Rippling/other SSO cookies remain in the dedicated browser profile. Communication uses a private DevTools pipe, with no debugging port. Set `SLACK_SIGNIN_CHROME` to override the Chrome executable path. The default path targets macOS.
-
-Electron 44's macOS Touch ID credentials belong to the app and cannot use your existing Rippling passkey, so native `configureWebAuthn({ touchID: ... })` is not enabled. The ordinary `pnpm dev` browser version still works with its existing credentials.
-
-The desktop shell hosts the React app and a separate, sandboxed Slack `WebContentsView`. Slack cookies and storage persist in the app's own profile. The shell captures Slack's session token from its API requests in memory and uses that profile's Chromium network stack for API calls and image downloads. It does not copy credentials into `.env.local` or expose them to React.
-
-The avatar menu contains Help and Log out. Logging out clears the embedded Slack login and the dedicated Chrome sign-in profile, then restarts at sign-in. It also disables automatic import of `.env.local` credentials for future desktop launches. Your regular Chrome profile is unaffected. Local conversation and Done state remain available when you sign back into the same account; signing into a different account clears the previous workspace cache.
-
-Messages and reactions support Slack emoji shortcodes and skin tones. The webview also preserves rendered emoji images, including custom workspace emoji. Standard shortcodes come from [emoji-data](https://github.com/iamcal/emoji-data); `scripts/build-emoji.mjs` generates the compact lookup during builds. Its license is in `src/slack/emoji-data.LICENSE`.
-
-Slack's own WebSocket frames feed messages, edits, deletions, reactions, and read markers into the existing sync engine. Our sync engine does not open its own realtime socket; each embedded Slack view manages its normal connection. SQLite still supplies the UI, caches image bytes and history pages, and records history coverage. Polling and reconnection checks remain available when observed realtime updates stop.
-
-The desktop composer experiments with copying Slack's editor and controls into our renderer. The manual Slack view follows the selected conversation in the background. Sanitized HTML snapshots provide the editor, buttons, and suggestion menus; draft edits, selection, supported keys, and control clicks are proxied back to Slack. Rich-text drafts and mention completion have been checked in Linear without sending messages. Sending uses Slack's own composer. Search fields inside popups, file dialogs, and media controls are not fully integrated or verified. Replies in Slack threads and the browser version retain the existing composer.
-
-**Open Slack** reveals the full client for the selected conversation, sharing the same draft. The hidden composer view cannot write read markers; revealing Slack can mark its active conversation read as Slack normally does.
-
-This first experiment targets one workspace. It uses a separate database at Electron's `userData/slack.sqlite`, so it can run alongside the browser app without two engines writing the same cache. Override it with `SLACK_DESKTOP_DATABASE_PATH`. The local renderer uses port 5174; override with `SLACK_DESKTOP_PORT` if needed. `pnpm desktop:build` builds without launching; after building, `pnpm exec electron electron-dist/main.cjs` launches directly.
-
-The configured-session path has been verified against the live workspace, including authenticated sync and the embedded realtime connection. The fresh Chrome SSO path remains experimental.
-
-### macOS packaging and icon
-
-Run `pnpm desktop:package` on macOS to build **Slack Inbox.app**, a DMG, and a ZIP in `release/` for the current machine's architecture. Open the app directly from `release/mac-arm64/` (or `release/mac/` on Intel), or open the DMG and drag it into Applications. This command uses ad-hoc signing for local use and skips notarization.
-
-Packaging includes the built interface and desktop code. It excludes `.env.local`, the development database, and browser profiles. Sign in through the app; its existing desktop profile and cache stay in Electron's `userData` directory.
-
-The saddle-leather icon's transparent source is `assets/icon-source.png`. `pnpm icons` generates the PNG and browser icons in `public/` and, on macOS, `assets/icon.icns`. Builds run this automatically. The Electron development app uses the PNG for its Dock icon; the packaged app also embeds the ICNS for Finder.
-
-### Signing and releases
-
-GitHub Actions builds the desktop app on pull requests and pushes to `main`. The **Release** workflow builds signed, notarized DMGs and ZIPs for Apple Silicon and Intel Macs. Run it manually to download the build artifacts without creating a release, or push a version tag to create a draft GitHub Release.
-
-Configure these [repository Actions secrets](https://github.com/jacobwgillespie/slack-inbox/settings/secrets/actions):
-
-| Secret | Value |
-| --- | --- |
-| `MAC_CSC_LINK` | Base64-encoded `.p12` containing the Developer ID Application certificate and its private key |
-| `MAC_CSC_KEY_PASSWORD` | Password used to encrypt the `.p12` |
-| `APPLE_ID` | Email address associated with the Apple Developer account |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created for notarization in the Apple account's Sign-In and Security settings |
-| `APPLE_TEAM_ID` | Apple Developer team ID |
-
-Use a **Developer ID Application** certificate from Apple's **G2 Sub-CA** for distribution through GitHub. When exporting from Keychain Access, export the certificate together with its private key as a password-protected `.p12`. Keep a secure backup of the key and certificate outside this repository. The Apple app-specific password is separate from both the account password and the `.p12` password.
-
-The workflow requires signing credentials and verifies the app signatures, Gatekeeper assessment, and stapled notarization tickets before uploading artifacts. Its publish job uploads to a draft release only after both architectures build successfully. It refuses to overwrite a published release.
-
-To release a version:
-
-1. Update `version` in `package.json` and merge the change into `main`.
-2. Tag that commit with the matching version and push the tag:
-
-   ```sh
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-
-3. Wait for the **Release** workflow and install the DMG on a clean Mac to check sign-in and startup.
-4. Review the draft release notes, then publish the release in GitHub. Retain the ZIPs, blockmaps, and `latest-mac.yml` alongside the DMGs; automatic updates use these files.
-
-Make the repository public before distributing builds to users. The update client reads public GitHub Releases and does not contain a GitHub access token. Draft releases are invisible to update checks.
-
-Packaged macOS apps check for updates at startup and every four hours. Choose **Slack Inbox → Check for Updates…** for a manual check; the menu shows checking and download progress. Updates download in the background. Once an update is ready, a white download button appears beside Refresh. Click it to restart and install the update, or keep working and let it install when you quit. Development runs skip update checks. The app flushes Slack cookies and stops sync before quitting; the profile and SQLite database remain in the existing `userData` directory.
-
-Before relying on automatic updates, install one signed release, publish a newer version, and verify that updating preserves sign-in, cached conversations, and Done state.
-
-## How it works
-
-The Vite server runs a sync process that copies your Slack data into a local SQLite database at `data/slack.sqlite`. The browser reads the inbox from this database and never calls Slack directly. Your token stays in the server.
-
-- Users, custom emoji, and the list of conversations refresh once an hour.
-- With a session token, the server keeps a real-time connection to Slack. New messages, edits, deletions, reactions, and conversations you read in other Slack apps appear at once. A full check of unread state also runs every 5 minutes, and after each reconnection, to catch anything the connection missed. The header shows **Live** while the connection is open.
-- With a user token, Slack does not offer a real-time connection, so the server checks unread state continuously.
-- Unread message history is fetched only for conversations that have new messages. DM and channel history loads when you open a conversation or scroll to an earlier page.
-- When you mark a conversation as read or send a reply, the server updates Slack and the database.
-- The server tells the browser when data changes, so the inbox updates without a reload.
-
-Image attachments load inline as you scroll. The server authenticates downloads and caches previews in SQLite; your token stays out of the browser. If a preview is unavailable, the attachment remains a link to Slack. User OAuth tokens need the `files:read` scope from the app manifest; existing installations need to be reinstalled after adding that scope.
-
-Because the server does this work, the browser app only runs through `pnpm dev` or `pnpm preview`, not as static files. To start again with an empty database, stop the server and delete the `data` directory. To store the database somewhere else, set `SLACK_DATABASE_PATH` in `.env.local`.
-
-## Faster scans with a session token (optional)
-
-With a user token, Slack does not report which conversations are unread. The app must call `conversations.info` once for each conversation, and Slack allows about 50 of these calls each minute. If you belong to 600 conversations, each scan takes about 12 minutes. The inbox shows the last result from the database while the scan runs.
-
-A browser session token lets the app ask Slack for all unread conversations in one request (`client.counts`), so a scan takes a few seconds. It also lets the app receive updates in real time (`rtm.connect`).
-
-To get the session token:
-
-1. Open [app.slack.com](https://app.slack.com) in a browser and sign in to the workspace.
-2. Open the developer tools console and run:
-
-   ```js
-   Object.values(JSON.parse(localStorage.localConfig_v2).teams).map((team) => [team.name, team.token])
-   ```
-
-   Copy the token for your workspace. It starts with `xoxc-`.
-
-3. In the developer tools, go to **Application → Cookies → https://app.slack.com**. Copy the value of the `d` cookie exactly as shown. It starts with `xoxd-`.
-4. Add both values to `.env.local` and restart the development server:
-
-   ```sh
-   SLACK_SESSION_TOKEN=xoxc-...
-   SLACK_SESSION_COOKIE=xoxd-...
-   ```
-
-When a session token is set, the app uses it instead of `SLACK_USER_TOKEN`.
-
-Before you use a session token, know that:
-
-- `client.counts`, `subscriptions.thread.*`, `saved.*`, and `users.prefs.*` are not documented Slack APIs, and `rtm.connect` is deprecated for Slack apps. Slack can change or block any of them at any time.
-- The token has full access to your account, not only the scopes in the manifest. Keep `.env.local` private.
-- The token stops working when you sign out of that browser session. You must then copy new values.
-- Your workspace's security policy may not allow this.
-
-## Message classifier (optional)
-
-If `OPENAI_API_KEY` is set in `.env.local`, the server asks an OpenAI model to sort each new unread message into Important or Other. The default model is `gpt-6-luna`. To use a different model, set `OPENAI_CLASSIFIER_MODEL`.
-
-- The server sends unread messages from the last 7 days in groups of up to 25. It sends the message text, the conversation name, the author, and whether the message mentions you.
-- The model records each decision with a short reason. The result is saved in the local database, so each message is sorted only once. Select a message to see the label, and hold the pointer over the label to see the reason.
-- A conversation is in Important if any of its unread messages is important. Messages that are not sorted yet use the built-in rules: direct messages, group messages, and mentions are important.
-- The model can read the local database with SQL to get more context, for example earlier messages in the conversation. It cannot change the database, except to record decisions and memories.
-- Press `C` to move a conversation to the other view. The model receives your correction on its next run and can save a memory, such as "Messages in #announcements are important." It includes all memories every time it sorts messages. Memories are stored in the `memories` table in the database.
-
-Message text and the context the model reads are sent to OpenAI.
-
-## Views
-
-The selector contains **DMs**, **Channels**, and **Done**. DMs and Channels show conversations you have not explicitly marked done, including conversations already read in Slack. Both lists sort by latest activity. Channels includes joined public and private channels.
-
-Press **E** or select **Mark done** to mark a conversation read in Slack and move it to Done. SQLite records the conversation ID and the last message timestamp at that moment. Any newer message, including one you send, returns the conversation to its DM or channel list. Edits and reactions on existing messages do not reopen it. Done combines archived DMs and channels; press **E** there to restore a conversation without changing its Slack read position. **Z** undoes the last archive or restore. Marking a conversation read in another Slack client does not archive it here.
-
-Opening a conversation shows its latest messages. React Activities retain the eight most recently opened panels, scroll positions, and unsent drafts. Scroll up to load older pages while keeping your position. Hover a bubble to reply in a thread. Swipe or drag left to reveal timestamps; they spring closed on release. Channels and group DMs show other participants' names above each message group, while one-to-one DMs omit names.
-
-Cached history and archive markers survive app restarts. Background sync collects new messages and fills older history without navigating our visible UI. Collection errors leave cached messages readable and offer **Retry sync**.
+Press **L** to save a message for later. Choose **Open Slack** when you need the full Slack interface; it shares your current draft and sign-in. Cached messages remain readable if sync fails. Choose **Retry sync** to try again.
 
 ## Keyboard shortcuts
 
-| Key             | Action                                                   |
-| --------------- | -------------------------------------------------------- |
-| `J` / `K`       | Next or previous conversation    |
-| `Enter` / `O`   | Read conversation    |
-| `Esc`           | Return to list, clear selection, or cancel thread reply  |
-| `E`             | Mark done and read; in Done, restore to inbox           |
-| `M`             | Mute or unmute                                           |
-| `Z`             | Undo the last action                                     |
-| `R`             | Reply in the conversation                                |
-| `T`             | Reply in the thread of the latest message               |
-| `U`             | Open in Slack                                            |
-| `Tab` / `1`–`3` | Switch between DMs, Channels, and Done                    |
-| `Shift+R`       | Refresh                                                  |
-| `?`             | Show all shortcuts                                       |
+| Key | Action |
+| --- | --- |
+| `J` / `K` or `↓` / `↑` | Next or previous conversation |
+| `Enter` / `O` | Read conversation |
+| `Esc` | Return to the list, clear selection, or cancel a thread reply |
+| `E` | Mark done and read; in Done, restore to Inbox |
+| `L` | Save a message for later |
+| `M` | Mute or unmute a conversation in Slack |
+| `Z` | Undo the last action |
+| `R` | Reply in the conversation |
+| `T` | Reply in a thread |
+| `U` | Open Slack |
+| `Tab` / `Shift+Tab` | Next or previous list |
+| `1` / `2` / `3` | Inbox, Later, or Done |
+| `Shift+R` | Refresh |
+| `?` | Show keyboard shortcuts |
 
-Sending a reply marks the conversation read and keeps it open. Only an explicit Done action archives it.
+The avatar menu also contains **Welcome**, **Help**, and **Log out**.
 
-Viewing a conversation at the bottom marks its latest displayed messages read. Viewing older history keeps newer messages unread.
+## Updates
 
-## Limits
+Slack Inbox checks for updates at startup and every four hours. You can also choose **Slack Inbox → Check for Updates…**.
 
-- Unread replies in threads you follow need a session token. With only a user token, the inbox shows unread top-level messages only. You can still expand threads and reply in them.
-- The inbox loads up to 100 unread messages for each conversation. The **DMs** and **Channels** views load additional history as you scroll.
-- With a user token, each scan checks every conversation you belong to, which takes minutes in a large workspace. Direct messages are checked first. See [Faster scans with a session token](#faster-scans-with-a-session-token-optional).
+Updates download in the background. When one is ready, a white download button appears beside Refresh. Click it to restart and install the update, or let it install when you quit. Your sign-in, cached conversations, and Done state stay on your Mac.
 
-### Desktop conversation sync
+## Your data
 
-The Electron DM and channel views read a durable SQLite cache through TanStack DB live collections. Switching conversations reads the cache immediately. The manual view separately follows the selection for composer sync; message rendering does not wait for that view. React Activities retain the eight most recently opened panels and their scroll positions. The browser version continues to use API-backed SQLite history.
+Slack Inbox keeps its own Slack sign-in and a local cache of conversations, images, and inbox state. Marking messages read, replying, reacting, muting, and saving for later update your Slack account.
 
-A dedicated background Slack view collects rendered messages into SQLite, keyed by conversation ID and Slack message timestamp. It is separate from the Slack view opened by **Open Slack**, so inspecting Slack does not interrupt collection. A MutationObserver reports rendered changes immediately. The collector prioritizes the selected conversation, incoming unread messages observed on Slack's realtime connection, then visible sidebar rows. Visible conversations with stale caches are refreshed when the sidebar reports them; unchanged caches younger than a minute are reused.
+**Log out** clears the app's Slack sign-in. Cached conversations and Done state remain available when you sign back into the same account. Signing into a different account clears the previous workspace cache.
 
-History collection reads overlapping virtualized windows, yields between batches of four, and resumes at its cached message timestamp. Visible threads continue backfilling in the background; scrolling our timeline reads cached pages of 100 before requesting more collection. Newer messages stay in SQLite and in the UI when older pages arrive. Collection errors leave cached messages readable and expose **Retry sync**. Only Slack's rendered beginning-of-conversation marker marks a history complete. Background HTTP and WebSocket read-marker writes are blocked, including in the manual view while it is hidden; explicit read actions and the visible manual Slack view continue to work normally.
+## Current limits
 
-TanStack DB owns the reactive message, DM, channel, inbox, saved-item, and user collections used by the UI. SQLite remains their persistent source. The existing Zustand command layer still handles selection, drafts, shortcuts, and optimistic inbox actions, publishing its domain snapshots into those collections. Incoming realtime events update SQLite and active collections immediately, while the collector supplements them with rendered rich content. Image previews are also persisted in SQLite.
+- One workspace at a time; macOS only.
+- Workspaces requiring device-bound sign-in aren't supported yet.
+- Some Slack content and composer controls, including complex app cards, file dialogs, and media controls, aren't fully integrated. Use **Open Slack** for these interactions.
 
-Sending, marking read, workspace discovery, and inbox synchronization still use the existing API transport. This is not a complete replacement for Slack's API surface: rich text, reactions, and images are extracted from the DOM, while complex app cards and unfurls still need adapters. First visits suspend until local cache hydration or the first collected page is ready, retaining the previous conversation during navigation. Image previews for recently collected messages are warmed in the background. One collector keeps Slack rendering and request load bounded; additional workers are not yet needed for cached navigation.
+For source setup, architecture, packaging, and releases, see [Development](DEVELOPMENT.md).

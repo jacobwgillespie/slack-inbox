@@ -1,6 +1,6 @@
 import type { Message } from '../src/slack/types.ts'
 import type { Database, ThreadRecord } from './database.ts'
-import type { RealtimeEvent } from './realtime.ts'
+import type { RealtimeEvent } from '../src/slack/types.ts'
 import type { SlackClient } from './slack-client.ts'
 import { toMessage } from './slack-data.ts'
 

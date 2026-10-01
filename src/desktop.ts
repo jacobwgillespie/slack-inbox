@@ -3,7 +3,7 @@ import type { CachedConversation } from './slack/dm-cache'
 
 declare global {
   interface Window {
-    slackDesktop?: {
+    slackDesktop: {
       platform: string
       updateVersion(): Promise<string | undefined>
       installUpdate(): Promise<void>
@@ -26,10 +26,8 @@ declare global {
 }
 
 export function openDesktopSlack(channel?: string) {
-  if (!window.slackDesktop) return false
   window.dispatchEvent(new Event('desktop-slack-open'))
   void window.slackDesktop.showSlack(channel).catch(() => {
     window.dispatchEvent(new Event('desktop-slack-close'))
   })
-  return true
 }

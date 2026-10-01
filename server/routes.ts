@@ -97,15 +97,6 @@ export function localApi(engine: SyncEngine) {
       response.end(image.data)
     },
     'GET /local/events': streamEvents(engine),
-    'GET /local/history': async (_, response, url) => {
-      const channel = requireString(url.searchParams.get('channel'), 'channel')
-      const before = url.searchParams.get('before') ?? undefined
-      const after = url.searchParams.get('after') ?? undefined
-      for (const ts of [before, after]) {
-        if (ts && !/^\d+(\.\d{1,6})?$/.test(ts)) throw new RequestError(400, 'invalid_timestamp')
-      }
-      sendJson(response, 200, await engine.history(channel, { before, after, cached: url.searchParams.get('cached') === 'true' }))
-    },
     'GET /local/replies': async (_, response, url) => {
       const channel = requireString(url.searchParams.get('channel'), 'channel')
       const ts = requireString(url.searchParams.get('ts'), 'ts')

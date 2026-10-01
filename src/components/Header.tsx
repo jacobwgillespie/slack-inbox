@@ -25,7 +25,7 @@ export function Header() {
   return (
     <header className="header">
       <div className="sidebar-heading">
-        {window.slackDesktop?.platform !== 'darwin' && <div className="brand">Inbox</div>}
+        {window.slackDesktop.platform !== 'darwin' && <div className="brand">Inbox</div>}
         <div className="sync-status" role="status">
           {sync?.error && !scanning && (
             <span className="scan-status scan-error" title={sync.error.message}>
@@ -33,14 +33,6 @@ export function Header() {
             </span>
           )}
           {sync?.realtime === 'disconnected' && <span className="scan-status">Reconnecting</span>}
-          {sync?.classifier.error && (
-            <span className="scan-status scan-error" title={sync.classifier.error}>
-              Classifier failed
-            </span>
-          )}
-          {sync?.classifier.running && sync.classifier.pending > 0 && (
-            <span className="scan-status">Sorting {sync.classifier.pending}</span>
-          )}
           {showProgress && (
             <span className="scan-status">
               {sync?.total ? `Syncing ${sync.done} of ${sync.total}` : 'Syncing'}

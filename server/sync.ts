@@ -1,6 +1,4 @@
 import type {
-  ConversationKind,
-  CredentialMode,
   InboxItem,
   ClassificationEntry,
   ClassificationLabel,
@@ -12,16 +10,13 @@ import type {
   SyncError,
   SyncStatus,
   ThreadPayload,
-  HistoryPayload,
   TypingEvent,
+  RealtimeEvent,
 } from '../src/slack/types.ts'
-import { Classifier, type ClassifierOptions } from './classifier.ts'
-import type { Database, StoredConversation } from './database.ts'
+import type { Database } from './database.ts'
 import { Preferences } from './preferences.ts'
 import { Threads } from './threads.ts'
-import { History } from './history.ts'
 import { Files } from './files.ts'
-import { RealtimeConnection, type RealtimeEvent } from './realtime.ts'
 import { SlackError, type SlackClient } from './slack-client.ts'
 import {
   hasUnreads,
@@ -35,12 +30,10 @@ import {
 
 const SESSION_SYNC_INTERVAL = 30 * 1000
 const REALTIME_SYNC_INTERVAL = 5 * 60 * 1000
-const USER_SYNC_INTERVAL = 60 * 1000
 const DIRECTORY_MAX_AGE = 60 * 60 * 1000
 const HISTORY_LIMIT = 100
 const INBOX_MESSAGE_LIMIT = 100
 const CHANGE_NOTIFICATION_DELAY = 250
-const KIND_PRIORITY: Record<ConversationKind, number> = { dm: 0, group: 1, private: 2, channel: 3 }
 const USER_MENTION = /<@([UW][A-Z0-9]+)/g
 const READ_MARKER_EVENTS = new Set(['channel_marked', 'group_marked', 'im_marked', 'mpim_marked'])
 const MEMBERSHIP_EVENTS = new Set([
@@ -94,56 +87,24 @@ export class SyncEngine {
   private readonly listeners = new Set<(version: number) => void>()
   private readonly typingListeners = new Set<(event: TypingEvent) => void>()
   private readonly requestedUsers = new Set<string>()
-  private readonly realtime?: RealtimeConnection
   private readonly preferences: Preferences
-  private readonly threads?: Threads
-  private readonly classifier?: Classifier
-  private readonly messageHistory: History
+  private readonly threads: Threads
   private readonly files: Files
 
   constructor(
     private readonly database: Database,
     private readonly client: SlackClient,
-    mode: CredentialMode,
-    classifierOptions?: ClassifierOptions,
-    externalRealtime = false,
   ) {
     this.status = {
-      mode,
-      realtime: mode === 'session' ? 'connecting' : 'unavailable',
-      classifier: { enabled: Boolean(classifierOptions), running: false, pending: 0 },
+      realtime: 'connecting',
       running: false,
       done: 0,
       total: 0,
     }
-    this.messageHistory = new History(database, client)
     this.files = new Files(database, client)
-    if (classifierOptions) {
-      this.classifier = new Classifier(database, classifierOptions, {
-        session: () => this.session,
-        unreadItems: () => (this.session ? this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT) : []),
-        onStatus: (classifier) => this.setStatus({ classifier }),
-        changed: () => this.changed(),
-      })
-    }
     this.session = database.getMetadata<boolean>('signed-out') ? undefined : database.getMetadata<Session>('session')
-    this.preferences = new Preferences(database, client, mode === 'session', () => this.changed())
-    if (mode === 'session') {
-      this.threads = new Threads(
-        database,
-        client,
-        () => this.changed(),
-        () => this.requestSync(),
-      )
-      if (!externalRealtime) this.realtime = new RealtimeConnection(client, {
-        onEvent: (event) => this.handleRealtimeEvent(event),
-        onStateChange: (realtime) => {
-          if (realtime !== 'connected') this.messageHistory.invalidateLive()
-          this.setStatus({ realtime })
-        },
-        onConnected: () => this.requestSync(),
-      })
-    }
+    this.preferences = new Preferences(database, client, () => this.changed())
+    this.threads = new Threads(database, client, () => this.changed(), () => this.requestSync())
   }
 
   reauthenticate() {
@@ -156,20 +117,16 @@ export class SyncEngine {
   }
 
   setExternalRealtime(connected: boolean) {
-    if (!connected) this.messageHistory.invalidateLive()
     this.setStatus({ realtime: connected ? 'connected' : 'connecting' })
     if (connected) this.requestSync()
   }
 
   start() {
     this.requestSync()
-    this.realtime?.start()
   }
 
   async stop() {
     this.stopped = true
-    this.realtime?.stop()
-    await this.classifier?.stop()
     clearTimeout(this.timer)
     clearTimeout(this.notifyTimer)
     this.listeners.clear()
@@ -212,7 +169,7 @@ export class SyncEngine {
     const items = this.session
       ? [
           ...this.withClassifications(this.database.inbox(this.session.userId, INBOX_MESSAGE_LIMIT)),
-          ...(this.threads ? this.database.threadInbox(this.session.userId) : []),
+          ...this.database.threadInbox(this.session.userId),
         ]
       : []
     const later = this.preferences.later()
@@ -232,7 +189,6 @@ export class SyncEngine {
       done: this.database.doneConversations(),
       later,
       muted: this.database.mutedConversationIds(),
-      preferenceSource: this.preferences.source,
       users,
     }
   }
@@ -242,7 +198,6 @@ export class SyncEngine {
       for (const reference of references) this.database.saveUserClassification(reference, label)
     })
     this.changed()
-    this.classifier?.schedule()
   }
 
   restoreClassifications(entries: ClassificationEntry[]) {
@@ -264,7 +219,6 @@ export class SyncEngine {
   }
 
   async markThreadRead(channel: string, threadTs: string, ts: string) {
-    if (!this.threads) throw new SlackError('subscriptions.thread.mark', 'not_allowed_token_type')
     await this.threads.markRead(channel, threadTs, ts)
   }
 
@@ -352,7 +306,6 @@ export class SyncEngine {
     })
     if (result.message) {
       this.database.upsertMessages(channel, [toMessage(result.message)])
-      this.messageHistory.observeMessage(channel, result.message.ts)
     }
     this.changed()
   }
@@ -372,22 +325,9 @@ export class SyncEngine {
     return this.files.image(id)
   }
 
-  async history(channel: string, options: { before?: string; after?: string; cached?: boolean }): Promise<HistoryPayload> {
-    const page = await this.messageHistory.page(channel, {
-      ...options,
-      maxAge: this.status.realtime === 'connected' ? REALTIME_SYNC_INTERVAL : USER_SYNC_INTERVAL,
-      live: this.status.realtime === 'connected',
-    })
-    const ids = [...messageUserIds(page.messages)]
-    const users = this.database.usersById(ids)
-    this.requestMissingUsers(ids.filter((id) => !users[id]))
-    if (!options.cached) this.changed()
-    return { ...page, users }
-  }
-
   private syncInterval() {
     if (this.status.realtime === 'connected') return REALTIME_SYNC_INTERVAL
-    return this.status.mode === 'session' ? SESSION_SYNC_INTERVAL : USER_SYNC_INTERVAL
+    return SESSION_SYNC_INTERVAL
   }
 
   private handleRealtimeEvent(event: RealtimeEvent) {
@@ -407,7 +347,7 @@ export class SyncEngine {
       this.database.upsertUser(toUser(event.user as RawUser))
     } else if (MEMBERSHIP_EVENTS.has(event.type)) {
       this.invalidateDirectory('conversations')
-    } else if (this.threads?.handleEvent(event)) {
+    } else if (this.threads.handleEvent(event)) {
       return
     } else if (event.type === 'pref_change' && event.name === 'all_notifications_prefs') {
       this.preferences.applyNotificationPreferences(event.value)
@@ -438,10 +378,6 @@ export class SyncEngine {
       default:
         if (typeof event.ts === 'string') {
           this.database.upsertMessages(channel, [toMessage(event as unknown as Message)])
-          if (!event.thread_ts || event.thread_ts === event.ts || event.subtype === 'thread_broadcast') {
-            this.messageHistory.observeMessage(channel, event.ts)
-          }
-          this.classifier?.schedule()
         }
     }
   }
@@ -462,14 +398,12 @@ export class SyncEngine {
     try {
       await this.ensureSession()
       await this.refreshDirectory('conversations')
-      if (this.status.mode === 'session') await this.syncWithCounts()
-      else await this.syncWithConversationInfo()
-      await this.threads?.sync().catch((error) => console.warn('Could not sync threads', error))
+      await this.syncWithCounts()
+      await this.threads.sync().catch((error) => console.warn('Could not sync threads', error))
       await this.preferences.sync().catch((error) => console.warn('Could not sync Later and mute settings', error))
       await this.refreshDirectory('users')
       await this.refreshDirectory('emoji').catch(() => undefined)
       this.setStatus({ lastCompletedAt: Date.now() })
-      this.classifier?.schedule(0)
     } catch (error) {
       console.error('Slack sync failed', error)
       this.setStatus({ error: describeError(error) })
@@ -479,7 +413,6 @@ export class SyncEngine {
   }
 
   private async ensureSession() {
-    if (this.status.mode === 'none') throw new SlackError('auth.test', 'not_authed')
     if (this.sessionVerified) return
     const result = await this.client.call<{ user_id: string; user: string; team_id: string; url: string }>('auth.test')
     const session = { userId: result.user_id, handle: result.user, teamId: result.team_id, url: result.url }
@@ -559,39 +492,6 @@ export class SyncEngine {
           this.advanceProgress()
         }
       }),
-    )
-  }
-
-  private async syncWithConversationInfo() {
-    const conversations = this.sweepOrder(this.database.conversations())
-    this.setStatus({ total: conversations.length })
-    await Promise.all(
-      conversations.map(async ({ conversation }) => {
-        if (this.stopped) return
-        try {
-          const info = await this.client.call<{ channel: RawConversation }>('conversations.info', {
-            channel: conversation.id,
-          })
-          const lastRead = info.channel.last_read ?? '0'
-          this.database.setReadStates([[conversation.id, lastRead]])
-          await this.fetchUnreadWindow(conversation.id, lastRead)
-        } catch (error) {
-          console.warn(`Could not sync ${conversation.name}`, error)
-        } finally {
-          this.advanceProgress()
-        }
-      }),
-    )
-  }
-
-  private sweepOrder(conversations: StoredConversation[]): StoredConversation[] {
-    const unread = (stored: StoredConversation) =>
-      stored.newestTs !== undefined && stored.lastRead !== undefined && stored.newestTs > stored.lastRead ? 0 : 1
-    return [...conversations].sort(
-      (a, b) =>
-        KIND_PRIORITY[a.conversation.kind] - KIND_PRIORITY[b.conversation.kind] ||
-        unread(a) - unread(b) ||
-        (b.newestTs ?? '').localeCompare(a.newestTs ?? ''),
     )
   }
 

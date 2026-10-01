@@ -10,7 +10,7 @@ export function prepareConversation(channel: string): Promise<void> {
   const opening = (async () => {
     const snapshot = await readCachedConversation(channel)
     if (snapshot?.messages.length || snapshot?.collected) return
-    const bridge = window.slackDesktop!
+    const bridge = window.slackDesktop
     await new Promise<void>((resolve) => {
       let reading = false
       const finish = () => { clearTimeout(timeout); unsubscribe(); resolve() }

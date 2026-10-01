@@ -8,8 +8,8 @@ export function BrowserSigninButton({ className, label = 'Sign in to Slack' }: {
       setWaiting(true)
       setError(undefined)
       try {
-        await window.slackDesktop?.signInWithBrowser()
-        await window.slackDesktop?.hideSlack()
+        await window.slackDesktop.signInWithBrowser()
+        await window.slackDesktop.hideSlack()
         window.dispatchEvent(new Event('desktop-slack-close'))
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Browser sign-in failed. Please try again.')

@@ -1,19 +1,10 @@
-import type { CredentialMode } from '../src/slack/types.ts'
-
 const CONCURRENCY_PER_METHOD = 4
 const DEFAULT_RETRY_SECONDS = 5
 
 export interface SlackCredentials {
   origin: string
-  userToken?: string
   sessionToken?: string
   sessionCookie?: string
-}
-
-export function credentialMode(credentials: SlackCredentials): CredentialMode {
-  if (credentials.sessionToken) return 'session'
-  if (credentials.userToken) return 'user'
-  return 'none'
 }
 
 export class SlackError extends Error {
@@ -100,11 +91,6 @@ export class SlackClient {
     return results
   }
 
-  realtimeHeaders(): Record<string, string> {
-    const { sessionToken, sessionCookie } = this.credentials
-    return sessionToken && sessionCookie ? { cookie: `d=${sessionCookie}` } : {}
-  }
-
   async downloadFile(source: string): Promise<Response> {
     let url = new URL(source)
     for (let redirects = 0; redirects < 5; redirects++) {
@@ -115,8 +101,8 @@ export class SlackClient {
       }
       const headers: Record<string, string> = {}
       if (slackHost) {
-        const { sessionToken, sessionCookie, userToken } = this.credentials
-        headers.authorization = `Bearer ${sessionToken ?? userToken ?? ''}`
+        const { sessionToken, sessionCookie } = this.credentials
+        headers.authorization = `Bearer ${sessionToken ?? ''}`
         if (sessionToken && sessionCookie) headers.cookie = `d=${sessionCookie}`
       }
       const response = await this.fetchRequest(url, { headers, redirect: 'manual' })
@@ -137,12 +123,10 @@ export class SlackClient {
       if (value !== undefined) body.set(key, String(value))
     }
     const headers: Record<string, string> = { 'content-type': 'application/x-www-form-urlencoded' }
-    const { sessionToken, sessionCookie, userToken, origin } = this.credentials
+    const { sessionToken, sessionCookie, origin } = this.credentials
     if (sessionToken) {
       body.set('token', sessionToken)
       if (sessionCookie) headers.cookie = `d=${sessionCookie}`
-    } else if (userToken) {
-      headers.authorization = `Bearer ${userToken}`
     }
     return this.fetchRequest(`${origin}/api/${method}`, { method: 'POST', headers, body })
   }

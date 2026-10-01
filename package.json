@@ -9,11 +9,10 @@
   "description": "A keyboard-driven inbox for Slack conversations",
   "author": "Jacob Gillespie",
   "scripts": {
-    "dev": "vite",
+    "dev": "pnpm desktop",
     "build": "pnpm icons && node scripts/build-emoji.mjs && tsc -b && vite build",
     "icons": "node scripts/build-icons.mjs",
     "typecheck": "tsc -b",
-    "preview": "vite preview",
     "desktop:build": "pnpm build && node scripts/build-desktop.mjs",
     "desktop": "pnpm exec install-electron && pnpm desktop:build && electron electron-dist/main.cjs",
     "desktop:package": "pnpm exec install-electron && pnpm desktop:build && electron-builder --mac --publish never --config.mac.identity=- --config.mac.notarize=false --config.mac.hardenedRuntime=false",

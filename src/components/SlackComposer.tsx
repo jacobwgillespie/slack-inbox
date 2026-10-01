@@ -26,11 +26,11 @@ export function SlackComposer({ item }: { item: InboxItem }) {
     if (generation.current === undefined || !pending.current) return
     const action = pending.current
     pending.current = undefined
-    void window.slackDesktop?.composerAction(generation.current, action).catch(console.error)
+    void window.slackDesktop.composerAction(generation.current, action).catch(console.error)
   }
   const action = (value: ComposerAction) => {
     flush()
-    if (generation.current !== undefined) void window.slackDesktop?.composerAction(generation.current, value).catch(console.error)
+    if (generation.current !== undefined) void window.slackDesktop.composerAction(generation.current, value).catch(console.error)
   }
 
   useEffect(() => {

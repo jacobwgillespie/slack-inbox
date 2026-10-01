@@ -9,7 +9,6 @@ const requestedOlder = new Map<string, string | undefined>()
 
 export async function readCachedConversation(channel: string, before?: string) {
   const bridge = window.slackDesktop
-  if (!bridge) return
   const after = before ? undefined : windows.get(channel)
   const [snapshot] = await bridge.readCache(channel, { before, after })
   if (!snapshot) return
@@ -22,7 +21,6 @@ export async function readCachedConversation(channel: string, before?: string) {
 export function useCacheSync() {
   useEffect(() => {
     const bridge = window.slackDesktop
-    if (!bridge) return
     let disposed = false
     const pending = new Set<string>()
     const dirty = new Set<string>()
@@ -73,7 +71,7 @@ export function useCachedConversation(channel: string, enabled: boolean) {
     return () => { activeChannels.delete(channel) }
   }, [channel, enabled])
   const scroll = async (direction: 'older' | 'latest') => {
-    if (!enabled || !window.slackDesktop || readingOlder) return
+    if (!enabled || readingOlder) return
     if (direction === 'latest') { await window.slackDesktop.refreshConversation(channel); return }
     setReadingOlder(true)
     try {

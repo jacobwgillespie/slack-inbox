@@ -3,7 +3,6 @@ import { openDesktopSlack } from './desktop'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { LocalApiError, localApi } from './api'
-import { permalink } from './format'
 import { captureLegacyPreferences, clearLegacyPreferences } from './legacy-preferences'
 import { compareTs, maxTs, precedingTs } from './slack/timestamps'
 import type {
@@ -15,7 +14,6 @@ import type {
   InboxPayload,
   LaterItem,
   Message,
-  PreferenceSource,
   Session,
   SyncStatus,
   User,
@@ -41,21 +39,11 @@ interface Override<T> {
 
 type ThreadState = Message[] | 'loading'
 
-export interface HistoryState {
-  item?: InboxItem
-  hasMore: boolean
-  before?: string
-  loading: boolean
-  loadingOlder?: boolean
-  error?: string
-}
-
 export interface InboxState {
   status: 'loading' | 'ready' | 'error'
   error?: LocalApiError
   session?: Session
   sync?: SyncStatus
-  preferenceSource?: PreferenceSource
   users: Record<string, User>
   emoji: Record<string, string>
   items: Record<string, InboxItem>
@@ -63,7 +51,6 @@ export interface InboxState {
   channels: Record<string, ConversationSummary>
   done: Record<string, string>
   doneOverrides: Record<string, Override<string | undefined>>
-  histories: Record<string, HistoryState>
   later: Record<string, LaterItem>
   muted: Record<string, true>
   cursors: Record<string, Override<string>>
@@ -83,7 +70,6 @@ export interface InboxState {
 
   load: () => Promise<void>
   loadEmoji: () => Promise<void>
-  loadHistory: (channel: string, mode?: 'latest' | 'older' | 'cached') => Promise<void>
   refresh: () => void
   setView: (view: View) => void
   cycleView: (delta: number) => void
@@ -201,7 +187,7 @@ export function computeCounts(state: VisibleSource): Record<View, number> {
 
 export function currentItem(state: InboxState): InboxItem | undefined {
   if (!state.selectedId) return undefined
-  if (isConversationView(state.view)) return state.histories[state.selectedId]?.item ?? (state.channels[state.selectedId] ?? state.directMessages[state.selectedId])
+  if (isConversationView(state.view)) return state.channels[state.selectedId] ?? state.directMessages[state.selectedId]
   return state.view === 'later' ? state.later[state.selectedId] : state.items[state.selectedId]
 }
 
@@ -437,7 +423,6 @@ export const inboxStore = create<InboxState>()(
             error: payload.sync.error && !payload.session ? new LocalApiError(payload.sync.error) : undefined,
             session: payload.session,
             sync: payload.sync,
-            preferenceSource: payload.preferenceSource,
             users: { ...state.users, ...payload.users },
             items,
             directMessages: Object.fromEntries(payload.directMessages.map((item) => [item.id, item])),
@@ -461,9 +446,8 @@ export const inboxStore = create<InboxState>()(
           .importLegacyPreferences(pending)
           .then(() => {
             clearLegacyPreferences()
-            const destination = get().preferenceSource === 'slack' ? 'Slack' : 'the local database'
             showToast(
-              `Moved ${pluralize(pending.later.length, 'Later item')} and ${pluralize(pending.muted.length, 'muted conversation')} to ${destination}`,
+              `Moved ${pluralize(pending.later.length, 'Later item')} and ${pluralize(pending.muted.length, 'muted conversation')} to Slack`,
             )
           })
           .catch((error) => {
@@ -481,7 +465,6 @@ export const inboxStore = create<InboxState>()(
         channels: {},
         done: {},
         doneOverrides: {},
-        histories: {},
         later: {},
         muted: {},
         cursors: {},
@@ -516,67 +499,10 @@ export const inboxStore = create<InboxState>()(
           if (emoji) set({ emoji })
         },
 
-        loadHistory: async (channel, mode = 'latest') => {
-          if (window.slackDesktop) return
-          const previous = get().histories[channel]
-          const conversation = get().directMessages[channel] ?? get().channels[channel]
-          if (!conversation || previous?.loading || (mode === 'older' && !previous?.hasMore)) return
-          set((state) => ({
-            histories: {
-              ...state.histories,
-              [channel]: {
-                ...previous,
-                hasMore: previous?.hasMore ?? true,
-                loading: true,
-                loadingOlder: mode === 'older',
-                error: undefined,
-              },
-            },
-          }))
-          try {
-            const oldest = previous?.item?.messages[0]?.ts
-            let payload = await localApi.history(channel, {
-              before: mode === 'older' ? previous?.before : undefined,
-              after: mode === 'cached' ? oldest : undefined,
-              cached: mode === 'cached',
-            })
-            if (mode === 'latest' && oldest) {
-              payload = await localApi.history(channel, { after: oldest, cached: true })
-            }
-            const messages = mode === 'older'
-              ? [...new Map([...payload.messages, ...(previous?.item?.messages ?? [])].map((message) => [message.ts, message])).values()]
-                  .sort((a, b) => compareTs(a.ts, b.ts))
-              : payload.messages
-            set((state) => ({
-              histories: {
-                ...state.histories,
-                [channel]: {
-                  item: { id: channel, conversation: conversation.conversation, messages },
-                  hasMore: payload.hasMore,
-                  before: payload.before,
-                  loading: false,
-                },
-              },
-              users: { ...state.users, ...payload.users },
-            }))
-          } catch (error) {
-            set((state) => ({
-              histories: {
-                ...state.histories,
-                [channel]: {
-                  ...state.histories[channel]!,
-                  loading: false,
-                  error: error instanceof Error ? error.message : String(error),
-                },
-              },
-            }))
-          }
-        },
-
         refresh: () => {
           run(localApi.sync())
           const state = get()
-          if (isConversationView(state.view) && state.selectedId) run(state.loadHistory(state.selectedId))
+          if (isConversationView(state.view) && state.selectedId) run(window.slackDesktop.refreshConversation(state.selectedId))
         },
 
         setView: (view) => {
@@ -830,8 +756,7 @@ export const inboxStore = create<InboxState>()(
           }
           set({ threadTarget: undefined })
           if (isConversationView(state.view)) {
-            await get().loadHistory(item.id, get().sync?.realtime === 'connected' ? 'cached' : 'latest')
-            const updated = get().histories[item.id]?.item ?? item
+            const updated = currentItem(get()) ?? item
             run(localApi.markRead(item.conversation.id, latestTs(updated)).then(() => get().load()))
             return true
           }
@@ -871,8 +796,7 @@ export const inboxStore = create<InboxState>()(
           const state = get()
           const item = currentItem(state)
           if (!item || !state.session) return
-          const ts = latestTs(item)
-          if (!openDesktopSlack(item.conversation.id)) window.open(permalink(state.session, item.conversation.id, ts), '_blank', 'noopener')
+          openDesktopSlack(item.conversation.id)
         },
 
         toggleHelp: () => set((state) => ({ helpOpen: !state.helpOpen })),

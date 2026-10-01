@@ -122,11 +122,6 @@ const COLUMN_MIGRATIONS = [
   { table: 'conversations', column: 'latest_ts', definition: 'TEXT' },
 ]
 
-export interface HistoryRange {
-  oldest: string
-  newest: string
-}
-
 export type SavedItemState = 'in_progress' | 'completed'
 
 export interface SavedItemRecord extends SavedItemReference {
@@ -137,18 +132,6 @@ export interface SavedItemRecord extends SavedItemReference {
 export interface LaterResult {
   items: LaterItem[]
   missing: SavedItemReference[]
-}
-
-export interface Memory {
-  id: number
-  content: string
-  updatedAt: number
-}
-
-export interface Correction extends SavedItemReference {
-  label: ClassificationLabel
-  previousLabel?: ClassificationLabel
-  text: string
 }
 
 interface ClassificationRow {
@@ -386,47 +369,12 @@ export class Database {
     })
   }
 
-  historyRange(channel: string, before?: string): HistoryRange | undefined {
-    return this.db.prepare(
-      `SELECT oldest, newest FROM history_ranges WHERE conversation_id = ?
-       ${before ? 'AND oldest <= ? AND newest >= ?' : ''} ORDER BY newest DESC LIMIT 1`,
-    ).get(channel, ...(before ? [before, before] : [])) as HistoryRange | undefined
-  }
-
   historyMessages(channel: string, oldest: string, before?: string, limit = 101, newest?: string): Message[] {
     const rows = this.db.prepare(
       `SELECT data FROM messages WHERE conversation_id = ? AND ts >= ? AND ${topLevel()}
        ${before ? 'AND ts < ?' : ''} ${newest ? 'AND ts <= ?' : ''} ORDER BY ts DESC LIMIT ?`,
     ).all(channel, oldest, ...(before ? [before] : []), ...(newest ? [newest] : []), limit) as { data: string }[]
     return rows.map((row) => JSON.parse(row.data) as Message)
-  }
-
-  extendHistoryRange(channel: string, newest: string) {
-    const range = this.historyRange(channel)
-    if (range && compareTs(newest, range.newest) > 0) {
-      this.db.prepare('UPDATE history_ranges SET newest = ? WHERE conversation_id = ? AND oldest = ?')
-        .run(newest, channel, range.oldest)
-    }
-  }
-
-  cacheHistoryPage(channel: string, messages: Message[], range: HistoryRange) {
-    this.transaction(() => {
-      messages = this.preserveHuddleDescriptions(channel, messages)
-      this.db.prepare(
-        `DELETE FROM messages WHERE conversation_id = ? AND ts >= ? AND ts < ? AND ${topLevel()}`,
-      ).run(channel, range.oldest, range.newest)
-      this.insertMessages(channel, messages)
-      const overlaps = this.db.prepare(
-        `SELECT oldest, newest FROM history_ranges WHERE conversation_id = ? AND oldest <= ? AND newest >= ?`,
-      ).all(channel, range.newest, range.oldest) as unknown as HistoryRange[]
-      for (const overlap of overlaps) {
-        this.db.prepare('DELETE FROM history_ranges WHERE conversation_id = ? AND oldest = ?').run(channel, overlap.oldest)
-        if (compareTs(overlap.oldest, range.oldest) < 0) range.oldest = overlap.oldest
-        if (compareTs(overlap.newest, range.newest) > 0) range.newest = overlap.newest
-      }
-      this.db.prepare('INSERT INTO history_ranges (conversation_id, oldest, newest) VALUES (?, ?, ?)')
-        .run(channel, range.oldest, range.newest)
-    })
   }
 
   replaceHistoryWindow(conversationId: string, oldest: string, messages: Message[], complete: boolean, latest?: string) {
@@ -544,37 +492,6 @@ export class Database {
     return result
   }
 
-  classificationAttempts(): Map<string, number> {
-    const rows = this.db.prepare('SELECT conversation_id, ts, attempts FROM classification_attempts').all() as {
-      conversation_id: string
-      ts: string
-      attempts: number
-    }[]
-    return new Map(rows.map((row) => [`${row.conversation_id}:${row.ts}`, row.attempts]))
-  }
-
-  recordClassificationAttempts(references: SavedItemReference[]) {
-    this.transaction(() => {
-      const upsert = this.db.prepare(
-        `INSERT INTO classification_attempts (conversation_id, ts, attempts) VALUES (?, ?, 1)
-         ON CONFLICT (conversation_id, ts) DO UPDATE SET attempts = attempts + 1`,
-      )
-      for (const { channel, ts } of references) upsert.run(channel, ts)
-    })
-  }
-
-  saveModelClassification(reference: SavedItemReference, label: ClassificationLabel, reason: string, model: string) {
-    this.db
-      .prepare(
-        `INSERT INTO classifications (conversation_id, ts, label, reason, source, model, created_at)
-         VALUES (?, ?, ?, ?, 'model', ?, ?)
-         ON CONFLICT (conversation_id, ts) DO UPDATE SET
-           label = excluded.label, reason = excluded.reason, model = excluded.model, created_at = excluded.created_at
-         WHERE classifications.source = 'model'`,
-      )
-      .run(reference.channel, reference.ts, label, reason, model, Date.now())
-  }
-
   saveUserClassification(reference: SavedItemReference, label: ClassificationLabel) {
     const existing = this.db
       .prepare('SELECT label, source, previous_label FROM classifications WHERE conversation_id = ? AND ts = ?')
@@ -608,64 +525,6 @@ export class Database {
            previous_label = NULL, reviewed = 1`,
       )
       .run(reference.channel, reference.ts, classification.label, classification.reason, classification.source, Date.now())
-  }
-
-  unreviewedCorrections(limit: number): Correction[] {
-    const rows = this.db
-      .prepare(
-        `SELECT c.conversation_id, c.ts, c.label, c.previous_label, json_extract(m.data, '$.text') AS text
-         FROM classifications c
-         LEFT JOIN messages m ON m.conversation_id = c.conversation_id AND m.ts = c.ts
-         WHERE c.source = 'user' AND c.reviewed = 0
-         ORDER BY c.created_at DESC LIMIT ?`,
-      )
-      .all(limit) as {
-      conversation_id: string
-      ts: string
-      label: ClassificationLabel
-      previous_label: ClassificationLabel | null
-      text: string | null
-    }[]
-    return rows.map((row) => ({
-      channel: row.conversation_id,
-      ts: row.ts,
-      label: row.label,
-      previousLabel: row.previous_label ?? undefined,
-      text: row.text ?? '',
-    }))
-  }
-
-  markCorrectionsReviewed(references: SavedItemReference[]) {
-    this.transaction(() => {
-      const update = this.db.prepare('UPDATE classifications SET reviewed = 1 WHERE conversation_id = ? AND ts = ?')
-      for (const { channel, ts } of references) update.run(channel, ts)
-    })
-  }
-
-  memories(): Memory[] {
-    const rows = this.db.prepare('SELECT id, content, updated_at FROM memories ORDER BY id').all() as {
-      id: number
-      content: string
-      updated_at: number
-    }[]
-    return rows.map((row) => ({ id: row.id, content: row.content, updatedAt: row.updated_at }))
-  }
-
-  addMemory(content: string): number {
-    const now = Date.now()
-    const result = this.db
-      .prepare('INSERT INTO memories (content, created_at, updated_at) VALUES (?, ?, ?)')
-      .run(content, now, now)
-    return Number(result.lastInsertRowid)
-  }
-
-  updateMemory(id: number, content: string): boolean {
-    return this.db.prepare('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?').run(content, Date.now(), id)
-      .changes > 0
-  }
-
-  deleteMemory(id: number): boolean {
-    return this.db.prepare('DELETE FROM memories WHERE id = ?').run(id).changes > 0
   }
 
   setThread({ channel, threadTs, lastRead }: ThreadRecord) {

@@ -18,7 +18,6 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
 
   useEffect(() => {
     const desktop = window.slackDesktop
-    if (!desktop) return
     const unsubscribe = desktop.onUpdateReady(setUpdateVersion)
     void desktop.updateVersion().then(setUpdateVersion).catch((error) => console.warn('Could not read update state', error))
     return unsubscribe
@@ -26,7 +25,7 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
 
   const installUpdate = async () => {
     setRestarting(true)
-    try { await window.slackDesktop!.installUpdate() }
+    try { await window.slackDesktop.installUpdate() }
     catch (error) {
       console.warn('Could not restart to update', error)
       setRestarting(false)
@@ -37,7 +36,7 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
     setLoggingOut(true)
     setError(undefined)
     try {
-      await window.slackDesktop!.logOut()
+      await window.slackDesktop.logOut()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not log out. Please try again.')
       setLoggingOut(false)
@@ -58,17 +57,15 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
         </button>
         {session && <button onClick={() => {
           menu.current?.hidePopover()
-          if (!openDesktopSlack()) window.open(session.url, '_blank', 'noopener,noreferrer')
+          openDesktopSlack()
         }}>
           <BugIcon /><span>Debug in Slack</span>
         </button>}
-        {window.slackDesktop && <>
-          <hr />
-          <button onClick={() => void logOut()} disabled={loggingOut}>
-            <LogoutIcon /><span>{loggingOut ? 'Logging out…' : 'Log out'}</span>
-          </button>
-          {error && <p role="alert" className="account-error">{error}</p>}
-        </>}
+        <hr />
+        <button onClick={() => void logOut()} disabled={loggingOut}>
+          <LogoutIcon /><span>{loggingOut ? 'Logging out…' : 'Log out'}</span>
+        </button>
+        {error && <p role="alert" className="account-error">{error}</p>}
       </div>
       <div className="sidebar-footer-actions">
         {updateVersion && <button className="icon-button update-button" onClick={() => void installUpdate()} disabled={restarting}

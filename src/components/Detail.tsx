@@ -48,17 +48,16 @@ function DeferredDetail() {
 }
 
 function LaterConversation({ item }: { item: InboxItem }) {
-  if (window.slackDesktop) use(prepareConversation(item.conversation.id))
+  use(prepareConversation(item.conversation.id))
   return <ConversationDetail item={item} view="later" />
 }
 
 function RetainedConversation({ id, active, view }: { id: string; active: boolean; view: View }) {
-  if (active && window.slackDesktop) use(prepareConversation(id))
+  if (active) use(prepareConversation(id))
   const { data } = useLiveQuery({ query: (q) => q.from({ dm: dmCollection }).where(({ dm }) => eq(dm.id, id)), queryKey: [id] })
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: channelCollection }).where(({ channel }) => eq(channel.id, id)), queryKey: [id] })
-  const history = useStore((state) => state.histories[id]?.item)
   const summary = data[0] ?? channels[0]
-  const item = window.slackDesktop ? summary : history ?? summary
+  const item = summary
   return <ConversationDetail item={item} view={view} />
 }
 

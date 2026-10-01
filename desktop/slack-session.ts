@@ -1,7 +1,7 @@
 import type { WebContentsView } from 'electron'
 import type { SlackCredentials } from '../server/slack-client.ts'
 import type { SyncEngine } from '../server/sync.ts'
-import type { RealtimeEvent } from '../server/realtime.ts'
+import type { RealtimeEvent } from '../src/slack/types.ts'
 
 function slackUrl(source: string) {
   const url = new URL(source)

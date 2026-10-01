@@ -2,7 +2,6 @@ import type {
   ClassificationEntry,
   ClassificationLabel,
   InboxPayload,
-  HistoryPayload,
   LegacyPreferences,
   SavedItemReference,
   SyncError,
@@ -61,13 +60,6 @@ export const localApi = {
   restoreClassifications: (entries: ClassificationEntry[]) => post('/local/classifications/restore', { entries }),
   threadReplies: (channel: string, ts: string) =>
     request<ThreadPayload>(`/local/replies?${new URLSearchParams({ channel, ts })}`),
-  history: (channel: string, options: { before?: string; after?: string; cached?: boolean } = {}) => {
-    const params = new URLSearchParams({ channel })
-    if (options.before) params.set('before', options.before)
-    if (options.after) params.set('after', options.after)
-    if (options.cached) params.set('cached', 'true')
-    return request<HistoryPayload>(`/local/history?${params}`)
-  },
 }
 
 export function subscribeToChanges(onChange: (version: number) => void, onTyping: (event: TypingEvent) => void, onDisconnect: () => void): () => void {

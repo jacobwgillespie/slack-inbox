@@ -67,7 +67,7 @@ export function ItemList() {
   useEffect(() => {
     const bridge = window.slackDesktop
     const list = listRef.current
-    if (!bridge || !list || !isConversationView(view)) return
+    if (!list || !isConversationView(view)) return
     const visible = new Set<string>()
     let timer: ReturnType<typeof setTimeout>
     const watch = () => {

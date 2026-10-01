@@ -8,7 +8,7 @@ import { SlackComposer } from './SlackComposer'
 
 export function Composer({ item }: { item: InboxItem }) {
   const threadTarget = useStore((state) => state.threadTarget)
-  if (window.slackDesktop && !threadTargetFor(item, threadTarget)) return <SlackComposer item={item} />
+  if (!threadTargetFor(item, threadTarget)) return <SlackComposer item={item} />
   return <PlainComposer item={item} />
 }
 

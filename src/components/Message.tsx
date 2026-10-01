@@ -16,11 +16,7 @@ async function refreshReactions(channel: string, ts: string, reactions: Reaction
   inboxStore.setState((state) => ({ threads: Object.fromEntries(Object.entries(state.threads).map(([key, replies]) => [key,
     key.startsWith(`${channel}:`) && Array.isArray(replies) ? replies.map((reply) => reply.ts === ts ? { ...reply, reactions } : reply) : replies,
   ])) }))
-  if (window.slackDesktop) await readCachedConversation(channel)
-  else {
-    await inboxStore.getState().loadHistory(channel, 'cached')
-    await inboxStore.getState().load()
-  }
+  await readCachedConversation(channel)
 }
 
 function ReactionList({ channel, message }: { channel: string; message: Message }) {
