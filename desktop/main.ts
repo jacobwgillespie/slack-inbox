@@ -18,6 +18,7 @@ else void start().catch((error) => { console.error('Could not start Slack Inbox'
 async function start() {
   await app.whenReady()
   const root = resolve(__dirname, '..')
+  if (process.platform === 'darwin') app.dock?.setIcon(join(root, 'dist', 'icon.png'))
   const slackSession = session.fromPartition('persist:slack')
   slackSession.setUserAgent(app.userAgentFallback.replace(/\s(?:Electron|slack-inbox|SlackInbox)\/[^ ]+/gi, ''))
   slackSession.setPermissionRequestHandler((_contents, permission, callback) => callback(permission === 'clipboard-sanitized-write'))

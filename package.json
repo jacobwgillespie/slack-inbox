@@ -3,13 +3,34 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron-dist/main.cjs",
+  "description": "A keyboard-driven inbox for Slack conversations",
+  "author": "Jacob Gillespie",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/build-emoji.mjs && tsc -b && vite build",
+    "build": "pnpm icons && node scripts/build-emoji.mjs && tsc -b && vite build",
+    "icons": "node scripts/build-icons.mjs",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "desktop:build": "pnpm build && node scripts/build-desktop.mjs",
-    "desktop": "pnpm exec install-electron && pnpm desktop:build && electron electron-dist/main.cjs"
+    "desktop": "pnpm exec install-electron && pnpm desktop:build && electron electron-dist/main.cjs",
+    "desktop:package": "pnpm exec install-electron && pnpm desktop:build && electron-builder --mac --publish never"
+  },
+  "build": {
+    "appId": "com.jacobwgillespie.slack-inbox",
+    "productName": "Slack Inbox",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": ["dist/**/*", "electron-dist/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "identity": "-",
+      "notarize": false,
+      "target": ["dmg"]
+    }
   },
   "dependencies": {
     "@tanstack/react-db": "^0.4.1",
@@ -27,8 +48,10 @@
     "@vitejs/plugin-react": "^6.1.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
     "emoji-datasource": "16.0.0",
     "esbuild": "^0.28.2",
+    "sharp": "^0.35.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"
   }

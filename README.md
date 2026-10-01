@@ -47,7 +47,15 @@ Slack's own WebSocket frames feed messages, edits, deletions, reactions, and rea
 
 This first experiment targets one workspace. It uses a separate database at Electron's `userData/slack.sqlite`, so it can run alongside the browser app without two engines writing the same cache. Override it with `SLACK_DESKTOP_DATABASE_PATH`. The local renderer uses port 5174; override with `SLACK_DESKTOP_PORT` if needed. `pnpm desktop:build` builds without launching; after building, `pnpm exec electron electron-dist/main.cjs` launches directly.
 
-The configured-session path has been verified against the live workspace, including authenticated sync and the embedded realtime connection. The fresh Chrome SSO path remains experimental. This is a development shell, with no packaged installer yet.
+The configured-session path has been verified against the live workspace, including authenticated sync and the embedded realtime connection. The fresh Chrome SSO path remains experimental.
+
+### macOS packaging and icon
+
+Run `pnpm desktop:package` on macOS to build **Slack Inbox.app** and a DMG in `release/` for the current machine's architecture. Open the app directly from `release/mac-arm64/` (or `release/mac/` on Intel), or open the DMG and drag it into Applications. The app is ad-hoc signed for local use and is not notarized for distribution.
+
+Packaging includes the built interface and desktop code. It excludes `.env.local`, the development database, and browser profiles. Sign in through the app; its existing desktop profile and cache stay in Electron's `userData` directory.
+
+The saddle-leather icon's transparent source is `assets/icon-source.png`. `pnpm icons` generates the PNG and browser icons in `public/` and, on macOS, `assets/icon.icns`. Builds run this automatically. The Electron development app uses the PNG for its Dock icon; the packaged app also embeds the ICNS for Finder.
 
 ## How it works
 
