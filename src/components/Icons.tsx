@@ -54,10 +54,10 @@ export const MuteIcon = () => (
   </Icon>
 )
 
-export const ExternalIcon = () => (
+export const BugIcon = () => (
   <Icon>
-    <path d="M14 4h6v6M20 4l-9 9" />
-    <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    <path d="M8 8h8v7a4 4 0 0 1-8 0zM9 8V6a3 3 0 0 1 6 0v2M12 12v7" />
+    <path d="M8 10 5 7M16 10l3-3M8 13H4M16 13h4M8 16l-3 3M16 16l3 3" />
   </Icon>
 )
 

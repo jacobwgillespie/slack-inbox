@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { openDesktopSlack } from '../desktop'
 import { useStore } from '../store'
 import { Avatar } from './Avatar'
-import { ExternalIcon, HelpIcon, LogoutIcon, RefreshIcon, ThreadIcon } from './Icons'
+import { BugIcon, HelpIcon, LogoutIcon, RefreshIcon, ThreadIcon } from './Icons'
 
 export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const session = useStore((state) => state.session)
@@ -41,7 +41,7 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
           menu.current?.hidePopover()
           if (!openDesktopSlack()) window.open(session.url, '_blank', 'noopener,noreferrer')
         }}>
-          <ExternalIcon /><span>Debug in Slack</span>
+          <BugIcon /><span>Debug in Slack</span>
         </button>}
         {window.slackDesktop && <>
           <hr />
