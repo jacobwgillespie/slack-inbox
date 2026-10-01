@@ -30,6 +30,8 @@ export interface SlackAttachment {
 export interface Reaction {
   name: string
   count: number
+  users?: string[]
+  mine?: boolean
 }
 
 export type ClassificationLabel = 'important' | 'other'

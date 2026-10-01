@@ -67,7 +67,7 @@ export function toMessage(raw: Message): Message {
       title_link,
       text,
     })),
-    reactions: raw.reactions?.map(({ name, count }) => ({ name, count })),
+    reactions: raw.reactions?.map(({ name, count, users }) => ({ name, count, users })),
     bot_profile: raw.bot_profile && { name: raw.bot_profile.name, icons: { image_48: raw.bot_profile.icons?.image_48 } },
   }
 }

@@ -1363,8 +1363,13 @@ a.message-time:hover {
   font-size: 12px;
   line-height: 18px;
   background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
   box-shadow: 0 1px 3px #00000040;
 }
+
+.reaction:hover { background: rgb(255 255 255 / 10%); }
+.reaction-own { border-color: #9b9b9b; background: #3a3a3a; }
 
 .message-footer {
   display: flex;

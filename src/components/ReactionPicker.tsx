@@ -8,7 +8,7 @@ import { ReactionIcon } from './Icons'
 
 const common = ['thumbsup', 'heart', 'tada', 'joy', 'eyes', 'white_check_mark', 'rocket', '100']
 
-export function ReactionPicker({ channel, ts, onReact }: { channel: string; ts: string; onReact: (reactions: Reaction[]) => void }) {
+export function ReactionPicker({ channel, ts, onReact }: { channel: string; ts: string; onReact: (reactions: Reaction[]) => Promise<void> }) {
   const id = useId()
   const picker = useRef<HTMLDivElement>(null)
   const search = useRef<HTMLInputElement>(null)
@@ -26,7 +26,7 @@ export function ReactionPicker({ channel, ts, onReact }: { channel: string; ts: 
     setError(undefined)
     try {
       const result = await localApi.addReaction(channel, ts, name)
-      onReact(result.reactions)
+      await onReact(result.reactions)
       picker.current?.hidePopover()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not add reaction')

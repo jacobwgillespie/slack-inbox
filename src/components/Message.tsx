@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { authorAvatar, authorName, formatMessageTime, renderEmoji, renderMrkdwn, isSameAuthorGroup } from '../format'
 import { useFormatContext } from '../hooks'
 import { inboxStore, threadKey, useStore } from '../store'
@@ -9,11 +9,44 @@ import { Avatar } from './Avatar'
 import { FileAttachment, isImageFile } from './FileAttachment'
 import { BookmarkIcon, ReplyIcon, ThreadIcon } from './Icons'
 import { ReactionPicker } from './ReactionPicker'
+import { localApi } from '../api'
+import { readCachedConversation } from '../useCachedConversation'
 
-function useReactions(message: Message) {
-  const [reactions, setReactions] = useState<Reaction[] | undefined>(message.reactions)
-  useEffect(() => setReactions(message.reactions), [message.reactions])
-  return [reactions, setReactions] as const
+async function refreshReactions(channel: string, ts: string, reactions: Reaction[]) {
+  inboxStore.setState((state) => ({ threads: Object.fromEntries(Object.entries(state.threads).map(([key, replies]) => [key,
+    key.startsWith(`${channel}:`) && Array.isArray(replies) ? replies.map((reply) => reply.ts === ts ? { ...reply, reactions } : reply) : replies,
+  ])) }))
+  if (window.slackDesktop) await readCachedConversation(channel)
+  else {
+    await inboxStore.getState().loadHistory(channel, 'cached')
+    await inboxStore.getState().load()
+  }
+}
+
+function ReactionList({ channel, message }: { channel: string; message: Message }) {
+  const context = useFormatContext(message.emoji)
+  const self = useStore((state) => state.session?.userId)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  if (!message.reactions?.length) return null
+  return <div className="reactions">
+    {message.reactions.map((reaction) => {
+      const mine = reaction.users ? Boolean(self && reaction.users.includes(self)) : Boolean(reaction.mine)
+      return <button key={reaction.name} className={`reaction${mine ? ' reaction-own' : ''}`} aria-pressed={mine}
+        aria-label={`${mine ? 'Remove' : 'Add'} ${reaction.name} reaction, ${reaction.count}`} disabled={busy}
+        title={`${mine ? 'Remove' : 'Add'} :${reaction.name}:`} onClick={async (event) => {
+          event.stopPropagation()
+          setBusy(true)
+          setError(undefined)
+          try {
+            const result = await (mine ? localApi.removeReaction : localApi.addReaction)(channel, message.ts, reaction.name)
+            await refreshReactions(channel, message.ts, result.reactions)
+          } catch (error) { setError(error instanceof Error ? error.message : 'Could not update reaction') }
+          finally { setBusy(false) }
+        }}>{renderEmoji(reaction.name, context)} {reaction.count}</button>
+    })}
+    {error && <span className="reaction-picker-error" role="alert">{error}</span>}
+  </div>
 }
 
 export function MessageView({ channel, message, continued, continues = false, webview = false }: {
@@ -24,7 +57,6 @@ export function MessageView({ channel, message, continued, continues = false, we
   continues?: boolean
 }) {
   const context = useFormatContext(message.emoji)
-  const [reactions, setReactions] = useReactions(message)
   const session = useStore((state) => state.session)
   const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
@@ -75,7 +107,7 @@ export function MessageView({ channel, message, continued, continues = false, we
             <ReplyIcon />
           </button>
           <SaveLaterButton channel={channel} message={message} />
-          <ReactionPicker channel={channel} ts={message.ts} onReact={setReactions} />
+          <ReactionPicker channel={channel} ts={message.ts} onReact={(reactions) => refreshReactions(channel, message.ts, reactions)} />
         </div>
   )
 
@@ -155,15 +187,7 @@ export function MessageView({ channel, message, continued, continues = false, we
             {images.map((file) => <FileAttachment key={file.id} file={file} />)}
           </div>
         )}
-        {reactions?.length ? (
-          <div className="reactions">
-            {reactions.map((reaction) => (
-              <span key={reaction.name} className="reaction">
-                {renderEmoji(reaction.name, context)} {reaction.count}
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <ReactionList channel={channel} message={message} />
         {!hasBubble && actions}
       </article>
       <time className="message-timestamp">{formatMessageTime(message.ts)}</time>
@@ -183,14 +207,13 @@ function ClassificationTag({ classification }: { classification: Classification 
 
 function ThreadReply({ channel, message, continued, compact }: { channel: string; message: Message; continued: boolean; compact: boolean }) {
   const context = useFormatContext(message.emoji)
-  const [reactions, setReactions] = useReactions(message)
   const name = authorName(message, context.users)
 
   return (
     <div className={`thread-reply${continued ? ' continued' : ''}`}>
       <div className="thread-save" role="toolbar" aria-label={`Actions for ${name}'s reply`}>
         <SaveLaterButton channel={channel} message={message} />
-        <ReactionPicker channel={channel} ts={message.ts} onReact={setReactions} />
+        <ReactionPicker channel={channel} ts={message.ts} onReact={(reactions) => refreshReactions(channel, message.ts, reactions)} />
       </div>
       <div className="message-gutter">
         {!continued && <Avatar url={authorAvatar(message, context.users)} name={name} size="small" />}
@@ -203,9 +226,7 @@ function ThreadReply({ channel, message, continued, compact }: { channel: string
           </header>
         )}
         <div className="mrkdwn">{renderMrkdwn(message.text, context)}</div>
-        {reactions?.length ? <div className="reactions">{reactions.map((reaction) => (
-          <span key={reaction.name} className="reaction">{renderEmoji(reaction.name, context)} {reaction.count}</span>
-        ))}</div> : null}
+        <ReactionList channel={channel} message={message} />
         {message.files?.length ? (
           <div className="files">
             {message.files.map((file) => <FileAttachment key={file.id} file={file} />)}

@@ -50,6 +50,7 @@ export const localApi = {
   postMessage: (channel: string, text: string, threadTs?: string) => post('/local/post', { channel, text, threadTs }),
   saveForLater: (channel: string, ts: string) => post<{ created: boolean }>('/local/later', { channel, ts }),
   addReaction: (channel: string, ts: string, name: string) => post<{ reactions: Reaction[] }>('/local/reaction', { channel, ts, name }),
+  removeReaction: (channel: string, ts: string, name: string) => post<{ reactions: Reaction[] }>('/local/reaction/remove', { channel, ts, name }),
   completeLater: (channel: string, ts: string) => post('/local/later/complete', { channel, ts }),
   reopenLater: (channel: string, ts: string) => post('/local/later/reopen', { channel, ts }),
   removeLater: (channel: string, ts: string) => post('/local/later/remove', { channel, ts }),

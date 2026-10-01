@@ -776,7 +776,11 @@ export class Database {
     this.transaction(() => {
       for (const message of snapshot.messages) {
         const previous = this.message(snapshot.channel, message.ts)
-        const next = preserveHuddleText(previous, { ...previous, ...message, user: message.user ?? previous?.user, username: message.username ?? previous?.username })
+        // API reaction snapshots include users. Keep them when a rendered Slack
+        // timeline still shows the old reaction state.
+        const reactions = previous?.reactions?.every((reaction) => reaction.users !== undefined)
+          ? previous.reactions : message.reactions
+        const next = preserveHuddleText(previous, { ...previous, ...message, reactions, user: message.user ?? previous?.user, username: message.username ?? previous?.username })
         if (JSON.stringify(previous) !== JSON.stringify(next)) {
           this.insertMessages(snapshot.channel, [next])
           changed = true

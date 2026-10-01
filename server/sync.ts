@@ -81,6 +81,7 @@ function referencedUserIds(items: InboxItem[]): string[] {
 }
 
 export class SyncEngine {
+  private readonly reactionRequests = new Map<string, Promise<unknown>>()
   private version = 0
   private status: SyncStatus
   private session?: Session
@@ -277,8 +278,33 @@ export class SyncEngine {
     } catch (error) {
       if (!(error instanceof SlackError && error.code === 'already_reacted')) throw error
     }
-    const result = await this.client.call<{ message: Message }>('reactions.get', { channel, timestamp: ts })
-    return { reactions: toMessage(result.message).reactions ?? [] }
+    return this.refreshReactions(channel, ts)
+  }
+
+  async removeReaction(channel: string, ts: string, name: string) {
+    try {
+      await this.client.call('reactions.remove', { channel, timestamp: ts, name })
+    } catch (error) {
+      if (!(error instanceof SlackError && error.code === 'no_reaction')) throw error
+    }
+    return this.refreshReactions(channel, ts)
+  }
+
+  private refreshReactions(channel: string, ts: string) {
+    const key = `${channel}:${ts}`
+    const previous = this.reactionRequests.get(key) ?? Promise.resolve()
+    const request = previous.catch(() => {}).then(async () => {
+      const result = await this.client.call<{ message: Message }>('reactions.get', { channel, timestamp: ts, full: true })
+      const reactions = toMessage(result.message).reactions ?? []
+      const message = this.database.message(channel, ts)
+      if (message) this.database.upsertMessages(channel, [{ ...message, reactions }])
+      this.changed()
+      return { reactions }
+    }).finally(() => {
+      if (this.reactionRequests.get(key) === request) this.reactionRequests.delete(key)
+    })
+    this.reactionRequests.set(key, request)
+    return request
   }
 
   completeLater(channel: string, ts: string) {
@@ -422,20 +448,8 @@ export class SyncEngine {
 
   private handleReactionEvent(event: RealtimeEvent) {
     const item = event.item as { channel?: string; ts?: string } | undefined
-    const name = typeof event.reaction === 'string' ? event.reaction : undefined
-    if (!item?.channel || !item.ts || !name) return
-    const message = this.database.message(item.channel, item.ts)
-    if (!message) return
-    const delta = event.type === 'reaction_added' ? 1 : -1
-    const reactions = message.reactions ?? []
-    const existing = reactions.find((reaction) => reaction.name === name)
-    const updated = existing
-      ? reactions.map((reaction) => (reaction === existing ? { name, count: reaction.count + delta } : reaction))
-      : delta > 0
-        ? [...reactions, { name, count: 1 }]
-        : reactions
-    const next = { ...message, reactions: updated.filter((reaction) => reaction.count > 0) }
-    this.database.upsertMessages(item.channel, [next])
+    if (!item?.channel || !item.ts || !this.database.message(item.channel, item.ts)) return
+    void this.refreshReactions(item.channel, item.ts).catch(console.error)
   }
 
   private invalidateDirectory(key: DirectoryKey) {

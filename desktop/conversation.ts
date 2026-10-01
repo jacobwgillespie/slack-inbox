@@ -68,7 +68,8 @@ function readTimeline(): WebviewConversation {
       const image = reaction.querySelector('img')
       const name = image ? emojiName(image) : reaction.querySelector('[data-stringify-emoji]')?.getAttribute('data-stringify-emoji')?.replace(/^:|:$/g, '') ?? 'emoji'
       if (image) captureEmoji(image, name)
-      return { name, count: Number(reaction.querySelector('.c-reaction__count')?.textContent) || 1 }
+      return { name, count: Number(reaction.querySelector('.c-reaction__count')?.textContent) || 1,
+        mine: reaction.classList.contains('c-reaction--reacted') || reaction.getAttribute('aria-pressed') === 'true' }
     })
     if (body || images.length || attachments.length) messages.push({ ts, text: body ? text(body).trim() : '', user: author, username: name, images, reactions, attachments, emoji })
   }
