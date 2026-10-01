@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { useStore } from '../store'
 import { CheckIcon, ClockIcon, ThreadIcon } from './Icons'
 
 export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void }) {
+  const name = useStore((state) => state.session
+    ? state.users[state.session.userId]?.displayName.trim()
+    : undefined)
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const element = dialog.current!
@@ -14,7 +18,7 @@ export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void })
       onCancel={(event) => { event.preventDefault(); onGetStarted() }}>
       <div className="onboarding-content">
         <img className="onboarding-app-icon" src="/icon.png" alt="Slack Inbox" />
-        <h1 id="onboarding-title">Welcome</h1>
+        <h1 id="onboarding-title">Welcome{name ? `, ${name}` : ''}</h1>
         <p className="onboarding-intro">
           Slack Inbox helps you manage your Slack conversations and focus on what’s important.
           There are three lists:
