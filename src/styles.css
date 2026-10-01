@@ -1684,12 +1684,11 @@ a:focus-visible {
 
 .slack-composer-copy {
   position: relative;
+  flex: 1;
+  min-width: 0;
   color: var(--text);
   font: inherit;
-  border: 1px solid #3b3b3b;
-  border-radius: 24px;
-  background: #303030;
-  padding: 10px 12px;
+  padding: 0 6px;
 }
 
 .slack-composer-copy:empty { display: none; }

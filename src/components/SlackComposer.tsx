@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
+import { ArrowUpIcon } from './Icons'
 import { useStore } from '../store'
 import type { InboxItem } from '../slack/types'
 import { readComposerSelection, restoreComposerSelection, type ComposerAction, type ComposerSnapshot } from '../slack/composer'
@@ -13,6 +14,7 @@ export function SlackComposer({ item }: { item: InboxItem }) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const composing = useRef(false)
   const [ready, setReady] = useState(false)
+  const [sendButton, setSendButton] = useState<{ id: string; disabled: boolean }>()
   const selected = useStore((state) => state.selectedId === item.id)
   const focusRequest = useStore((state) => state.composerFocusRequest)
   const focusChannel = useStore((state) => state.composerFocusChannel)
@@ -47,6 +49,12 @@ export function SlackComposer({ item }: { item: InboxItem }) {
       scratch.innerHTML = clean(snapshot.html)
       const remoteEditor = scratch.querySelector<HTMLElement>('[data-slack-editor]')
       if (!remoteEditor) return
+      const send = scratch.querySelector<HTMLButtonElement>('[data-qa="texty_send_button"]')
+      setSendButton(send?.dataset.slackAction ? {
+        id: send.dataset.slackAction,
+        disabled: send.disabled || send.getAttribute('aria-disabled') === 'true',
+      } : undefined)
+      scratch.querySelector('[role="toolbar"][aria-label="Composer actions"]')?.remove()
       // Keep the live local editor and its selection during typing. Replace the
       // surrounding copied controls so Slack can update buttons and suggestions.
       const authoritative = snapshot.source === 'inbox' && snapshot.action !== 'input' && remoteEditor.innerHTML !== localEditor?.innerHTML
@@ -108,52 +116,66 @@ export function SlackComposer({ item }: { item: InboxItem }) {
   return (
     <div className="composer slack-composer">
       {!ready && <div className="composer-row muted">Connecting Slack composer…</div>}
-      <div
-        ref={host}
-        className="slack-composer-copy"
-        onInput={() => {
-          const element = editor()
-          if (!element || composing.current) return
-          element.classList.toggle('ql-blank', !element.innerText.trim())
-          pending.current = { type: 'input', html: clean(element.innerHTML), selection: readComposerSelection(element) }
-          clearTimeout(timer.current)
-          timer.current = setTimeout(flush, 180)
-        }}
-        onPaste={(event) => {
-          const html = event.clipboardData.getData('text/html')
-          if (!html) return
-          event.preventDefault()
-          document.execCommand('insertHTML', false, clean(html))
-        }}
-        onCompositionStart={() => { composing.current = true }}
-        onCompositionEnd={() => {
-          composing.current = false
-          const element = editor()
-          if (element) { pending.current = { type: 'input', html: clean(element.innerHTML), selection: readComposerSelection(element) }; flush() }
-        }}
-        onKeyDown={(event) => {
-          const element = editor()
-          if (!element || event.nativeEvent.isComposing) return
-          if (event.key === 'Enter' && event.shiftKey) return
-          if (['Tab', 'ArrowUp', 'ArrowDown'].includes(event.key) && !host.current?.querySelector('[data-slack-suggestions]')) return
-          if (['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+      <div className="composer-row">
+        <div
+          ref={host}
+          className="slack-composer-copy"
+          onInput={() => {
+            const element = editor()
+            if (!element || composing.current) return
+            element.classList.toggle('ql-blank', !element.innerText.trim())
+            pending.current = { type: 'input', html: clean(element.innerHTML), selection: readComposerSelection(element) }
+            clearTimeout(timer.current)
+            timer.current = setTimeout(flush, 180)
+          }}
+          onPaste={(event) => {
+            const html = event.clipboardData.getData('text/html')
+            if (!html) return
             event.preventDefault()
-            event.stopPropagation()
-            action({ type: 'key', key: event.key, selection: readComposerSelection(element) })
-            if (event.key === 'Escape') element.blur()
-          }
-        }}
-        onMouseDown={(event) => {
-          if ((event.target as Element).closest('[data-slack-action]')) event.preventDefault()
-        }}
-        onClick={(event) => {
-          const target = (event.target as Element).closest<HTMLElement>('[data-slack-action]')
-          if (!target || target.closest('[data-slack-editor]') || target.matches(':disabled, [aria-disabled="true"]')) return
-          event.preventDefault()
-          const element = editor()
-          action({ type: 'click', id: target.dataset.slackAction!, selection: element ? readComposerSelection(element) : undefined })
-        }}
-      />
+            document.execCommand('insertHTML', false, clean(html))
+          }}
+          onCompositionStart={() => { composing.current = true }}
+          onCompositionEnd={() => {
+            composing.current = false
+            const element = editor()
+            if (element) { pending.current = { type: 'input', html: clean(element.innerHTML), selection: readComposerSelection(element) }; flush() }
+          }}
+          onKeyDown={(event) => {
+            const element = editor()
+            if (!element || event.nativeEvent.isComposing) return
+            if (event.key === 'Enter' && event.shiftKey) return
+            if (['Tab', 'ArrowUp', 'ArrowDown'].includes(event.key) && !host.current?.querySelector('[data-slack-suggestions]')) return
+            if (['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+              event.preventDefault()
+              event.stopPropagation()
+              action({ type: 'key', key: event.key, selection: readComposerSelection(element) })
+              if (event.key === 'Escape') element.blur()
+            }
+          }}
+          onMouseDown={(event) => {
+            if ((event.target as Element).closest('[data-slack-action]')) event.preventDefault()
+          }}
+          onClick={(event) => {
+            const target = (event.target as Element).closest<HTMLElement>('[data-slack-action]')
+            if (!target || target.closest('[data-slack-editor]') || target.matches(':disabled, [aria-disabled="true"]')) return
+            event.preventDefault()
+            const element = editor()
+            action({ type: 'click', id: target.dataset.slackAction!, selection: element ? readComposerSelection(element) : undefined })
+          }}
+        />
+        {ready && <button
+          type="button"
+          className="send-button"
+          disabled={!sendButton || sendButton.disabled}
+          aria-label="Send message"
+          title="Send message (Enter)"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const element = editor()
+            if (sendButton) action({ type: 'click', id: sendButton.id, selection: element ? readComposerSelection(element) : undefined })
+          }}
+        ><ArrowUpIcon /></button>}
+      </div>
     </div>
   )
 }
