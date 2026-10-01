@@ -1,17 +1,16 @@
 import type { CSSProperties } from 'react'
 import { useViewCounts } from '../hooks'
 import { inboxStore, useStore, VIEWS, type View } from '../store'
-import { CheckIcon, HashIcon, ThreadIcon } from './Icons'
+import { CheckIcon, ClockIcon, ThreadIcon } from './Icons'
 
-const VIEW_ICONS: Partial<Record<View, typeof CheckIcon>> = { dms: ThreadIcon, channels: HashIcon, done: CheckIcon }
+const VIEW_ICONS: Partial<Record<View, typeof CheckIcon>> = { inbox: ThreadIcon, later: ClockIcon, done: CheckIcon }
 
 const VIEW_LABELS: Record<View, string> = {
   important: 'Important',
   other: 'Other',
   later: 'Later',
   muted: 'Muted',
-  dms: 'DMs',
-  channels: 'Channels',
+  inbox: 'Inbox',
   done: 'Done',
 }
 

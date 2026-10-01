@@ -21,9 +21,9 @@ import type {
   User,
 } from './slack/types'
 
-export type View = 'important' | 'other' | 'later' | 'muted' | 'dms' | 'channels' | 'done'
-export const isConversationView = (view: View) => view === 'dms' || view === 'channels' || view === 'done'
-export const VIEWS: View[] = ['dms', 'channels', 'done']
+export type View = 'important' | 'other' | 'later' | 'muted' | 'inbox' | 'done'
+export const isConversationView = (view: View) => view === 'inbox' || view === 'done'
+export const VIEWS: View[] = ['inbox', 'later', 'done']
 
 type Mode = 'list' | 'reading'
 
@@ -173,16 +173,12 @@ export function computeVisible(state: VisibleSource): InboxItem[] {
   switch (state.view) {
     case 'done':
       return Object.values(summaries).filter(archived).sort((a, b) => compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name))
-    case 'channels':
-      return Object.values(state.channels).filter((item) => !archived(item)).sort((a, b) =>
-        compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
-      )
-    case 'dms':
-      return Object.values(state.directMessages).filter((item) => !archived(item)).sort((a, b) =>
+    case 'inbox':
+      return Object.values(summaries).filter((item) => !archived(item)).sort((a, b) =>
         compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
       )
     case 'later':
-      return Object.values(state.later).filter((item) => !archived(item)).sort(bySavedAt)
+      return Object.values(state.later).sort(bySavedAt)
     case 'muted':
       return inbox.filter((item) => isMutedChannelItem(item, state.muted)).sort(byLatest)
     case 'important':
@@ -491,7 +487,7 @@ export const inboxStore = create<InboxState>()(
         laterOverrides: {},
         muteOverrides: {},
         classificationOverrides: {},
-        view: 'dms',
+        view: 'inbox',
         mode: 'list',
         checked: {},
         threads: {},
@@ -847,11 +843,11 @@ export const inboxStore = create<InboxState>()(
     },
     {
       name: 'slack-inbox',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => resilientLocalStorage),
       migrate: (persisted) => {
         const view = (persisted as { view?: View } | undefined)?.view
-        return { view: view && VIEWS.includes(view) ? view : 'dms' }
+        return { view: view && VIEWS.includes(view) ? view : 'inbox' }
       },
       partialize: (state) => ({ view: state.view }),
     },

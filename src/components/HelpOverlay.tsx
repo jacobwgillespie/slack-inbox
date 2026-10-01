@@ -9,7 +9,7 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
       [['Enter', 'O'], 'Read conversation'],
       [['Esc'], 'Return to list, clear selection, or cancel'],
       [['Tab', '⇧ Tab'], 'Next or previous view'],
-      [['1', '2', '3'], 'DMs, Channels, Done'],
+      [['1', '2', '3'], 'Inbox, Later, Done'],
     ],
   },
   {

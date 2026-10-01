@@ -12,11 +12,10 @@ import { CheckIcon, ClockIcon, MuteIcon } from './Icons'
 const EMPTY_STATES: Record<View, { title: string; detail: string }> = {
   important: { title: 'All caught up', detail: 'No unread direct messages or mentions.' },
   other: { title: 'Nothing else unread', detail: 'Every channel is read.' },
-  later: { title: 'Nothing saved', detail: 'Press L on a conversation, or save a message for later in Slack.' },
+  later: { title: 'Nothing saved', detail: 'Save a message for later in Slack to see it here.' },
   muted: { title: 'No muted unreads', detail: 'Muted conversations with unread messages appear here.' },
   done: { title: 'Nothing done yet', detail: 'Press E on a DM or channel to mark it done.' },
-  channels: { title: 'No channels yet', detail: 'Your joined Slack channels will appear here after syncing.' },
-  dms: { title: 'No direct messages yet', detail: 'Your Slack conversations will appear here after syncing.' },
+  inbox: { title: 'Inbox is empty', detail: 'Your Slack channels and direct messages will appear here after syncing.' },
 }
 
 export function ItemList() {
