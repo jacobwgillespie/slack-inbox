@@ -116,40 +116,57 @@ kbd {
   background: #191919;
 }
 
-.section-tabs {
+.view-switcher {
+  position: relative;
   display: flex;
-  gap: 6px;
-  margin: 20px 4px 0;
-}
-
-.section-tabs button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex: 1;
-  padding: 7px 8px;
-  white-space: nowrap;
-  border: 0;
+  flex-shrink: 0;
+  width: 96px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid #2c2c2c;
   border-radius: 20px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 14px;
+  background: #191919;
 }
 
-.section-tabs button.active {
-  background: #303030;
+.view-switcher::before {
+  content: '';
+  position: absolute;
+  inset: 2px auto 2px 2px;
+  width: calc((100% - 4px) / 3);
+  border-radius: 50%;
+  background: #373737;
+  transform: translateX(calc(var(--selected-view) * 100%));
+  transition: transform 180ms ease;
+  pointer-events: none;
+}
+
+.view-switcher button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #929292;
+  cursor: pointer;
+  transition: color 120ms;
+}
+
+.view-switcher button:hover,
+.view-switcher button[aria-checked='true'] {
   color: var(--text);
 }
 
-.section-tabs button:focus {
+.view-switcher button:focus {
   outline: none;
 }
 
-.section-tabs span {
-  font-size: 11px;
-  color: var(--text-muted);
+@media (prefers-reduced-motion: reduce) {
+  .view-switcher::before {
+    transition: none;
+  }
 }
 
 .unread-dot {
@@ -261,7 +278,7 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   padding: 0 6px;
 }
 
@@ -1558,16 +1575,16 @@ a:focus-visible {
 }
 
 .desktop :is(button, a, input, textarea, select),
-.desktop .section-tabs,
-.desktop .section-tabs *,
+.desktop .view-switcher,
+.desktop .view-switcher *,
 .desktop .tabs,
 .desktop .tabs * {
   -webkit-app-region: no-drag;
 }
 
 .desktop-darwin .sidebar-heading {
-  justify-content: flex-end;
-  padding-left: 80px;
+  justify-content: space-between;
+  padding-left: 76px;
 }
 
 .desktop-darwin .desktop-slack-toolbar {
