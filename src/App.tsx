@@ -5,6 +5,7 @@ import { Header } from './components/Header'
 import { HelpOverlay } from './components/HelpOverlay'
 import { SidebarFooter } from './components/SidebarFooter'
 import { ItemList } from './components/ItemList'
+import { ImageLightbox } from './components/ImageLightbox'
 import { SetupScreen } from './components/SetupScreen'
 import { useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
 import { useStore } from './store'
@@ -31,6 +32,7 @@ export function App() {
         <Detail />
       </main>
       {helpOpen && <HelpOverlay />}
+      <ImageLightbox />
     </div>
   )
 }

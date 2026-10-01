@@ -23,6 +23,10 @@ export const CheckIcon = () => (
   </Icon>
 )
 
+export const CloseIcon = () => (
+  <Icon><path d="M6 6l12 12M18 6L6 18" /></Icon>
+)
+
 export const HelpIcon = () => (
   <Icon>
     <circle cx="12" cy="12" r="9" />

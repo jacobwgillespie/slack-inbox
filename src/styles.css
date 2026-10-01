@@ -1252,6 +1252,63 @@ a.message-time:hover {
 .file-image {
   display: block;
   max-width: min(480px, 100%);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: zoom-in;
+}
+
+.image-lightbox {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 64px 32px 32px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.image-lightbox[open] {
+  display: grid;
+  place-items: center;
+}
+
+.image-lightbox::backdrop {
+  background: rgb(0 0 0 / 85%);
+}
+
+.image-lightbox figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  margin: 0;
+}
+
+.image-lightbox img {
+  max-width: 100%;
+  max-height: calc(100dvh - 140px);
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.image-lightbox figcaption {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
 }
 
 .file-image img {
