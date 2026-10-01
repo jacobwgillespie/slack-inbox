@@ -52,6 +52,7 @@ export interface Message {
   files?: SlackFile[]
   attachments?: SlackAttachment[]
   reactions?: Reaction[]
+  emoji?: Record<string, string>
   bot_profile?: { name?: string; icons?: { image_48?: string } }
 }
 

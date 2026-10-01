@@ -16,7 +16,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   continued: boolean
   continues?: boolean
 }) {
-  const context = useFormatContext()
+  const context = useFormatContext(message.emoji)
   const session = useStore((state) => state.session)
   const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
@@ -148,7 +148,7 @@ export function MessageView({ channel, message, continued, continues = false, we
           <div className="reactions">
             {message.reactions.map((reaction) => (
               <span key={reaction.name} className="reaction">
-                {renderEmoji(reaction.name.split('::')[0] ?? reaction.name, context)} {reaction.count}
+                {renderEmoji(reaction.name, context)} {reaction.count}
               </span>
             ))}
           </div>
@@ -171,7 +171,7 @@ function ClassificationTag({ classification }: { classification: Classification 
 }
 
 function ThreadReply({ message, continued, compact }: { message: Message; continued: boolean; compact: boolean }) {
-  const context = useFormatContext()
+  const context = useFormatContext(message.emoji)
   const name = authorName(message, context.users)
 
   return (

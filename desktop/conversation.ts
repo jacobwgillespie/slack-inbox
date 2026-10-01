@@ -8,11 +8,23 @@ function readTimeline(): WebviewConversation {
   const pane = document.querySelector('.p-message_pane')
   if (!pane) return { channel, messages: [], ready: false, hasMore: false }
   const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  let emoji: Record<string, string> = {}
+  const emojiName = (image: HTMLElement) => {
+    const label = image.getAttribute('data-stringify-emoji') ?? image.getAttribute('alt') ?? ''
+    return label.replace(/^:|:$/g, '')
+  }
+  const captureEmoji = (image: HTMLImageElement, name: string) => {
+    if (name && image.src.startsWith('https://')) emoji[name] = image.src
+  }
   const text = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return escape(node.textContent ?? '')
     if (!(node instanceof HTMLElement)) return ''
     if (node.tagName === 'BR') return '\n'
-    if (node.tagName === 'IMG') return escape(node.getAttribute('alt') ?? '')
+    if (node instanceof HTMLImageElement) {
+      const name = emojiName(node)
+      captureEmoji(node, name)
+      return /^[a-z0-9_+'-]+(?:::skin-tone-[2-6]){0,2}$/i.test(name) ? `:${name}:` : escape(node.alt)
+    }
     const content = [...node.childNodes].map(text).join('')
     if (node.tagName === 'A') {
       const href = node.getAttribute('href') ?? ''
@@ -32,6 +44,7 @@ function readTimeline(): WebviewConversation {
   let name: string | undefined
   const messages: WebviewConversation['messages'] = []
   for (const row of pane.querySelectorAll<HTMLElement>('.c-virtual_list__item')) {
+    emoji = {}
     const ts = row.dataset.itemKey ?? row.querySelector<HTMLElement>('[data-ts]')?.dataset.ts
     if (!ts || !/^\d+\.\d+$/.test(ts)) continue
     if (row.querySelector<HTMLElement>('[data-msg-channel-id]')?.dataset.msgChannelId !== channel) continue
@@ -51,11 +64,13 @@ function readTimeline(): WebviewConversation {
         attachments.push({ title: link.getAttribute('aria-label') || link.innerText.trim() || 'File attachment', title_link: link.href })
       }
     }
-    const reactions = [...row.querySelectorAll<HTMLElement>('.c-reaction')].map((reaction) => ({
-      name: reaction.querySelector('img')?.getAttribute('data-stringify-emoji')?.replace(/^:|:$/g, '') ?? reaction.querySelector('img')?.alt?.replace(/^:|:$/g, '') ?? 'emoji',
-      count: Number(reaction.querySelector('.c-reaction__count')?.textContent) || 1,
-    }))
-    if (body || images.length || attachments.length) messages.push({ ts, text: body ? text(body).trim() : '', user: author, username: name, images, reactions, attachments })
+    const reactions = [...row.querySelectorAll<HTMLElement>('.c-reaction')].map((reaction) => {
+      const image = reaction.querySelector('img')
+      const name = image ? emojiName(image) : reaction.querySelector('[data-stringify-emoji]')?.getAttribute('data-stringify-emoji')?.replace(/^:|:$/g, '') ?? 'emoji'
+      if (image) captureEmoji(image, name)
+      return { name, count: Number(reaction.querySelector('.c-reaction__count')?.textContent) || 1 }
+    })
+    if (body || images.length || attachments.length) messages.push({ ts, text: body ? text(body).trim() : '', user: author, username: name, images, reactions, attachments, emoji })
   }
   const beginning = Boolean(pane.querySelector('.c-message_list__day_divider__label--start, .c-message_list__channel_intro'))
   return { channel, messages, ready: messages.length > 0 || beginning, hasMore: !beginning }

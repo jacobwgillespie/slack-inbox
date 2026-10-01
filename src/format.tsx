@@ -1,4 +1,4 @@
-import { get as getEmoji } from 'node-emoji'
+import emojiData from './slack/emoji-data.json'
 import { Fragment, type ReactNode } from 'react'
 import type { Conversation, Message, Session, User } from './slack/types'
 
@@ -8,7 +8,7 @@ export interface FormatContext {
 }
 
 const INLINE_PATTERN =
-  /<([^<>\s][^<>]*)>|`([^`\n]+)`|(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])|(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])|(?<![\w~])~(?!\s)([^~\n]+?)(?<!\s)~(?![\w~])|:([a-z0-9_+'-]+)(?:::skin-tone-\d)?:/gi
+  /<([^<>\s][^<>]*)>|`([^`\n]+)`|(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])|(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])|(?<![\w~])~(?!\s)([^~\n]+?)(?<!\s)~(?![\w~])|:([a-z0-9_+'-]+(?:::skin-tone-[2-6]){0,2}):/gi
 
 const SAFE_LINK = /^(https?:|mailto:)/i
 
@@ -20,9 +20,9 @@ type Emoji = { kind: 'unicode'; value: string } | { kind: 'image'; url: string }
 
 function resolveEmoji(name: string, context: FormatContext, depth = 0): Emoji | undefined {
   const custom = context.emoji[name]
-  if (custom?.startsWith('alias:') && depth < 3) return resolveEmoji(custom.slice(6), context, depth + 1)
+  if (custom?.startsWith('alias:')) return depth < 10 ? resolveEmoji(custom.slice(6), context, depth + 1) : undefined
   if (custom) return { kind: 'image', url: custom }
-  const unicode = getEmoji(name)
+  const unicode = (emojiData as Record<string, string>)[name]
   return unicode ? { kind: 'unicode', value: unicode } : undefined
 }
 
@@ -43,7 +43,7 @@ export function plainText(text: string, context: FormatContext): string {
   return decodeEntities(
     text
       .replace(/<([^<>]+)>/g, (_, body: string) => angleLabel(body, context).text)
-      .replace(/:([a-z0-9_+'-]+)(?:::skin-tone-\d)?:/gi, (match, name: string) => {
+      .replace(/:([a-z0-9_+'-]+(?:::skin-tone-[2-6]){0,2}):/gi, (match, name: string) => {
         const emoji = resolveEmoji(name, context)
         return emoji?.kind === 'unicode' ? emoji.value : match
       })

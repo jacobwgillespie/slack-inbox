@@ -6,10 +6,10 @@ import { subscribeToChanges } from './api'
 import type { FormatContext } from './format'
 import { computeCounts, computeVisible, isConversationView, useStore, VIEWS, type InboxState } from './store'
 
-export function useFormatContext(): FormatContext {
+export function useFormatContext(renderedEmoji?: Record<string, string>): FormatContext {
   const { data: users } = useLiveQuery(userCollection)
   const emoji = useStore((state) => state.emoji)
-  return { users: Object.fromEntries(users.map((user) => [user.id, user])), emoji }
+  return { users: Object.fromEntries(users.map((user) => [user.id, user])), emoji: renderedEmoji ? { ...emoji, ...renderedEmoji } : emoji }
 }
 
 function useVisibleSource() {

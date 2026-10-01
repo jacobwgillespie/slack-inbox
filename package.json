@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/build-emoji.mjs && tsc -b && vite build",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "desktop:build": "pnpm build && node scripts/build-desktop.mjs",
@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@tanstack/react-db": "^0.4.1",
-    "node-emoji": "^2.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zustand": "^5.0.15"
@@ -28,6 +27,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "electron": "^44.5.1",
+    "emoji-datasource": "16.0.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"
