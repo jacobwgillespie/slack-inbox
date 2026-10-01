@@ -798,7 +798,6 @@ export const inboxStore = create<InboxState>()(
             await get().loadHistory(item.id, get().sync?.realtime === 'connected' ? 'cached' : 'latest')
             const updated = get().histories[item.id]?.item ?? item
             run(localApi.markRead(item.conversation.id, latestTs(updated)).then(() => get().load()))
-            showToast('Reply sent')
             return true
           }
           get().markDone([item.id], 'Reply sent')
