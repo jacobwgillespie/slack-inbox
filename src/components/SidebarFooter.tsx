@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { openDesktopSlack } from '../desktop'
 import { useStore } from '../store'
 import { Avatar } from './Avatar'
-import { BugIcon, HelpIcon, LogoutIcon, RefreshIcon, ThreadIcon } from './Icons'
+import { BugIcon, DownloadIcon, HelpIcon, LogoutIcon, RefreshIcon, ThreadIcon } from './Icons'
 
 export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const session = useStore((state) => state.session)
@@ -13,6 +13,25 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const [error, setError] = useState<string>()
+  const [updateVersion, setUpdateVersion] = useState<string>()
+  const [restarting, setRestarting] = useState(false)
+
+  useEffect(() => {
+    const desktop = window.slackDesktop
+    if (!desktop) return
+    const unsubscribe = desktop.onUpdateReady(setUpdateVersion)
+    void desktop.updateVersion().then(setUpdateVersion).catch((error) => console.warn('Could not read update state', error))
+    return unsubscribe
+  }, [])
+
+  const installUpdate = async () => {
+    setRestarting(true)
+    try { await window.slackDesktop!.installUpdate() }
+    catch (error) {
+      console.warn('Could not restart to update', error)
+      setRestarting(false)
+    }
+  }
 
   const logOut = async () => {
     setLoggingOut(true)
@@ -51,9 +70,15 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
           {error && <p role="alert" className="account-error">{error}</p>}
         </>}
       </div>
-      <button className={`icon-button${scanning ? ' spinning' : ''}`} onClick={refresh} disabled={scanning} title="Refresh (Shift+R)" aria-label="Refresh">
-        <RefreshIcon />
-      </button>
+      <div className="sidebar-footer-actions">
+        {updateVersion && <button className="icon-button update-button" onClick={() => void installUpdate()} disabled={restarting}
+          title={`Restart to update to ${updateVersion}`} aria-label={restarting ? 'Restarting to update' : `Restart to update to ${updateVersion}`}>
+          <DownloadIcon />
+        </button>}
+        <button className={`icon-button${scanning ? ' spinning' : ''}`} onClick={refresh} disabled={scanning} title="Refresh (Shift+R)" aria-label="Refresh">
+          <RefreshIcon />
+        </button>
+      </div>
     </footer>
   )
 }

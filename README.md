@@ -92,7 +92,7 @@ To release a version:
 
 Make the repository public before distributing builds to users. The update client reads public GitHub Releases and does not contain a GitHub access token. Draft releases are invisible to update checks.
 
-Packaged macOS apps check for updates at startup and every four hours. Choose **Slack Inbox → Check for Updates…** for a manual check. Updates download in the background and offer **Restart to update**; choosing **Later** installs the update when you quit. Development runs skip update checks. The app flushes Slack cookies and stops sync before quitting; the profile and SQLite database remain in the existing `userData` directory.
+Packaged macOS apps check for updates at startup and every four hours. Choose **Slack Inbox → Check for Updates…** for a manual check; the menu shows checking and download progress. Updates download in the background. Once an update is ready, a white download button appears beside Refresh. Click it to restart and install the update, or keep working and let it install when you quit. Development runs skip update checks. The app flushes Slack cookies and stops sync before quitting; the profile and SQLite database remain in the existing `userData` directory.
 
 Before relying on automatic updates, install one signed release, publish a newer version, and verify that updating preserves sign-in, cached conversations, and Done state.
 

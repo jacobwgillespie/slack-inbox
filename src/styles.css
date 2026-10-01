@@ -387,23 +387,38 @@ kbd {
   font-size: 12px;
 }
 
-.sidebar-footer > .icon-button {
+.sidebar-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.sidebar-footer-actions .icon-button {
+  width: 40px;
+  height: 40px;
   border: 1px solid #303030;
   background: #191919;
   color: #bcbcbc;
   transition: background 120ms, color 120ms;
 }
 
-.sidebar-footer > .icon-button {
-  margin-left: auto;
-  width: 40px;
-  height: 40px;
-}
-
-.sidebar-footer > .icon-button:hover:not(:disabled) {
+.sidebar-footer-actions .icon-button:hover:not(:disabled) {
   background: #252525;
   border-color: var(--border-strong);
   color: var(--text);
+}
+
+.sidebar-footer-actions .update-button {
+  background: #f3f3f3;
+  border-color: #f3f3f3;
+  color: #171717;
+}
+
+.sidebar-footer-actions .update-button:hover:not(:disabled) {
+  background: #fff;
+  border-color: #fff;
+  color: #171717;
 }
 
 .item-list {

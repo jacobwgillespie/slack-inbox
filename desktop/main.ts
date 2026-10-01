@@ -112,6 +112,17 @@ async function start() {
   }
 
   const ownRenderer = (event: Electron.IpcMainInvokeEvent) => event.sender === ui.webContents && event.senderFrame?.url.startsWith(origin + '/')
+  const updates = setupUpdates((version) => {
+    if (!uiContents.isDestroyed()) uiContents.send('slack:update-ready', version)
+  })
+  ipcMain.handle('slack:update-version', (event) => {
+    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    return updates?.version
+  })
+  ipcMain.handle('slack:update-install', (event) => {
+    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    updates?.restart()
+  })
   ipcMain.handle('slack:show', (event, channel: unknown) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
     if (channel !== undefined && (typeof channel !== 'string' || !/^[CDG][A-Z0-9]+$/.test(channel))) throw new Error('Invalid conversation')
@@ -283,5 +294,4 @@ async function start() {
   }
   window.on('closed', () => { if (!quitting) app.quit() })
   app.on('second-instance', () => { window.show(); window.focus() })
-  setupUpdates()
 }

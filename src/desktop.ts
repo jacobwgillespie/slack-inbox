@@ -5,6 +5,9 @@ declare global {
   interface Window {
     slackDesktop?: {
       platform: string
+      updateVersion(): Promise<string | undefined>
+      installUpdate(): Promise<void>
+      onUpdateReady(callback: (version: string) => void): () => void
       followComposer(channel: string): Promise<number | undefined>
       stopComposer(generation: number): Promise<void>
       composerAction(generation: number, action: ComposerAction): Promise<void>

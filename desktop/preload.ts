@@ -3,6 +3,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('slackDesktop', {
   platform: process.platform,
+  updateVersion: () => ipcRenderer.invoke('slack:update-version'),
+  installUpdate: () => ipcRenderer.invoke('slack:update-install'),
+  onUpdateReady: (callback: (version: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, version: string) => callback(version)
+    ipcRenderer.on('slack:update-ready', listener)
+    return () => ipcRenderer.removeListener('slack:update-ready', listener)
+  },
   followComposer: (channel: string) => ipcRenderer.invoke('slack:composer-follow', channel),
   stopComposer: (generation: number) => ipcRenderer.invoke('slack:composer-stop', generation),
   composerAction: (generation: number, action: ComposerAction) => ipcRenderer.invoke('slack:composer-action', generation, action),

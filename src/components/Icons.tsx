@@ -70,6 +70,12 @@ export const RefreshIcon = () => (
   </Icon>
 )
 
+export const DownloadIcon = () => (
+  <Icon>
+    <path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4" />
+  </Icon>
+)
+
 export const HashIcon = () => (
   <Icon>
     <path d="M9 4L7 20M17 4l-2 16M4.5 9h16M3.5 15h16" />
