@@ -38,7 +38,7 @@ export function App() {
       </main>
       {helpOpen && <HelpOverlay />}
       <ImageLightbox />
-      {onboardingOpen && <OnboardingScreen onGetStarted={() => {
+      {status === 'ready' && onboardingOpen && <OnboardingScreen onGetStarted={() => {
         localStorage.setItem('slack-inbox-onboarding-complete', 'true')
         setOnboardingOpen(false)
       }} />}

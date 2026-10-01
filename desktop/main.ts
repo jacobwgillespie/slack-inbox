@@ -260,13 +260,13 @@ async function start() {
     } } }
   })
   const savedTeam = database.getMetadata<boolean>('signed-out') ? undefined : database.getMetadata<{ teamId: string }>('session')?.teamId
+  await ui.webContents.loadURL(origin)
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })
   slack.webContents.on('dom-ready', () => slack.webContents.send('slack:read-markers-enabled', slackVisible))
   slack.webContents.on('did-finish-load', () => { if (!slackVisible) ui.webContents.focus() })
   if (savedTeam) void collectorView.webContents.loadURL(`https://app.slack.com/client/${savedTeam}`).catch(() => {})
-  await ui.webContents.loadURL(origin)
-  engine.start()
+  if (!savedTeam) engine.start()
   let quitting = false
   app.once('before-quit', (event) => {
     event.preventDefault()

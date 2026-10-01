@@ -33,6 +33,9 @@ export function Header() {
             </span>
           )}
           {sync?.realtime === 'disconnected' && <span className="scan-status">Reconnecting</span>}
+          {sync?.realtime === 'connecting' && !scanning && !sync.error && (
+            <span className="scan-status">Connecting to Slack…</span>
+          )}
           {showProgress && (
             <span className="scan-status">
               {sync?.total ? `Syncing ${sync.done} of ${sync.total}` : 'Syncing'}

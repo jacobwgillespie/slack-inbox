@@ -45,15 +45,6 @@ export function useCacheSync() {
       }).catch(console.error)
       else for (const id of activeChannels) void read(id).catch(console.error)
     })
-    void bridge.readCache().then((snapshots) => {
-      if (disposed) return
-      for (const snapshot of snapshots) {
-        // A newer notification may already have hydrated this thread.
-        if (windows.has(snapshot.channel)) continue
-        applyCache(snapshot)
-        if (snapshot.messages[0]) windows.set(snapshot.channel, snapshot.messages[0].ts)
-      }
-    }).catch(console.error)
     return () => { disposed = true; unsubscribe() }
   }, [])
 }
