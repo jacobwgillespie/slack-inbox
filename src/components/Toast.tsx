@@ -1,8 +1,8 @@
-import { useStore } from '../store'
+import { inboxStore, useStore } from '../store'
 
 export function Toast() {
   const toast = useStore((state) => state.toast)
-  const { undo, dismissToast } = useStore.getState()
+  const { undo, dismissToast } = inboxStore.getState()
   if (!toast) return null
 
   return (

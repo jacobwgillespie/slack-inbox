@@ -237,7 +237,7 @@ let legacyPreferences = captureLegacyPreferences()
 let toastCounter = 0
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
-export const useStore = create<InboxState>()(
+export const inboxStore = create<InboxState>()(
   persist(
     (set, get) => {
       const showToast = (message: string, options: { undo?: () => void; tone?: Toast['tone'] } = {}) => {
@@ -811,3 +811,5 @@ export const useStore = create<InboxState>()(
     },
   ),
 )
+
+export const useStore = inboxStore

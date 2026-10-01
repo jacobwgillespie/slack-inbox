@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { authorName, conversationLabel } from '../format'
 import { useFormatContext } from '../hooks'
-import { findMessage, threadTargetFor, useStore } from '../store'
+import { inboxStore, findMessage, threadTargetFor, useStore } from '../store'
 import type { InboxItem } from '../slack/types'
 import { ArrowUpIcon } from './Icons'
 
@@ -13,7 +13,7 @@ export function Composer({ item }: { item: InboxItem }) {
   const session = useStore((state) => state.session)
   const threadTarget = useStore((state) => state.threadTarget)
   const focusRequest = useStore((state) => state.composerFocusRequest)
-  const { send, clearThreadTarget } = useStore.getState()
+  const { send, clearThreadTarget } = inboxStore.getState()
   const initialFocusRequest = useRef(focusRequest)
 
   useEffect(() => {

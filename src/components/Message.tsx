@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { authorAvatar, authorName, formatMessageTime, renderEmoji, renderMrkdwn, isSameAuthorGroup } from '../format'
 import { useFormatContext } from '../hooks'
-import { threadKey, useStore } from '../store'
+import { inboxStore, threadKey, useStore } from '../store'
 import type { WebviewMessage } from '../slack/webview'
 import { WebviewImage } from './WebviewImage'
 import type { Classification, Message } from '../slack/types'
@@ -22,7 +22,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group')
   const focused = useStore((state) => state.mode === 'reading' && state.focusedTs === message.ts)
   const thread = useStore((state) => state.threads[threadKey(channel, message.ts)])
-  const { focusMessage, toggleThread, replyInThread } = useStore.getState()
+  const { focusMessage, toggleThread, replyInThread } = inboxStore.getState()
   const ref = useRef<HTMLElement>(null)
 
   useEffect(() => {

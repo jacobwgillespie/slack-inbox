@@ -1,5 +1,5 @@
 import { useViewCounts } from '../hooks'
-import { useStore, VIEWS, type View } from '../store'
+import { inboxStore, useStore, VIEWS, type View } from '../store'
 import { RefreshIcon } from './Icons'
 
 const VIEW_LABELS: Record<View, string> = {
@@ -16,7 +16,7 @@ export function Header() {
   const sync = useStore((state) => state.sync)
   const scanning = Boolean(sync?.running)
   const showProgress = scanning && (Boolean(sync?.total) || !sync?.lastCompletedAt)
-  const { setView, refresh, toggleHelp } = useStore.getState()
+  const { setView, refresh, toggleHelp } = inboxStore.getState()
 
   return (
     <header className="header">

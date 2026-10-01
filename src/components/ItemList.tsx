@@ -1,7 +1,7 @@
 import { useEffect, useRef, type MouseEvent } from 'react'
 import { conversationLabel, formatListTime, messageSummary, authorName } from '../format'
 import { useFormatContext, useVisibleItems } from '../hooks'
-import { latestTs, mentionsSelf, useStore, type View } from '../store'
+import { inboxStore, latestTs, mentionsSelf, useStore, type View } from '../store'
 import { compareTs } from '../slack/timestamps'
 import type { InboxItem } from '../slack/types'
 import { ConversationIcon } from './Avatar'
@@ -56,7 +56,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const checked = useStore((state) => Boolean(state.checked[id]))
   const reading = useStore((state) => state.mode === 'reading')
   const dm = useStore((state) => state.directMessages[id])
-  const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = useStore.getState()
+  const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = inboxStore.getState()
   const ref = useRef<HTMLLIElement>(null)
 
   const latest = item.messages[item.messages.length - 1]

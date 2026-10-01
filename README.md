@@ -21,6 +21,8 @@ A keyboard-driven inbox for unread Slack messages and a viewer for direct messag
 
 The app needs Node.js 22.13 or later.
 
+React Compiler runs in development and production through Vite's `reactCompilerPreset`, targeting React 19. Components use `useStore` for subscriptions and `inboxStore` for imperative Zustand access. The compiler leaves unsupported functions unoptimized; currently the webview polling hook and browser sign-in button are skipped because they contain `try/finally`.
+
 A native macOS prototype built with GPUI is in [`gpui/`](gpui/README.md). It works on its own, without this web app.
 
 ## Electron desktop experiment

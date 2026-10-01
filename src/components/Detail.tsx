@@ -5,7 +5,7 @@ import type { InboxItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
 import { useCurrentItem, useFormatContext } from '../hooks'
-import { useStore } from '../store'
+import { inboxStore, useStore } from '../store'
 import { ConversationIcon } from './Avatar'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
@@ -57,7 +57,7 @@ function ConversationDetail({ item, view, initial }: { item?: InboxItem; view: V
   const session = useStore((state) => state.session)
   const reading = useStore((state) => state.mode === 'reading')
   const pending = useStore((state) => view === 'dms' && state.selectedId !== item?.id)
-  const { markDone, saveForLater, toggleMute, recategorize, openInSlack } = useStore.getState()
+  const { markDone, saveForLater, toggleMute, recategorize, openInSlack } = inboxStore.getState()
 
   useLayoutEffect(() => {
     const header = headerRef.current
@@ -87,7 +87,7 @@ function ConversationDetail({ item, view, initial }: { item?: InboxItem; view: V
       <header ref={headerRef} className="detail-header">
         <button
           className="icon-button mobile-back"
-          onClick={() => useStore.setState({ mode: 'list', threadTarget: undefined })}
+          onClick={() => inboxStore.setState({ mode: 'list', threadTarget: undefined })}
           aria-label="Back to conversations"
           title="Back to conversations"
         >
