@@ -79,6 +79,7 @@ export interface InboxState {
   toast?: Toast
   helpOpen: boolean
   composerFocusRequest: number
+  composerFocusChannel?: string
 
   load: () => Promise<void>
   loadEmoji: () => Promise<void>
@@ -301,6 +302,7 @@ export const inboxStore = create<InboxState>()(
         return {
           selectedId: id,
           threadTarget: undefined,
+          composerFocusChannel: undefined,
           mode: item ? state.mode : ('list' as const),
         }
       }
@@ -763,7 +765,7 @@ export const inboxStore = create<InboxState>()(
 
         reply: () => {
           if (!currentItem(get())) return
-          set((state) => ({ threadTarget: undefined, composerFocusRequest: state.composerFocusRequest + 1 }))
+          set((state) => ({ threadTarget: undefined, composerFocusRequest: state.composerFocusRequest + 1, composerFocusChannel: currentItem(state)?.conversation.id }))
         },
 
         replyInThread: (ts) => {
@@ -775,6 +777,7 @@ export const inboxStore = create<InboxState>()(
           set({
             threadTarget: message?.thread_ts ?? targetTs,
             composerFocusRequest: state.composerFocusRequest + 1,
+            composerFocusChannel: item.conversation.id,
           })
         },
 

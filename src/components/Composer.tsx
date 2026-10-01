@@ -13,12 +13,14 @@ export function Composer({ item }: { item: InboxItem }) {
   const session = useStore((state) => state.session)
   const threadTarget = useStore((state) => state.threadTarget)
   const focusRequest = useStore((state) => state.composerFocusRequest)
+  const focusChannel = useStore((state) => state.composerFocusChannel)
   const { send, clearThreadTarget } = inboxStore.getState()
-  const initialFocusRequest = useRef(focusRequest)
+  const handledFocusRequest = useRef(focusRequest)
 
   useEffect(() => {
-    if (focusRequest !== initialFocusRequest.current) ref.current?.focus()
-  }, [focusRequest])
+    if (focusRequest !== handledFocusRequest.current && focusChannel === item.conversation.id) ref.current?.focus()
+    handledFocusRequest.current = focusRequest
+  }, [focusRequest, focusChannel, item.conversation.id])
 
   useLayoutEffect(() => {
     const element = ref.current

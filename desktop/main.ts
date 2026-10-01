@@ -64,11 +64,11 @@ async function start() {
   } })
   const slack = new WebContentsView({ webPreferences: {
     preload: join(__dirname, 'slack-preload.cjs'),
-    session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false,
+    session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, focusOnNavigation: false,
   } })
   const collectorView = new WebContentsView({ webPreferences: {
     preload: join(__dirname, 'slack-preload.cjs'), additionalArguments: ['--slack-background-collector'],
-    session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false,
+    session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, focusOnNavigation: false,
   } })
   collectorView.webContents.setUserAgent(slackSession.getUserAgent())
   collectorView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))

@@ -62,7 +62,7 @@ export function ItemList() {
   }
 
   return (
-    <section ref={listRef} className="item-list" aria-label="Conversations">
+    <section ref={listRef} className="item-list" aria-label="Conversations" tabIndex={-1}>
       <ul>
         {items.map((item) => (
           <ItemRow key={item.id} item={item} />
@@ -95,6 +95,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   }, [selected])
 
   const onClick = (event: MouseEvent) => {
+    event.currentTarget.closest<HTMLElement>('.item-list')?.focus({ preventScroll: true })
     if (event.metaKey || event.ctrlKey || event.shiftKey) toggleChecked(id)
     else if (isConversationView(view) || (selected && !reading)) open(id)
     else select(id)
