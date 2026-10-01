@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { CheckIcon, ClockIcon, ThreadIcon } from './Icons'
 
 export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -12,6 +13,7 @@ export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void })
     <dialog ref={dialog} className="onboarding" aria-labelledby="onboarding-title"
       onCancel={(event) => { event.preventDefault(); onGetStarted() }}>
       <div className="onboarding-content">
+        <img className="onboarding-app-icon" src="/icon.png" alt="Slack Inbox" />
         <h1 id="onboarding-title">Welcome</h1>
         <p className="onboarding-intro">
           Slack Inbox helps you manage your Slack conversations and focus on what’s important.
@@ -19,16 +21,19 @@ export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void })
         </p>
         <div className="onboarding-steps">
           <section className="onboarding-step">
-            <h2>Inbox</h2>
-            <p>Channels and direct messages, ordered by latest activity.</p>
+            <div className="onboarding-step-icon"><ThreadIcon /></div>
+            <div><h2>Inbox</h2>
+              <p>Channels and direct messages, ordered by latest activity.</p></div>
           </section>
           <section className="onboarding-step">
-            <h2>Later</h2>
-            <p>Messages you’ve saved for later in Slack.</p>
+            <div className="onboarding-step-icon"><ClockIcon /></div>
+            <div><h2>Later</h2>
+              <p>Messages you’ve saved for later in Slack.</p></div>
           </section>
           <section className="onboarding-step">
-            <h2>Done</h2>
-            <p>Conversations you’ve marked done. New activity returns them to Inbox.</p>
+            <div className="onboarding-step-icon"><CheckIcon /></div>
+            <div><h2>Done</h2>
+              <p>Conversations you’ve marked done. New activity returns them to Inbox.</p></div>
           </section>
         </div>
         <footer className="onboarding-footer">
