@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { compareTs } from './slack/timestamps'
 import type { WebviewConversation, WebviewMessage } from './slack/webview'
 
-export function useWebviewConversation(channel: string, enabled: boolean) {
-  const [snapshot, setSnapshot] = useState<WebviewConversation>()
+export function useWebviewConversation(channel: string, enabled: boolean, initial?: WebviewConversation) {
+  const [snapshot, setSnapshot] = useState<WebviewConversation | undefined>(initial)
   const [error, setError] = useState<string>()
   const [loadingOlder, setLoadingOlder] = useState(false)
-  const observed = useRef(new Map<string, WebviewMessage>())
+  const observed = useRef(new Map<string, WebviewMessage>(initial?.messages.map((message) => [message.ts, message])))
   const reader = useRef<(direction?: 'older' | 'latest') => Promise<void>>(async () => {})
   useEffect(() => {
     const bridge = window.slackDesktop
@@ -57,6 +57,7 @@ export function useWebviewConversation(channel: string, enabled: boolean) {
         }
       } catch (cause) {
         if (!cancelled) {
+          if (cause instanceof Error && /Conversation (is no longer active|changed)/.test(cause.message)) return
           setError(cause instanceof Error ? cause.message : 'Could not read the Slack timeline.')
           older = undefined
           setLoadingOlder(false)

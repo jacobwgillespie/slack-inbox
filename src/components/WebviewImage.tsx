@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { WebviewMessage } from '../slack/webview'
+import { cachedImagePreview, loadImagePreview } from '../webviewConversationResource'
 
 export function WebviewImage({ image }: { image: NonNullable<WebviewMessage['images']>[number] }) {
-  const [source, setSource] = useState<string>()
-  const [size, setSize] = useState<{ width: number; height: number }>()
+  const [source, setSource] = useState(() => cachedImagePreview(image.src)?.source)
+  const [size, setSize] = useState<{ width: number; height: number } | undefined>(() => cachedImagePreview(image.src))
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     if (source) return
     let cancelled = false
-    void window.slackDesktop?.readImage(image.src).then(async (data) => {
-      const preview = new Image()
-      preview.src = data
-      await preview.decode()
+    void loadImagePreview(image.src).then((preview) => {
       if (!cancelled) {
-        setSize({ width: preview.naturalWidth, height: preview.naturalHeight })
-        setSource(data)
+        setSize(preview)
+        setSource(preview.source)
       }
     }).catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }

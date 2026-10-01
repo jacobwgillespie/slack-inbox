@@ -6,6 +6,7 @@ import { useTimestampReveal } from '../useTimestampReveal'
 import { useWebviewConversation } from '../useWebviewConversation'
 import { MessageView } from './Message'
 import { ArrowUpIcon } from './Icons'
+import type { WebviewConversation } from '../slack/webview'
 
 function messageDay(ts: string): string {
   const date = new Date(Number(ts) * 1000)
@@ -19,9 +20,9 @@ function messageDay(ts: string): string {
   })
 }
 
-export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
+export function MessageList({ item, dms, initial }: { item: InboxItem; dms: boolean; initial?: WebviewConversation }) {
   const fromWebview = dms && Boolean(window.slackDesktop)
-  const webview = useWebviewConversation(item.id, fromWebview)
+  const webview = useWebviewConversation(item.id, fromWebview, initial)
   const history = useStore((state) => state.histories[item.id])
   const loadHistory = useStore((state) => state.loadHistory)
   const ref = useRef<HTMLDivElement>(null)

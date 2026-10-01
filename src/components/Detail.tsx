@@ -1,4 +1,6 @@
-import { Activity, useLayoutEffect, useRef, useState } from 'react'
+import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
+import { initialConversation, retryInitialConversation } from '../webviewConversationResource'
+import type { WebviewConversation } from '../slack/webview'
 import type { InboxItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
@@ -10,9 +12,13 @@ import { MessageList } from './MessageList'
 import { ArrowLeftIcon, CheckIcon, ClockIcon, ExternalIcon, MuteIcon, SwapIcon } from './Icons'
 
 export function Detail() {
+  return <Suspense fallback={<section className="detail detail-empty"><p className="muted">Opening conversation…</p></section>}><DeferredDetail /></Suspense>
+}
+
+function DeferredDetail() {
   const item = useCurrentItem()
   const view = useStore((state) => state.view)
-  const selected = view === 'dms' ? item?.id : undefined
+  const selected = useDeferredValue(view === 'dms' ? item?.id : undefined)
   const [panels, setPanels] = useState<string[]>([])
   const [lastSelected, setLastSelected] = useState<string>()
   let retained = panels
@@ -28,7 +34,7 @@ export function Detail() {
     <>
       {retained.map((id) => (
         <Activity key={id} mode={selected === id ? 'visible' : 'hidden'}>
-          <DirectMessageDetail id={id} />
+          <DirectMessageDetail id={id} active={selected === id} />
         </Activity>
       ))}
       {view !== 'dms' && <ConversationDetail key={`${view}:${item?.id}`} item={item} view={view} />}
@@ -37,16 +43,20 @@ export function Detail() {
   )
 }
 
-function DirectMessageDetail({ id }: { id: string }) {
+function DirectMessageDetail({ id, active }: { id: string; active: boolean }) {
   const item = useStore((state) => window.slackDesktop ? state.directMessages[id] : state.histories[id]?.item ?? state.directMessages[id])
-  return <ConversationDetail item={item} view="dms" />
+  const [, retry] = useState(0)
+  const initial = active && window.slackDesktop ? use(initialConversation(id)) : undefined
+  if (initial?.error) return <section className="detail detail-empty"><p className="muted">{initial.error}</p><button onClick={() => { retryInitialConversation(id); retry((value) => value + 1) }}>Retry</button></section>
+  return <ConversationDetail item={item} view="dms" initial={initial?.snapshot} />
 }
 
-function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
+function ConversationDetail({ item, view, initial }: { item?: InboxItem; view: View; initial?: WebviewConversation }) {
   const headerRef = useRef<HTMLElement>(null)
   const context = useFormatContext()
   const session = useStore((state) => state.session)
   const reading = useStore((state) => state.mode === 'reading')
+  const pending = useStore((state) => view === 'dms' && state.selectedId !== item?.id)
   const { markDone, saveForLater, toggleMute, recategorize, openInSlack } = useStore.getState()
 
   useLayoutEffect(() => {
@@ -73,7 +83,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
 
   return (
-    <section className={`detail${reading ? ' reading' : ''}`} aria-label="Conversation">
+    <section className={`detail${reading ? ' reading' : ''}`} aria-label="Conversation" aria-busy={pending} inert={pending}>
       <header ref={headerRef} className="detail-header">
         <button
           className="icon-button mobile-back"
@@ -135,7 +145,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           </button>
         </div>
       </header>
-      <MessageList item={item} dms={view === 'dms'} />
+      <MessageList item={item} dms={view === 'dms'} initial={initial} />
       <Composer item={item} />
     </section>
   )
