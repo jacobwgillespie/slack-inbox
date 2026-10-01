@@ -1,12 +1,13 @@
-import type { WebviewConversation } from './slack/webview'
+import type { CachedConversation } from './slack/dm-cache'
 
 declare global {
   interface Window {
     slackDesktop?: {
       platform: string
-      openConversation(channel: string): Promise<void>
-      readConversation(channel: string, direction?: 'older' | 'latest'): Promise<WebviewConversation>
-      onConversationChange(callback: (channel: string) => void): () => void
+      readCache(channel?: string, options?: { before?: string; after?: string }): Promise<CachedConversation[]>
+      watchConversations(channels: string[], selected?: string): Promise<void>
+      refreshConversation(channel: string, older?: boolean): Promise<void>
+      onCacheChange(callback: (channel?: string) => void): () => void
       readImage(source: string): Promise<string>
       showSlack(channel?: string): Promise<void>
       signInWithBrowser(): Promise<void>

@@ -1,4 +1,26 @@
-import { ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
+
+// Both embedded views start in the background. Only the manual Slack view
+// receives permission to write read markers when the user reveals it.
+contextBridge.executeInMainWorld({ func: () => {
+  const state = window as typeof window & { __inboxReadMarkers?: boolean }
+  state.__inboxReadMarkers = false
+  const original = WebSocket.prototype.send
+  WebSocket.prototype.send = function(data) {
+    try {
+      const message = typeof data === 'string' ? JSON.parse(data) : undefined
+      if (!state.__inboxReadMarkers && (['im_mark', 'mpim_mark', 'channel_mark', 'group_mark'].includes(message?.type) ||
+        ['conversations.mark', 'im.mark', 'mpim.mark', 'channels.mark', 'groups.mark'].includes(message?.method))) return
+    } catch { /* Non-JSON socket frame. */ }
+    return original.call(this, data)
+  }
+} })
+ipcRenderer.on('slack:read-markers-enabled', (_event, enabled: boolean) => {
+  if (process.argv.includes('--slack-background-collector')) return
+  contextBridge.executeInMainWorld({ func: (enabled: boolean) => {
+    (window as typeof window & { __inboxReadMarkers?: boolean }).__inboxReadMarkers = enabled
+  }, args: [enabled] })
+})
 
 // Slack gets no exposed bridge; this preload only reports timeline changes.
 window.addEventListener('DOMContentLoaded', () => {
@@ -10,7 +32,7 @@ window.addEventListener('DOMContentLoaded', () => {
     requestAnimationFrame(() => {
       scheduled = false
       const channel = location.pathname.split('/')[3]
-      if (channel && document.querySelector('.p-message_pane')) ipcRenderer.send('slack:timeline-changed', channel)
+      if (channel) ipcRenderer.send('slack:timeline-changed', channel)
     })
   }
   const inTimeline = (node: Node) => {
@@ -18,7 +40,7 @@ window.addEventListener('DOMContentLoaded', () => {
     return Boolean(element?.closest('.p-message_pane') || element?.querySelector('.p-message_pane'))
   }
   new MutationObserver((records) => {
-    if (records.some((record) => inTimeline(record.target) || [...record.addedNodes, ...record.removedNodes].some(inTimeline))) notify()
+    if (!document.querySelector('.p-message_pane') || records.some((record) => inTimeline(record.target) || [...record.addedNodes, ...record.removedNodes].some(inTimeline))) notify()
   }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'data-item-key', 'data-msg-channel-id', 'data-message-sender'] })
   window.addEventListener('popstate', notify)
   notify()

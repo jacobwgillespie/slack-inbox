@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { WebviewMessage } from '../slack/webview'
-import { cachedImagePreview, loadImagePreview } from '../webviewConversationResource'
+import { cachedImagePreview, loadImagePreview } from '../imagePreview'
 
 export function WebviewImage({ image }: { image: NonNullable<WebviewMessage['images']>[number] }) {
   const [source, setSource] = useState(() => cachedImagePreview(image.src)?.source)

@@ -1,3 +1,4 @@
+import { dmCollection, inboxCollection, laterCollection, userCollection, reconcile } from './collections'
 import { openDesktopSlack } from './desktop'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
@@ -813,3 +814,11 @@ export const inboxStore = create<InboxState>()(
 )
 
 export const useStore = inboxStore
+
+// Keep command/optimistic state compatible while UI reads live collections.
+useStore.subscribe((state, previous) => {
+  if (state.directMessages !== previous.directMessages) reconcile(dmCollection, Object.values(state.directMessages))
+  if (state.items !== previous.items) reconcile(inboxCollection, Object.values(state.items))
+  if (state.later !== previous.later) reconcile(laterCollection, Object.values(state.later))
+  if (state.users !== previous.users) reconcile(userCollection, Object.values(state.users))
+})

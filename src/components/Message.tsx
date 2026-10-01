@@ -32,8 +32,8 @@ export function MessageView({ channel, message, continued, continues = false, we
   const name = authorName(message, context.users)
   const own = Boolean(session && message.user === session.userId)
   const webviewImages = message.images ?? []
-  const images = message.files?.filter(isImageFile) ?? []
-  const files = message.files?.filter((file) => !isImageFile(file)) ?? []
+  const images = webview && webviewImages.length ? [] : message.files?.filter(isImageFile) ?? []
+  const files = message.files?.filter((file) => !isImageFile(file) && !message.attachments?.some((attachment) => attachment.title === file.name || attachment.title_link === file.permalink)) ?? []
   const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count || (!webview && thread))
   useLayoutEffect(() => {
     const article = ref.current

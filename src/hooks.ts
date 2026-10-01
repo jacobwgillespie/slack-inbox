@@ -1,24 +1,29 @@
+import { useLiveQuery } from '@tanstack/react-db'
+import { dmCollection, inboxCollection, laterCollection, userCollection } from './collections'
 import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { subscribeToChanges } from './api'
 import type { FormatContext } from './format'
-import { computeCounts, computeVisible, currentItem, useStore, VIEWS, type InboxState } from './store'
+import { computeCounts, computeVisible, useStore, VIEWS, type InboxState } from './store'
 
 export function useFormatContext(): FormatContext {
-  return useStore(useShallow((state) => ({ users: state.users, emoji: state.emoji })))
+  const { data: users } = useLiveQuery(userCollection)
+  const emoji = useStore((state) => state.emoji)
+  return { users: Object.fromEntries(users.map((user) => [user.id, user])), emoji }
 }
 
 function useVisibleSource() {
-  return useStore(
+  const { data: items } = useLiveQuery(inboxCollection)
+  const { data: dms } = useLiveQuery(dmCollection)
+  const { data: later } = useLiveQuery(laterCollection)
+  const controls = useStore(
     useShallow((state) => ({
-      items: state.items,
-      directMessages: state.directMessages,
-      later: state.later,
       muted: state.muted,
       view: state.view,
       session: state.session,
     })),
   )
+  return { ...controls, items: Object.fromEntries(items.map((row) => [row.id, row])), directMessages: Object.fromEntries(dms.map((row) => [row.id, row])), later: Object.fromEntries(later.map((row) => [row.id, row])) }
 }
 
 export function useVisibleItems() {
@@ -32,7 +37,12 @@ export function useViewCounts() {
 }
 
 export function useCurrentItem() {
-  return useStore(currentItem)
+  const source = useVisibleSource()
+  const id = useStore((state) => state.selectedId)
+  const history = useStore((state) => id ? state.histories[id]?.item : undefined)
+  if (!id) return undefined
+  if (source.view === 'dms') return window.slackDesktop ? source.directMessages[id] : history ?? source.directMessages[id]
+  return source.view === 'later' ? source.later[id] : source.items[id]
 }
 
 type Binding = (state: InboxState, event: KeyboardEvent) => void

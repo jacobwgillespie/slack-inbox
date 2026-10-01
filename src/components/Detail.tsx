@@ -1,6 +1,7 @@
+import { prepareConversation } from '../cacheConversationResource'
 import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
-import { initialConversation, retryInitialConversation } from '../webviewConversationResource'
-import type { WebviewConversation } from '../slack/webview'
+import { eq, useLiveQuery } from '@tanstack/react-db'
+import { dmCollection } from '../collections'
 import type { InboxItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
@@ -44,14 +45,14 @@ function DeferredDetail() {
 }
 
 function DirectMessageDetail({ id, active }: { id: string; active: boolean }) {
-  const item = useStore((state) => window.slackDesktop ? state.directMessages[id] : state.histories[id]?.item ?? state.directMessages[id])
-  const [, retry] = useState(0)
-  const initial = active && window.slackDesktop ? use(initialConversation(id)) : undefined
-  if (initial?.error) return <section className="detail detail-empty"><p className="muted">{initial.error}</p><button onClick={() => { retryInitialConversation(id); retry((value) => value + 1) }}>Retry</button></section>
-  return <ConversationDetail item={item} view="dms" initial={initial?.snapshot} />
+  if (active && window.slackDesktop) use(prepareConversation(id))
+  const { data } = useLiveQuery({ query: (q) => q.from({ dm: dmCollection }).where(({ dm }) => eq(dm.id, id)), queryKey: [id] })
+  const history = useStore((state) => state.histories[id]?.item)
+  const item = window.slackDesktop ? data[0] : history ?? data[0]
+  return <ConversationDetail item={item} view="dms" />
 }
 
-function ConversationDetail({ item, view, initial }: { item?: InboxItem; view: View; initial?: WebviewConversation }) {
+function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const headerRef = useRef<HTMLElement>(null)
   const context = useFormatContext()
   const session = useStore((state) => state.session)
@@ -145,7 +146,7 @@ function ConversationDetail({ item, view, initial }: { item?: InboxItem; view: V
           </button>
         </div>
       </header>
-      <MessageList item={item} dms={view === 'dms'} initial={initial} />
+      <MessageList item={item} dms={view === 'dms'} />
       <Composer item={item} />
     </section>
   )

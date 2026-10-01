@@ -2,12 +2,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('slackDesktop', {
   platform: process.platform,
-  openConversation: (channel: string) => ipcRenderer.invoke('slack:conversation-open', channel),
-  readConversation: (channel: string, direction?: 'older' | 'latest') => ipcRenderer.invoke('slack:conversation-read', channel, direction),
-  onConversationChange: (callback: (channel: string) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, channel: string) => callback(channel)
-    ipcRenderer.on('slack:timeline-changed', listener)
-    return () => ipcRenderer.removeListener('slack:timeline-changed', listener)
+  readCache: (channel?: string, options?: { before?: string; after?: string }) => ipcRenderer.invoke('slack:cache-read', channel, options),
+  watchConversations: (channels: string[], selected?: string) => ipcRenderer.invoke('slack:cache-watch', channels, selected),
+  refreshConversation: (channel: string, older = false) => ipcRenderer.invoke('slack:cache-refresh', channel, older),
+  onCacheChange: (callback: (channel?: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, channel?: string) => callback(channel)
+    ipcRenderer.on('slack:cache-changed', listener)
+    return () => ipcRenderer.removeListener('slack:cache-changed', listener)
   },
   readImage: (source: string) => ipcRenderer.invoke('slack:conversation-image', source),
   showSlack: (channel?: string) => ipcRenderer.invoke('slack:show', channel),

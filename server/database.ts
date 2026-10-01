@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { compareTs } from '../src/slack/timestamps.ts'
+import type { CachedConversation } from '../src/slack/dm-cache.ts'
+import type { WebviewConversation, WebviewMessage } from '../src/slack/webview.ts'
 import type {
   Classification,
   ClassificationLabel,
@@ -55,6 +57,14 @@ const SCHEMA = `
     newest TEXT NOT NULL,
     PRIMARY KEY (conversation_id, oldest)
   );
+  CREATE TABLE IF NOT EXISTS webview_history (
+    channel TEXT PRIMARY KEY,
+    complete INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    error TEXT,
+    oldest TEXT,
+    newest TEXT
+  );
   CREATE TABLE IF NOT EXISTS threads (
     conversation_id TEXT NOT NULL,
     thread_ts TEXT NOT NULL,
@@ -95,6 +105,8 @@ const SCHEMA = `
 `
 
 const COLUMN_MIGRATIONS = [
+  { table: 'webview_history', column: 'oldest', definition: 'TEXT' },
+  { table: 'webview_history', column: 'newest', definition: 'TEXT' },
   { table: 'conversations', column: 'is_muted', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'conversations', column: 'latest_ts', definition: 'TEXT' },
 ]
@@ -226,6 +238,7 @@ export class Database {
         'files',
         'image_previews',
         'history_ranges',
+        'webview_history',
         'saved_items',
         'threads',
         'classifications',
@@ -721,7 +734,47 @@ export class Database {
   }
 
   upsertMessages(conversationId: string, messages: Message[]) {
-    this.transaction(() => this.insertMessages(conversationId, messages))
+    this.transaction(() => this.insertMessages(conversationId, messages.map((message) => ({ ...this.message(conversationId, message.ts), ...message }))))
+  }
+
+  cacheWebview(snapshot: WebviewConversation): boolean {
+    let changed = false
+    this.transaction(() => {
+      for (const message of snapshot.messages) {
+        const previous = this.message(snapshot.channel, message.ts)
+        const next = { ...previous, ...message, user: message.user ?? previous?.user, username: message.username ?? previous?.username }
+        if (JSON.stringify(previous) !== JSON.stringify(next)) {
+          this.insertMessages(snapshot.channel, [next])
+          changed = true
+        }
+      }
+      this.db.prepare(`INSERT INTO webview_history (channel, complete, updated_at, oldest, newest) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(channel) DO UPDATE SET complete = MAX(complete, excluded.complete), updated_at = excluded.updated_at, error = NULL, oldest = CASE WHEN oldest IS NULL THEN excluded.oldest WHEN excluded.oldest IS NULL THEN oldest ELSE MIN(oldest, excluded.oldest) END,
+          newest = CASE WHEN newest IS NULL THEN excluded.newest WHEN excluded.newest IS NULL THEN newest ELSE MAX(newest, excluded.newest) END`)
+        .run(snapshot.channel, snapshot.hasMore ? 0 : 1, Date.now(), snapshot.messages[0]?.ts ?? null, snapshot.messages.at(-1)?.ts ?? null)
+    })
+    return changed
+  }
+
+  webviewFailure(channel: string, error: string) {
+    this.db.prepare(`INSERT INTO webview_history (channel, updated_at, error) VALUES (?, 0, ?)
+      ON CONFLICT(channel) DO UPDATE SET error = excluded.error`).run(channel, error)
+  }
+
+  cachedConversation(channel: string, before?: string, after?: string): CachedConversation {
+    const state = this.db.prepare('SELECT complete, updated_at, error, oldest, newest FROM webview_history WHERE channel = ?')
+      .get(channel) as { complete: number; updated_at: number; error: string | null; oldest: string | null; newest: string | null } | undefined
+    const messages = this.historyMessages(channel, after ?? '0', before, after ? -1 : 101) as WebviewMessage[]
+    const oldest = this.db.prepare(`SELECT MIN(ts) AS ts FROM messages WHERE conversation_id = ? AND ${topLevel()}`)
+      .get(channel) as { ts: string | null }
+    const page = (after ? messages : messages.slice(0, 100)).reverse()
+    return { channel, messages: page, hasMore: (!after && messages.length > 100) || !state?.complete || Boolean(after && this.historyMessages(channel, '0', after, 1).length),
+      collected: Boolean(state?.updated_at), complete: Boolean(state?.complete), newest: state?.newest ?? undefined, updatedAt: state?.updated_at, oldest: state?.oldest ?? oldest.ts ?? undefined, error: state?.error ?? undefined, syncing: false }
+  }
+
+  webviewImageKnown(source: string): boolean {
+    return Boolean(this.db.prepare(`SELECT 1 FROM messages m, json_each(m.data, '$.images') i
+      WHERE json_extract(i.value, '$.src') = ? LIMIT 1`).get(source))
   }
 
   file(id: string): SlackFile | undefined {

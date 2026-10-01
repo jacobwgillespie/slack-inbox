@@ -19,6 +19,29 @@ export function ItemList() {
   const items = useVisibleItems()
   const view = useStore((state) => state.view)
   const status = useStore((state) => state.status)
+  const selected = useStore((state) => state.selectedId)
+  const listRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const bridge = window.slackDesktop
+    const list = listRef.current
+    if (!bridge || !list || view !== 'dms') return
+    const visible = new Set<string>()
+    let timer: ReturnType<typeof setTimeout>
+    const watch = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => void bridge.watchConversations([...visible], selected).catch(console.error), 80)
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const id = (entry.target as HTMLElement).dataset.conversationId!
+        if (entry.isIntersecting) visible.add(id)
+        else visible.delete(id)
+      }
+      watch()
+    }, { root: list, rootMargin: '150px 0px' })
+    for (const row of list.querySelectorAll('[data-conversation-id]')) observer.observe(row)
+    return () => { clearTimeout(timer); observer.disconnect(); void bridge.watchConversations([]).catch(console.error) }
+  }, [view, selected, items.map((item) => item.id).join(',')])
 
   if (!items.length) {
     const empty = EMPTY_STATES[view]
@@ -37,7 +60,7 @@ export function ItemList() {
   }
 
   return (
-    <section className="item-list" aria-label="Conversations">
+    <section ref={listRef} className="item-list" aria-label="Conversations">
       <ul>
         {items.map((item) => (
           <ItemRow key={item.id} item={item} />
@@ -83,7 +106,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const className = ['item-row', selected && 'selected', checked && 'checked'].filter(Boolean).join(' ')
 
   return (
-    <li ref={ref} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
+    <li ref={ref} data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
       {view !== 'dms' && <button
         className="done-button"
         title={view === 'later' ? 'Mark complete (E)' : 'Mark as read (E)'}

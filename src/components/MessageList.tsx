@@ -3,10 +3,9 @@ import { isSameAuthorGroup } from '../format'
 import type { InboxItem, Message } from '../slack/types'
 import { useStore } from '../store'
 import { useTimestampReveal } from '../useTimestampReveal'
-import { useWebviewConversation } from '../useWebviewConversation'
+import { useCachedConversation } from '../useCachedConversation'
 import { MessageView } from './Message'
 import { ArrowUpIcon } from './Icons'
-import type { WebviewConversation } from '../slack/webview'
 
 function messageDay(ts: string): string {
   const date = new Date(Number(ts) * 1000)
@@ -20,9 +19,9 @@ function messageDay(ts: string): string {
   })
 }
 
-export function MessageList({ item, dms, initial }: { item: InboxItem; dms: boolean; initial?: WebviewConversation }) {
+export function MessageList({ item, dms }: { item: InboxItem; dms: boolean }) {
   const fromWebview = dms && Boolean(window.slackDesktop)
-  const webview = useWebviewConversation(item.id, fromWebview, initial)
+  const webview = useCachedConversation(item.id, fromWebview)
   const history = useStore((state) => state.histories[item.id])
   const loadHistory = useStore((state) => state.loadHistory)
   const ref = useRef<HTMLDivElement>(null)
@@ -80,7 +79,7 @@ export function MessageList({ item, dms, initial }: { item: InboxItem; dms: bool
   }, [dms])
 
   const showEarlier = () => {
-    if (!webview.snapshot?.hasMore || webview.loadingOlder || webview.error) return
+    if (!webview.snapshot?.hasMore || webview.loadingOlder) return
     if (ref.current) {
       position.current.atBottom = false
       rememberPosition(ref.current)
@@ -157,8 +156,8 @@ export function MessageList({ item, dms, initial }: { item: InboxItem; dms: bool
               )}
               {fromWebview && (
                 <div className="history-status" role="status">
-                  {webview.error ? <span className="scan-error">{webview.error}</span> : !webview.snapshot ? 'Reading Slack webview…' : (
-                    <span>{webview.loadingOlder ? 'Loading earlier messages…' : !webview.snapshot.hasMore ? 'Beginning of conversation' : `From Slack webview · ${messages.length} observed messages`}</span>
+                  {webview.error ? <><span className="scan-error">{webview.error}</span><button className="link-button" onClick={() => void window.slackDesktop?.refreshConversation(item.id)}>Retry sync</button></> : !webview.snapshot ? 'Loading cached conversation…' : (
+                    <span>{webview.loadingOlder ? 'Loading earlier messages…' : !webview.snapshot.hasMore ? 'Beginning of conversation' : webview.snapshot.syncing ? 'Syncing earlier messages…' : ''}</span>
                   )}
                 </div>
               )}

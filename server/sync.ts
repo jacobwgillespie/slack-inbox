@@ -178,6 +178,8 @@ export class SyncEngine {
     return () => this.listeners.delete(listener)
   }
 
+  webviewChanged() { this.changed() }
+
   requestSync() {
     if (this.stopped) return
     if (this.running) {

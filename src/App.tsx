@@ -1,3 +1,4 @@
+import { useCacheSync } from './useCachedConversation'
 import { DesktopSlack } from './components/DesktopSlack'
 import { openDesktopSlack } from './desktop'
 import { Avatar } from './components/Avatar'
@@ -16,6 +17,7 @@ export function App() {
   const helpOpen = useStore((state) => state.helpOpen)
   const session = useStore((state) => state.session)
   const self = useStore((state) => (state.session ? state.users[state.session.userId] : undefined))
+  useCacheSync()
   useInboxSync()
   useKeyboardShortcuts()
   useSelectionRepair()

@@ -8,7 +8,7 @@ import { SyncEngine } from '../server/sync.ts'
 import { localApi } from '../server/routes.ts'
 import { configuredSession } from './configured-session.ts'
 import { BrowserSignin } from './browser-signin.ts'
-import { readConversation, scrollConversation } from './conversation.ts'
+import { DmCollector } from './dm-collector.ts'
 import { observeSlack } from './slack-session.ts'
 
 app.setName('Slack Inbox')
@@ -66,6 +66,13 @@ async function start() {
     preload: join(__dirname, 'slack-preload.cjs'),
     session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false,
   } })
+  const collectorView = new WebContentsView({ webPreferences: {
+    preload: join(__dirname, 'slack-preload.cjs'), additionalArguments: ['--slack-background-collector'],
+    session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false,
+  } })
+  collectorView.webContents.setUserAgent(slackSession.getUserAgent())
+  collectorView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  window.contentView.addChildView(collectorView)
   slack.webContents.setUserAgent(slackSession.getUserAgent())
   window.contentView.addChildView(slack)
   window.contentView.addChildView(ui)
@@ -75,12 +82,15 @@ async function start() {
     const { width, height } = window.getContentBounds()
     const toolbarHeight = process.platform === 'darwin' ? 68 : 44
     ui.setBounds({ x: 0, y: 0, width, height: slackVisible ? toolbarHeight : height })
-    slack.setBounds({ x: 0, y: toolbarHeight, width, height: Math.max(0, height - toolbarHeight) })
+    const bounds = { x: 0, y: toolbarHeight, width, height: Math.max(0, height - toolbarHeight) }
+    slack.setBounds(bounds)
+    collectorView.setBounds(bounds)
   }
   let slackVisible = false
   const showSlack = async (channel?: string) => {
     const team = database.getMetadata<{ teamId: string }>('session')?.teamId
     slackVisible = true
+    slack.webContents.send('slack:read-markers-enabled', true)
     window.contentView.addChildView(ui)
     slack.setVisible(true)
     layout()
@@ -97,68 +107,62 @@ async function start() {
     if (channel !== undefined && (typeof channel !== 'string' || !/^[CDG][A-Z0-9]+$/.test(channel))) throw new Error('Invalid conversation')
     return showSlack(channel as string | undefined)
   })
-  let selectedChannel: string | undefined
-  const imageSources = new Set<string>()
-  const imageCache = new Map<string, string>()
-  const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[DG][A-Z0-9]+$/.test(channel)
+  const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[CDG][A-Z0-9]+$/.test(channel)
+  const cacheChanged = (channel?: string) => {
+    if (!ui.webContents.isDestroyed()) ui.webContents.send('slack:cache-changed', channel)
+  }
+  const collector = new DmCollector(collectorView.webContents, database, engine, cacheChanged)
+  const unsubscribeCache = engine.subscribe(() => cacheChanged())
+  // Background navigation must not mark conversations read.
+  slackSession.webRequest.onBeforeRequest({ urls: ['https://*.slack.com/api/*'] }, (details, callback) => {
+    const method = new URL(details.url).pathname.split('/').pop()
+    const mark = ['conversations.mark', 'im.mark', 'mpim.mark', 'channels.mark', 'groups.mark'].includes(method ?? '')
+    callback({ cancel: mark && (details.webContentsId === collectorView.webContents.id || (details.webContentsId === slack.webContents.id && !slackVisible)) })
+  })
   ipcMain.on('slack:timeline-changed', (event, channel: unknown) => {
-    if (event.sender !== slack.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') || !validChannel(channel) || selectedChannel !== channel) return
-    if (!ui.webContents.isDestroyed()) ui.webContents.send('slack:timeline-changed', channel)
+    if (event.sender !== collectorView.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') || !validChannel(channel)) return
+    collector.notify(channel)
   })
-  ipcMain.handle('slack:conversation-open', async (event, channel: unknown) => {
-    if (!ownRenderer(event) || !validChannel(channel)) throw new Error('Invalid conversation')
-    const team = database.getMetadata<{ teamId: string }>('session')?.teamId
-    if (!team) throw new Error('Slack is not signed in.')
-    selectedChannel = channel
-    const destination = `https://app.slack.com/client/${team}/${channel}`
-    if (slack.webContents.getURL() !== destination) {
-      try {
-        const navigated = await slack.webContents.executeJavaScript(`(() => {
-          const destination = ${JSON.stringify(destination)};
-          const link = [...document.querySelectorAll('.p-channel_sidebar a[href]')].find(link => link.href.split('?')[0] === destination);
-          if (!link) return false;
-          link.click();
-          return true;
-        })()`)
-        if (!navigated && selectedChannel === channel) await slack.webContents.loadURL(destination)
-      }
-      catch (error) { if (selectedChannel === channel) throw error }
-    }
+  ipcMain.handle('slack:cache-read', (event, channel: unknown, options: { before?: string; after?: string } | null = {}) => {
+    if (!ownRenderer(event) || (channel != null && !validChannel(channel))) throw new Error('Invalid conversation')
+    options ??= {}
+    if ([options.before, options.after].some((ts) => ts !== undefined && (typeof ts !== 'string' || !/^\d+\.\d+$/.test(ts)))) throw new Error('Invalid message cursor')
+    const channels = channel ? [channel] : database.directMessages().map((dm) => dm.id)
+    return channels.map((id) => ({ ...database.cachedConversation(id, options.before, options.after), syncing: collector.isSyncing(id) }))
   })
-  ipcMain.handle('slack:conversation-read', async (event, channel: unknown, direction: unknown) => {
-    if (!ownRenderer(event) || !validChannel(channel) || selectedChannel !== channel) throw new Error('Conversation is no longer active.')
-    if (direction !== undefined && direction !== 'older' && direction !== 'latest') throw new Error('Invalid scroll direction')
-    if (slack.webContents.getURL().split('/')[5] !== channel) return { channel, messages: [], ready: false, hasMore: false }
-    if (direction) await scrollConversation(slack.webContents, direction)
-    const snapshot = await readConversation(slack.webContents)
-    if (selectedChannel !== channel || snapshot.channel !== channel) throw new Error('Conversation changed.')
-    for (const message of snapshot.messages) for (const image of message.images ?? []) imageSources.add(image.src)
-    return snapshot
+  ipcMain.handle('slack:cache-watch', (event, channels: unknown, selected: unknown) => {
+    if (!ownRenderer(event) || !Array.isArray(channels) || !channels.every(validChannel) || (selected !== undefined && !validChannel(selected))) throw new Error('Invalid conversations')
+    collector.watch(channels, selected as string | undefined)
+  })
+  ipcMain.handle('slack:cache-refresh', (event, channel: unknown, older: unknown) => {
+    if (!ownRenderer(event) || !validChannel(channel) || typeof older !== 'boolean') throw new Error('Invalid conversation')
+    collector.refresh(channel, older)
   })
   ipcMain.handle('slack:conversation-image', async (event, source: unknown) => {
-    if (!ownRenderer(event) || typeof source !== 'string' || !imageSources.has(source)) throw new Error('Image is not in the active Slack timeline.')
+    if (!ownRenderer(event) || typeof source !== 'string' || !database.webviewImageKnown(source)) throw new Error('Image is not in the cached Slack messages.')
     const url = new URL(source)
     if (url.protocol !== 'https:' || !['slack.com', 'slack-edge.com', 'slack-files.com'].some((host) => url.hostname === host || url.hostname.endsWith('.' + host))) throw new Error('Unsupported image host')
-    const cached = imageCache.get(source)
-    if (cached) return cached
+    const cached = database.imagePreview(source)
+    if (cached) return `data:${cached.contentType};base64,${Buffer.from(cached.data).toString('base64')}`
     const response = await slackSession.fetch(source, { credentials: 'include' })
     const contentType = response.headers.get('content-type')?.split(';')[0] ?? ''
     if (!response.ok || !/^image\/(png|jpeg|gif|webp|avif)$/.test(contentType)) throw new Error('Image preview unavailable')
     const bytes = Buffer.from(await response.arrayBuffer())
     if (bytes.length > 8 * 1024 * 1024) throw new Error('Image is too large to preview')
     const image = `data:${contentType};base64,${bytes.toString('base64')}`
-    if (imageCache.size >= 40) imageCache.delete(imageCache.keys().next().value!)
-    imageCache.set(source, image)
+    database.cacheImagePreview(source, contentType, bytes)
     return image
   })
   ipcMain.handle('slack:signin', async (event) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
     await browserSignin.start()
     await slack.webContents.loadURL('https://app.slack.com/client')
+    await collectorView.webContents.loadURL('https://app.slack.com/client')
   })
   ipcMain.handle('slack:hide', (event) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
     slackVisible = false
+    slack.webContents.send('slack:read-markers-enabled', false)
     layout()
     window.contentView.addChildView(ui)
     ui.webContents.focus()
@@ -181,11 +185,16 @@ async function start() {
   const savedTeam = configuredTeam || database.getMetadata<{ teamId: string }>('session')?.teamId
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })
+  slack.webContents.on('dom-ready', () => slack.webContents.send('slack:read-markers-enabled', slackVisible))
   slack.webContents.on('did-finish-load', () => { if (!slackVisible) ui.webContents.focus() })
+  if (savedTeam) void collectorView.webContents.loadURL(`https://app.slack.com/client/${savedTeam}`).catch(() => {})
   await ui.webContents.loadURL(origin)
   engine.start()
   app.on('before-quit', () => { browserSignin.stop() })
   window.on('closed', () => {
+    collector.stop()
+    unsubscribeCache()
+    if (!collectorView.webContents.isDestroyed()) collectorView.webContents.close()
     if (!slack.webContents.isDestroyed()) slack.webContents.close()
     if (!ui.webContents.isDestroyed()) ui.webContents.close()
     server.close()
