@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { conversationLabel, formatListTime, messageSummary, authorName } from '../format'
 import { useFormatContext, useVisibleItems } from '../hooks'
 import { inboxStore, latestTs, mentionsSelf, isConversationView, useStore, type View } from '../store'
@@ -23,6 +23,10 @@ export function ItemList() {
   const status = useStore((state) => state.status)
   const selected = useStore((state) => state.selectedId)
   const listRef = useRef<HTMLElement>(null)
+  const [scrolled, setScrolled] = useState(false)
+  useLayoutEffect(() => {
+    setScrolled((listRef.current?.scrollTop ?? 0) > 0)
+  }, [view, items.length])
   useEffect(() => {
     const bridge = window.slackDesktop
     const list = listRef.current
@@ -48,7 +52,7 @@ export function ItemList() {
   if (!items.length) {
     const empty = EMPTY_STATES[view]
     return (
-      <section className="item-list item-list-empty">
+      <section ref={listRef} className="item-list item-list-empty">
         {status === 'loading' ? (
           <p className="muted">Loading conversations…</p>
         ) : (
@@ -62,7 +66,7 @@ export function ItemList() {
   }
 
   return (
-    <section ref={listRef} className="item-list" aria-label="Conversations" tabIndex={-1}>
+    <section ref={listRef} className={`item-list${scrolled ? ' scrolled' : ''}`} onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)} aria-label="Conversations" tabIndex={-1}>
       <ul>
         {items.map((item) => (
           <ItemRow key={item.id} item={item} />
