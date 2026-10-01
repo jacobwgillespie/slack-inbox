@@ -543,6 +543,7 @@ kbd {
 }
 
 .detail {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -906,8 +907,7 @@ kbd {
 }
 
 .message:hover .message-actions,
-.message:focus-within .message-actions,
-.message.focused .message-actions {
+.message:focus-within .message-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -939,11 +939,6 @@ kbd {
 
 .message.continues > .message-bubble {
   border-bottom-left-radius: 6px;
-}
-
-.detail.reading .message.focused > .message-bubble {
-  border-color: #727272;
-  background: #303030;
 }
 
 .message-gutter {
@@ -1185,8 +1180,7 @@ a.message-time:hover {
   visibility: hidden;
 }
 
-.message:hover .link-button.subtle,
-.message.focused .link-button.subtle {
+.message:hover .link-button.subtle {
   visibility: visible;
 }
 
@@ -1213,6 +1207,11 @@ a.message-time:hover {
 
 .thread-reply .message-gutter {
   width: 24px;
+}
+
+.conversation-composer {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .composer {
@@ -1301,7 +1300,8 @@ a:focus-visible {
 }
 
 .toast {
-  position: fixed;
+  position: absolute;
+  z-index: 5;
   bottom: 20px;
   left: 50%;
   display: flex;
@@ -1313,7 +1313,11 @@ a:focus-visible {
   background: var(--text);
   box-shadow: var(--shadow);
   transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
+  max-width: calc(100% - 32px);
+}
+
+.conversation-composer .toast {
+  bottom: calc(100% + 8px);
 }
 
 .toast .link-button {

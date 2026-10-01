@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { authorAvatar, authorName, formatMessageTime, renderEmoji, renderMrkdwn, isSameAuthorGroup } from '../format'
 import { useFormatContext } from '../hooks'
 import { inboxStore, threadKey, useStore } from '../store'
@@ -20,14 +20,9 @@ export function MessageView({ channel, message, continued, continues = false, we
   const session = useStore((state) => state.session)
   const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
-  const focused = useStore((state) => state.mode === 'reading' && state.focusedTs === message.ts)
   const thread = useStore((state) => state.threads[threadKey(channel, message.ts)])
-  const { focusMessage, toggleThread, replyInThread } = inboxStore.getState()
+  const { toggleThread, replyInThread } = inboxStore.getState()
   const ref = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused])
 
   const name = authorName(message, context.users)
   const own = Boolean(session && message.user === session.userId)
@@ -56,7 +51,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   }, [hasBubble, images.length, webviewImages.length])
 
   const showName = !compact && !continued && !(group && own)
-  const className = ['message', continued && 'continued', continues && 'continues', focused && 'focused', own && 'message-own'].filter(Boolean).join(' ')
+  const className = ['message', continued && 'continued', continues && 'continues', own && 'message-own'].filter(Boolean).join(' ')
 
   const actions = (
         <div className="message-actions" role="toolbar" aria-label={`Actions for ${name}'s message`}>
@@ -66,7 +61,6 @@ export function MessageView({ channel, message, continued, continues = false, we
             title="Reply in thread (T)"
             onClick={(event) => {
               event.stopPropagation()
-              focusMessage(message.ts)
               replyInThread(message.ts)
             }}
           >
@@ -82,7 +76,7 @@ export function MessageView({ channel, message, continued, continues = false, we
           <Avatar url={authorAvatar(message, context.users)} name={name} size="small" />
         </div>
       )}
-      <article ref={ref} className={className} onClick={() => focusMessage(message.ts)} aria-label={`${name}, ${formatMessageTime(message.ts)}`}>
+      <article ref={ref} className={className} aria-label={`${name}, ${formatMessageTime(message.ts)}`}>
         {showName && (group || !hasBubble) && <div className="message-author group-message-author">{name}</div>}
         {hasBubble && <div className="message-body message-bubble">
           {showName && !group && (

@@ -8,7 +8,6 @@ import { HelpOverlay } from './components/HelpOverlay'
 import { ExternalIcon } from './components/Icons'
 import { ItemList } from './components/ItemList'
 import { SetupScreen } from './components/SetupScreen'
-import { Toast } from './components/Toast'
 import { useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
 import { useStore } from './store'
 
@@ -45,7 +44,6 @@ export function App() {
         </aside>
         <Detail />
       </main>
-      <Toast />
       {helpOpen && <HelpOverlay />}
     </div>
   )

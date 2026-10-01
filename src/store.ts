@@ -74,7 +74,6 @@ export interface InboxState {
   mode: Mode
   selectedId?: string
   checked: Record<string, true>
-  focusedTs?: string
   threadTarget?: string
   threads: Record<string, ThreadState>
   toast?: Toast
@@ -102,7 +101,6 @@ export interface InboxState {
   clearThreadTarget: () => void
   send: (text: string) => Promise<boolean>
   toggleThread: (ts?: string) => void
-  focusMessage: (ts: string) => void
   openInSlack: () => void
   toggleHelp: () => void
   dismissToast: () => void
@@ -302,7 +300,6 @@ export const inboxStore = create<InboxState>()(
         const item = id ? currentItem({ ...state, selectedId: id }) : undefined
         return {
           selectedId: id,
-          focusedTs: isConversationView(state.view) ? item?.messages.at(-1)?.ts : item?.messages[0]?.ts,
           threadTarget: undefined,
           mode: item ? state.mode : ('list' as const),
         }
@@ -598,13 +595,6 @@ export const inboxStore = create<InboxState>()(
 
         move: (delta) => {
           const state = get()
-          if (state.mode === 'reading') {
-            const messages = currentItem(state)?.messages ?? []
-            const index = messages.findIndex((message) => message.ts === state.focusedTs)
-            const next = messages[Math.min(messages.length - 1, Math.max(0, index + delta))]
-            if (next) set({ focusedTs: next.ts })
-            return
-          }
           const visible = computeVisible(state)
           const index = visible.findIndex((item) => item.id === state.selectedId)
           const next = visible[Math.min(visible.length - 1, Math.max(0, index + delta))]
@@ -780,7 +770,7 @@ export const inboxStore = create<InboxState>()(
           const state = get()
           const item = currentItem(state)
           if (!item) return
-          const targetTs = ts ?? (state.mode === 'reading' ? state.focusedTs : undefined) ?? latestTs(item)
+          const targetTs = ts ?? latestTs(item)
           const message = findMessage(item, targetTs)
           set({
             threadTarget: message?.thread_ts ?? targetTs,
@@ -815,8 +805,9 @@ export const inboxStore = create<InboxState>()(
         toggleThread: (ts) => {
           const state = get()
           const item = currentItem(state)
-          const targetTs = ts ?? state.focusedTs
-          if (!item || !targetTs) return
+          if (!item) return
+          const targetTs = ts ?? latestTs(item)
+          if (!targetTs) return
           const message = findMessage(item, targetTs)
           if (!message?.reply_count) return
           const key = threadKey(item.conversation.id, targetTs)
@@ -839,13 +830,11 @@ export const inboxStore = create<InboxState>()(
             })
         },
 
-        focusMessage: (ts) => set({ focusedTs: ts, mode: 'reading' }),
-
         openInSlack: () => {
           const state = get()
           const item = currentItem(state)
           if (!item || !state.session) return
-          const ts = state.mode === 'reading' ? state.focusedTs : latestTs(item)
+          const ts = latestTs(item)
           if (!openDesktopSlack(item.conversation.id)) window.open(permalink(state.session, item.conversation.id, ts), '_blank', 'noopener')
         },
 

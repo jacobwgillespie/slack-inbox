@@ -120,14 +120,14 @@ Cached history and archive markers survive app restarts. Background sync collect
 
 | Key             | Action                                                   |
 | --------------- | -------------------------------------------------------- |
-| `J` / `K`       | Next or previous conversation (message while reading)    |
-| `Enter` / `O`   | Read conversation; while reading, show thread replies    |
+| `J` / `K`       | Next or previous conversation    |
+| `Enter` / `O`   | Read conversation    |
 | `Esc`           | Return to list, clear selection, or cancel thread reply  |
 | `E`             | Mark done and read; in Done, restore to inbox           |
 | `M`             | Mute or unmute                                           |
 | `Z`             | Undo the last action                                     |
 | `R`             | Reply in the conversation                                |
-| `T`             | Reply in the thread of the current message               |
+| `T`             | Reply in the thread of the latest message               |
 | `U`             | Open in Slack                                            |
 | `Tab` / `1`–`3` | Switch between DMs, Channels, and Done                    |
 | `Shift+R`       | Refresh                                                  |

@@ -4,9 +4,9 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
   {
     title: 'Navigate',
     shortcuts: [
-      [['J', '↓'], 'Next conversation, or next message while reading'],
-      [['K', '↑'], 'Previous conversation, or previous message while reading'],
-      [['Enter', 'O'], 'Read conversation, or show thread replies while reading'],
+      [['J', '↓'], 'Next conversation'],
+      [['K', '↑'], 'Previous conversation'],
+      [['Enter', 'O'], 'Read conversation'],
       [['Esc'], 'Return to list, clear selection, or cancel'],
       [['Tab', '⇧ Tab'], 'Next or previous view'],
       [['1', '2', '3'], 'DMs, Channels, Done'],
@@ -24,7 +24,7 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
     title: 'Respond',
     shortcuts: [
       [['R'], 'Reply in conversation'],
-      [['T'], 'Reply in thread of current message'],
+      [['T'], 'Reply in thread of latest message'],
       [['U'], 'Open in Slack'],
       [['⇧ R'], 'Refresh'],
       [['?'], 'Show or hide this list'],

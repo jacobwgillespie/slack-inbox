@@ -9,11 +9,12 @@ import { useCurrentItem, useFormatContext } from '../hooks'
 import { inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
 import { Composer } from './Composer'
+import { Toast } from './Toast'
 import { MessageList } from './MessageList'
 import { ArrowLeftIcon, CheckIcon, ClockIcon, ExternalIcon, MuteIcon, SwapIcon } from './Icons'
 
 export function Detail() {
-  return <Suspense fallback={<section className="detail detail-empty"><p className="muted">Opening conversation…</p></section>}><DeferredDetail /></Suspense>
+  return <Suspense fallback={<section className="detail detail-empty"><p className="muted">Opening conversation…</p><Toast /></section>}><DeferredDetail /></Suspense>
 }
 
 function DeferredDetail() {
@@ -77,6 +78,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
       <section className="detail detail-empty">
         <header className="detail-header" />
         <p className="muted">Select a conversation to read it.</p>
+        <Toast />
       </section>
     )
   }
@@ -149,7 +151,10 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
         </div>
       </header>
       <MessageList item={item} fullHistory={isConversationView(view)} />
-      <Composer item={item} />
+      <div className="conversation-composer">
+        <Toast />
+        <Composer item={item} />
+      </div>
     </section>
   )
 }
