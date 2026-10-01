@@ -80,8 +80,9 @@ function isEditable(target: EventTarget | null) {
   return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
 }
 
-export function useKeyboardShortcuts() {
+export function useKeyboardShortcuts(enabled = true) {
   useEffect(() => {
+    if (!enabled) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || isEditable(event.target)) return
       const state = useStore.getState()
@@ -93,7 +94,7 @@ export function useKeyboardShortcuts() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [enabled])
 }
 
 export function useInboxSync() {

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useCacheSync } from './useCachedConversation'
 import { DesktopSlack } from './components/DesktopSlack'
 import { Detail } from './components/Detail'
@@ -7,18 +8,30 @@ import { SidebarFooter } from './components/SidebarFooter'
 import { ItemList } from './components/ItemList'
 import { ImageLightbox } from './components/ImageLightbox'
 import { SetupScreen } from './components/SetupScreen'
+import { OnboardingScreen } from './components/OnboardingScreen'
 import { useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
 import { useStore } from './store'
 
 export function App() {
   const status = useStore((state) => state.status)
   const helpOpen = useStore((state) => state.helpOpen)
+  const [onboardingComplete, setOnboardingComplete] = useState(
+    () => localStorage.getItem('slack-inbox-onboarding-complete') === 'true',
+  )
   useCacheSync()
   useInboxSync()
-  useKeyboardShortcuts()
+  useKeyboardShortcuts(onboardingComplete)
   useSelectionRepair()
 
   if (status === 'error') return <><DesktopSlack /><SetupScreen /></>
+
+  if (!onboardingComplete) return <div className="app">
+    <DesktopSlack />
+    <OnboardingScreen onGetStarted={() => {
+      localStorage.setItem('slack-inbox-onboarding-complete', 'true')
+      setOnboardingComplete(true)
+    }} />
+  </div>
 
   return (
     <div className="app">
