@@ -11,33 +11,22 @@ export function SetupScreen() {
 
   return (
     <main className="setup">
-      <h1>{needsToken ? 'Connect Slack' : 'Could not load Slack'}</h1>
-      {error && <p className="setup-error">{error.message}</p>}
-      {error?.needed && (
-        <p>
-          The token is missing the <code>{error.needed}</code> scope. Add it to the Slack app and reinstall the app.
-        </p>
-      )}
-      {window.slackDesktop ? <>
-        <p>Sign in to Slack in the desktop window. Your session stays in this app's local profile.</p>
-        <button className="button primary" onClick={() => openDesktopSlack()}>Open Slack to sign in</button>
-        <p>For SSO with a passkey, use Chrome. Complete the login there, including a security key or phone QR code, and this app will resume automatically.</p>
-        <BrowserSigninButton />
-      </> : <ol>
-        <li>
-          Go to <a href="https://api.slack.com/apps?new_app=1">api.slack.com/apps</a> and create an app from a manifest.
-          Use the contents of <code>slack-app-manifest.json</code>.
-        </li>
-        <li>Install the app to your workspace.</li>
-        <li>
-          Copy the User OAuth Token (it starts with <code>xoxp-</code>) into <code>.env.local</code> as{' '}
-          <code>SLACK_USER_TOKEN</code>.
-        </li>
-        <li>Restart the development server.</li>
-      </ol>}
-      <button className="button primary" onClick={refresh}>
-        Try again
-      </button>
+      <div className="setup-content">
+        <img className="setup-app-icon" src="/icon.png" alt="" />
+        <h1>{needsToken ? 'Welcome to Slack Inbox' : 'Could not connect to Slack'}</h1>
+        {needsToken ? <p className="setup-intro">A calmer place for your conversations.<br />Read, save for later, and clear what’s handled.</p> : <p className="setup-intro">Please try connecting again.</p>}
+        {!needsToken && error && <p role="alert" className="setup-error">{error.message}</p>}
+        {error?.needed && <p>The token is missing the <code>{error.needed}</code> scope. Add it to the Slack app and reinstall the app.</p>}
+        {window.slackDesktop && needsToken ? <div className="setup-actions">
+          <button className="onboarding-start" onClick={() => openDesktopSlack()}>Sign in to Slack</button>
+          <BrowserSigninButton className="setup-browser-signin" label="Use Chrome for SSO or passkeys" />
+        </div> : needsToken ? <ol>
+          <li>Go to <a href="https://api.slack.com/apps?new_app=1">api.slack.com/apps</a> and create an app from <code>slack-app-manifest.json</code>.</li>
+          <li>Install the app to your workspace.</li>
+          <li>Add the User OAuth Token to <code>.env.local</code> as <code>SLACK_USER_TOKEN</code>.</li>
+          <li>Restart the development server.</li>
+        </ol> : <button className="onboarding-start" onClick={refresh}>Try again</button>}
+      </div>
     </main>
   )
 }

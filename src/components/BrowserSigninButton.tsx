@@ -1,10 +1,10 @@
 import { useState } from 'react'
 
-export function BrowserSigninButton() {
+export function BrowserSigninButton({ className, label = 'Sign in with Chrome / passkey' }: { className?: string; label?: string }) {
   const [waiting, setWaiting] = useState(false)
   const [error, setError] = useState<string>()
   return <>
-    <button disabled={waiting} onClick={async () => {
+    <button className={className} disabled={waiting} onClick={async () => {
       setWaiting(true)
       setError(undefined)
       try {
@@ -16,7 +16,7 @@ export function BrowserSigninButton() {
       } finally {
         setWaiting(false)
       }
-    }}>{waiting ? 'Complete sign-in in Chrome…' : 'Sign in with Chrome / passkey'}</button>
+    }}>{waiting ? 'Complete sign-in in Chrome…' : label}</button>
     {error && <span role="alert">{error}</span>}
   </>
 }

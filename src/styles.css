@@ -1647,14 +1647,34 @@ a:focus-visible {
 }
 
 .setup {
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 64px 16px;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  padding: 96px clamp(32px, 10vw, 160px);
+  background: linear-gradient(90deg, #080808 0%, #080808eb 32%, #08080855 65%, #08080822 100%),
+    url('/backgrounds/moss-island.png') center right / cover no-repeat;
 }
 
+.setup-content { width: 100%; max-width: 420px; }
+.setup-app-icon { width: 72px; height: 72px; margin-bottom: 28px; }
+
 .setup h1 {
-  margin: 0 0 12px;
-  font-size: 22px;
+  margin: 0 0 20px;
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -1px;
+}
+
+.setup-intro { color: var(--text-muted); font-size: 17px; line-height: 1.7; margin: 0 0 36px; }
+.setup-actions { display: grid; gap: 16px; max-width: 320px; }
+.setup-browser-signin { border: 0; padding: 6px 0; background: none; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.setup-browser-signin:hover { color: var(--text); }
+.setup-actions [role="alert"] { color: var(--danger); font-size: 13px; }
+
+@media (max-width: 700px) {
+  .setup { justify-content: center; background-position: center; text-align: center; }
+  .setup-actions { margin-inline: auto; }
 }
 
 .setup-error {
