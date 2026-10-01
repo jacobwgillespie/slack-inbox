@@ -57,7 +57,8 @@ function readTimeline(): WebviewConversation {
     }))
     if (body || images.length || attachments.length) messages.push({ ts, text: body ? text(body).trim() : '', user: author, username: name, images, reactions, attachments })
   }
-  return { channel, messages, ready: true, hasMore: !pane.querySelector('.c-message_list__day_divider__label--start') }
+  const beginning = Boolean(pane.querySelector('.c-message_list__day_divider__label--start, .c-message_list__channel_intro'))
+  return { channel, messages, ready: messages.length > 0 || beginning, hasMore: !beginning }
 }
 
 export async function readConversation(contents: WebContents): Promise<WebviewConversation> {

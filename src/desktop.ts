@@ -6,6 +6,7 @@ declare global {
       platform: string
       openConversation(channel: string): Promise<void>
       readConversation(channel: string, direction?: 'older' | 'latest'): Promise<WebviewConversation>
+      onConversationChange(callback: (channel: string) => void): () => void
       readImage(source: string): Promise<string>
       showSlack(channel?: string): Promise<void>
       signInWithBrowser(): Promise<void>

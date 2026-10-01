@@ -21,7 +21,7 @@ A keyboard-driven inbox for unread Slack messages and a viewer for direct messag
 
 The app needs Node.js 22.13 or later.
 
-React Compiler runs in development and production through Vite's `reactCompilerPreset`, targeting React 19. Components use `useStore` for subscriptions and `inboxStore` for imperative Zustand access. The compiler leaves unsupported functions unoptimized; currently the webview polling hook and browser sign-in button are skipped because they contain `try/finally`.
+React Compiler runs in development and production through Vite's `reactCompilerPreset`, targeting React 19. Components use `useStore` for subscriptions and `inboxStore` for imperative Zustand access. The compiler leaves unsupported functions unoptimized; currently the webview subscription hook and browser sign-in button are skipped because they contain `try/finally`.
 
 A native macOS prototype built with GPUI is in [`gpui/`](gpui/README.md). It works on its own, without this web app.
 
@@ -159,6 +159,6 @@ Sending a reply also marks the conversation as read. In **DMs**, the conversatio
 
 ### Webview DM experiment
 
-In Electron, selecting a DM navigates the background Slack view to that conversation. The message panel reads Slack's rendered timeline over a narrow IPC bridge, without reading SQLite history or making our own history API requests. It polls the DOM every 750 ms while active. Scroll upward at the start of our list, or choose **Show earlier messages**, to scroll Slack's virtualized list and read the resulting rows. **Open in Slack** reveals the underlying conversation for comparison.
+In Electron, selecting a DM navigates the background Slack view to that conversation. The message panel reads Slack's rendered timeline over a narrow IPC bridge, without reading SQLite history or making our own history API requests. A MutationObserver in Slack's isolated preload reports timeline changes, coalesced to one notification per animation frame; only the active panel subscribes. First visits wait for a ready snapshot and image previews through Suspense, with no DOM polling or settling delay. Navigation clicks Slack's existing sidebar link when available, with a page-load fallback for conversations absent from Slack's sidebar. Approaching the top of our timeline automatically scrolls Slack's virtualized list and reads the resulting rows. **Open in Slack** reveals the underlying conversation for comparison.
 
 This is a screen-content experiment: each active panel accumulates the rows observed in Slack in memory, so scrolling back does not discard newer messages. Scroll position is anchored to a message timestamp as older rows and images arrive. These observed messages are not stored in SQLite. The sidebar and user directory still use the existing SQLite sync, and sending still uses our API transport. Rich text, reactions, and image attachment links are extracted from the DOM; complex unfurls, app cards, and thread interactions need further adapters. The browser version continues to use SQLite-backed history.

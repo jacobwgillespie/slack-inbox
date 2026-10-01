@@ -16,16 +16,18 @@ export function useWebviewConversation(channel: string, enabled: boolean, initia
     let queued: 'older' | 'latest' | undefined
     let older: { before?: string; started: number } | undefined
     let signature = ''
-    let timer: ReturnType<typeof setTimeout>
+    let olderTimer: ReturnType<typeof setTimeout> | undefined
+    let dirty = false
     const openedAt = Date.now()
     const read = async (direction?: 'older' | 'latest') => {
       if (cancelled) return
-      if (busy) { if (direction) queued = direction; return }
+      if (busy) { if (direction) queued = direction; else dirty = true; return }
       if (direction === 'older' && older) return
       busy = true
       if (direction === 'older') {
         older = { before: [...observed.current.keys()].sort(compareTs)[0], started: Date.now() }
         setLoadingOlder(true)
+        olderTimer = setTimeout(() => void read(), 2100)
       }
       try {
         const next = await bridge.readConversation(channel, direction)
@@ -53,6 +55,7 @@ export function useWebviewConversation(channel: string, enabled: boolean, initia
         setError(undefined)
         if (older && (!older.before || (messages[0] && compareTs(messages[0].ts, older.before) < 0) || Date.now() - older.started > 2000)) {
           older = undefined
+          clearTimeout(olderTimer)
           setLoadingOlder(false)
         }
       } catch (cause) {
@@ -60,24 +63,24 @@ export function useWebviewConversation(channel: string, enabled: boolean, initia
           if (cause instanceof Error && /Conversation (is no longer active|changed)/.test(cause.message)) return
           setError(cause instanceof Error ? cause.message : 'Could not read the Slack timeline.')
           older = undefined
+          clearTimeout(olderTimer)
           setLoadingOlder(false)
         }
       } finally {
         busy = false
-        if (queued && !cancelled) { const direction = queued; queued = undefined; void read(direction) }
+        if ((queued || dirty) && !cancelled) { const direction = queued; queued = undefined; dirty = false; void read(direction) }
       }
     }
     reader.current = read
-    const poll = async () => {
-      await read()
-      if (!cancelled) timer = setTimeout(poll, 750)
-    }
+    const unsubscribe = bridge.onConversationChange((changed) => {
+      if (changed === channel) void read()
+    })
     setError(undefined)
     setLoadingOlder(false)
-    void bridge.openConversation(channel).then(poll).catch((cause) => {
+    void bridge.openConversation(channel).then(() => read()).catch((cause) => {
       if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not open Slack.')
     })
-    return () => { cancelled = true; clearTimeout(timer); reader.current = async () => {} }
+    return () => { cancelled = true; clearTimeout(olderTimer); unsubscribe(); reader.current = async () => {} }
   }, [channel, enabled])
   return { snapshot, error, loadingOlder, scroll: (direction: 'older' | 'latest') => void reader.current(direction) }
 }

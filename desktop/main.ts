@@ -63,6 +63,7 @@ async function start() {
     preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false,
   } })
   const slack = new WebContentsView({ webPreferences: {
+    preload: join(__dirname, 'slack-preload.cjs'),
     session: slackSession, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false,
   } })
   slack.webContents.setUserAgent(slackSession.getUserAgent())
@@ -100,6 +101,10 @@ async function start() {
   const imageSources = new Set<string>()
   const imageCache = new Map<string, string>()
   const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[DG][A-Z0-9]+$/.test(channel)
+  ipcMain.on('slack:timeline-changed', (event, channel: unknown) => {
+    if (event.sender !== slack.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') || !validChannel(channel) || selectedChannel !== channel) return
+    if (!ui.webContents.isDestroyed()) ui.webContents.send('slack:timeline-changed', channel)
+  })
   ipcMain.handle('slack:conversation-open', async (event, channel: unknown) => {
     if (!ownRenderer(event) || !validChannel(channel)) throw new Error('Invalid conversation')
     const team = database.getMetadata<{ teamId: string }>('session')?.teamId
@@ -107,7 +112,16 @@ async function start() {
     selectedChannel = channel
     const destination = `https://app.slack.com/client/${team}/${channel}`
     if (slack.webContents.getURL() !== destination) {
-      try { await slack.webContents.loadURL(destination) }
+      try {
+        const navigated = await slack.webContents.executeJavaScript(`(() => {
+          const destination = ${JSON.stringify(destination)};
+          const link = [...document.querySelectorAll('.p-channel_sidebar a[href]')].find(link => link.href.split('?')[0] === destination);
+          if (!link) return false;
+          link.click();
+          return true;
+        })()`)
+        if (!navigated && selectedChannel === channel) await slack.webContents.loadURL(destination)
+      }
       catch (error) { if (selectedChannel === channel) throw error }
     }
   })
