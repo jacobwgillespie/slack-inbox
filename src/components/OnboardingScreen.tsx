@@ -1,8 +1,17 @@
+import { useEffect, useRef } from 'react'
 import { CheckIcon, ClockIcon, ThreadIcon } from './Icons'
 
 export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const element = dialog.current!
+    element.showModal()
+    return () => element.close()
+  }, [])
+
   return (
-    <main className="onboarding" aria-labelledby="onboarding-title">
+    <dialog ref={dialog} className="onboarding" aria-labelledby="onboarding-title"
+      onCancel={(event) => { event.preventDefault(); onGetStarted() }}>
       <div className="onboarding-content">
         <div className="onboarding-mark"><ThreadIcon /></div>
         <p className="onboarding-eyebrow">WELCOME TO SLACK INBOX</p>
@@ -34,6 +43,6 @@ export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void })
           <button className="onboarding-start" onClick={onGetStarted}>Get started</button>
         </footer>
       </div>
-    </main>
+    </dialog>
   )
 }

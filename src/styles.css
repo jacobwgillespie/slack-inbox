@@ -1797,8 +1797,7 @@ a:focus-visible {
   padding-left: 100px;
 }
 
-.desktop-darwin .setup::before,
-.desktop-darwin .onboarding::before {
+.desktop-darwin .setup::before {
   content: '';
   position: fixed;
   inset: 0 0 auto;
@@ -1895,12 +1894,21 @@ a:focus-visible {
 .slack-composer-copy .c-search_autocomplete__shortcut_hint { font-size: 11px; color: var(--text-muted); margin-left: auto; }
 
 .onboarding {
-  height: 100%;
+  width: min(600px, calc(100vw - 40px));
+  max-height: calc(100dvh - 56px);
+  margin: auto;
+  border: 1px solid #343434;
+  border-radius: 28px;
+  color: var(--text);
   overflow-y: auto;
-  display: grid;
-  place-items: center;
-  padding: 64px 28px 36px;
-  background: radial-gradient(ellipse at 50% 0%, #202020 0%, var(--background) 65%);
+  padding: 36px 40px;
+  background: linear-gradient(145deg, #202020, #111111 65%);
+  box-shadow: 0 24px 100px rgb(0 0 0 / 55%);
+}
+
+.onboarding::backdrop {
+  background: rgb(0 0 0 / 45%);
+  backdrop-filter: blur(10px);
 }
 
 .onboarding-content { width: min(100%, 520px); }

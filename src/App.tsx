@@ -15,23 +15,15 @@ import { useStore } from './store'
 export function App() {
   const status = useStore((state) => state.status)
   const helpOpen = useStore((state) => state.helpOpen)
-  const [onboardingComplete, setOnboardingComplete] = useState(
-    () => localStorage.getItem('slack-inbox-onboarding-complete') === 'true',
+  const [onboardingOpen, setOnboardingOpen] = useState(
+    () => localStorage.getItem('slack-inbox-onboarding-complete') !== 'true',
   )
   useCacheSync()
   useInboxSync()
-  useKeyboardShortcuts(onboardingComplete)
+  useKeyboardShortcuts(!onboardingOpen)
   useSelectionRepair()
 
   if (status === 'error') return <><DesktopSlack /><SetupScreen /></>
-
-  if (!onboardingComplete) return <div className="app">
-    <DesktopSlack />
-    <OnboardingScreen onGetStarted={() => {
-      localStorage.setItem('slack-inbox-onboarding-complete', 'true')
-      setOnboardingComplete(true)
-    }} />
-  </div>
 
   return (
     <div className="app">
@@ -40,12 +32,16 @@ export function App() {
         <aside className="sidebar" aria-label="Inbox sidebar">
           <Header />
           <ItemList />
-          <SidebarFooter />
+          <SidebarFooter onWelcome={() => setOnboardingOpen(true)} />
         </aside>
         <Detail />
       </main>
       {helpOpen && <HelpOverlay />}
       <ImageLightbox />
+      {onboardingOpen && <OnboardingScreen onGetStarted={() => {
+        localStorage.setItem('slack-inbox-onboarding-complete', 'true')
+        setOnboardingOpen(false)
+      }} />}
     </div>
   )
 }

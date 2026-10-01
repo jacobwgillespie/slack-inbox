@@ -2,9 +2,9 @@ import { useRef, useState } from 'react'
 import { openDesktopSlack } from '../desktop'
 import { useStore } from '../store'
 import { Avatar } from './Avatar'
-import { ExternalIcon, HelpIcon, LogoutIcon, RefreshIcon } from './Icons'
+import { ExternalIcon, HelpIcon, LogoutIcon, RefreshIcon, ThreadIcon } from './Icons'
 
-export function SidebarFooter() {
+export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const session = useStore((state) => state.session)
   const self = useStore((state) => state.session ? state.users[state.session.userId] : undefined)
   const scanning = useStore((state) => Boolean(state.sync?.running))
@@ -31,6 +31,9 @@ export function SidebarFooter() {
         <Avatar url={self?.avatar} name={self?.displayName || session?.handle || 'You'} />
       </button>
       <div ref={menu} id="account-menu" className="account-menu" popover="auto" aria-label="Account">
+        <button onClick={() => { menu.current?.hidePopover(); onWelcome() }}>
+          <ThreadIcon /><span>Welcome</span>
+        </button>
         <button onClick={() => { menu.current?.hidePopover(); toggleHelp() }}>
           <HelpIcon /><span>Help</span><kbd>?</kbd>
         </button>
