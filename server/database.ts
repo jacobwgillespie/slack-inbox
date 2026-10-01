@@ -21,6 +21,14 @@ import type {
 
 const IGNORED_SUBTYPES = ['channel_join', 'channel_leave', 'group_join', 'group_leave']
 
+function preserveHuddleText(previous: Message | undefined, message: Message): Message {
+  // Slack's API can omit the description supplied by its rendered huddle card.
+  if ((message.subtype ?? previous?.subtype) === 'huddle_thread' && !message.text.trim() && previous?.text.trim()) {
+    return { ...message, text: previous.text }
+  }
+  return message
+}
+
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS image_previews (id TEXT PRIMARY KEY, content_type TEXT NOT NULL, data BLOB NOT NULL);
@@ -403,6 +411,7 @@ export class Database {
 
   cacheHistoryPage(channel: string, messages: Message[], range: HistoryRange) {
     this.transaction(() => {
+      messages = this.preserveHuddleDescriptions(channel, messages)
       this.db.prepare(
         `DELETE FROM messages WHERE conversation_id = ? AND ts >= ? AND ts < ? AND ${topLevel()}`,
       ).run(channel, range.oldest, range.newest)
@@ -424,6 +433,7 @@ export class Database {
     const returned = messages.map((message) => message.ts).sort(compareTs)
     const windowStart = complete ? oldest : returned[0]
     this.transaction(() => {
+      messages = this.preserveHuddleDescriptions(conversationId, messages)
       if (windowStart !== undefined) {
         const comparison = complete ? '>' : '>='
         this.db
@@ -755,7 +765,10 @@ export class Database {
   }
 
   upsertMessages(conversationId: string, messages: Message[]) {
-    this.transaction(() => this.insertMessages(conversationId, messages.map((message) => ({ ...this.message(conversationId, message.ts), ...message }))))
+    this.transaction(() => this.insertMessages(conversationId, messages.map((message) => {
+      const previous = this.message(conversationId, message.ts)
+      return preserveHuddleText(previous, { ...previous, ...message })
+    })))
   }
 
   cacheWebview(snapshot: WebviewConversation): boolean {
@@ -763,7 +776,7 @@ export class Database {
     this.transaction(() => {
       for (const message of snapshot.messages) {
         const previous = this.message(snapshot.channel, message.ts)
-        const next = { ...previous, ...message, user: message.user ?? previous?.user, username: message.username ?? previous?.username }
+        const next = preserveHuddleText(previous, { ...previous, ...message, user: message.user ?? previous?.user, username: message.username ?? previous?.username })
         if (JSON.stringify(previous) !== JSON.stringify(next)) {
           this.insertMessages(snapshot.channel, [next])
           changed = true
@@ -854,6 +867,12 @@ export class Database {
     }
     for (const item of items.values()) item.messages = item.messages.slice(-messageLimit)
     return [...items.values()]
+  }
+
+  private preserveHuddleDescriptions(channel: string, messages: Message[]): Message[] {
+    return messages.map((message) => message.subtype === 'huddle_thread' && !message.text.trim()
+      ? preserveHuddleText(this.message(channel, message.ts), message)
+      : message)
   }
 
   private insertMessages(conversationId: string, messages: Message[]) {
