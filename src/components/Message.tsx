@@ -5,6 +5,7 @@ import { authorAvatar, authorName, formatMessageTime, renderMrkdwn } from '../fo
 import { useFormatContext } from '../hooks'
 import type { WebviewMessage } from '../slack/webview'
 import { WebviewImage } from './WebviewImage'
+import { MessageImage } from './MessageImage'
 import { openImageLightbox } from './ImageLightbox'
 import type { Classification, Message, Reaction } from '../slack/types'
 import { Avatar } from './Avatar'
@@ -117,7 +118,7 @@ export function MessageView({ channel, message, continued, continues = false, we
               {!attachment.title && !attachment.text && !attachment.image_url && attachment.fallback && (
                 <div className="mrkdwn">{renderMrkdwn(attachment.fallback, context)}</div>
               )}
-              {attachment.image_url && !(webview && webviewImages.length) && <img className="attachment-image" src={attachment.image_url} alt={attachment.fallback || 'Image attachment'} loading="lazy" />}
+              {attachment.image_url && !(webview && webviewImages.length) && <MessageImage className="attachment-image" src={attachment.image_url} alt={attachment.fallback || 'Image attachment'} loading="lazy" />}
             </div>
           ))}
           {files.length ? (
@@ -146,7 +147,7 @@ export function MessageView({ channel, message, continued, continues = false, we
         {blockImages.length > 0 && <div className="message-images">{blockImages.map((image, index) => (
           <button key={`${image.image_url}:${index}`} className="file-image" aria-label={`Open image: ${image.alt_text || 'Image attachment'}`}
             onClick={(event) => { event.stopPropagation(); openImageLightbox(image.image_url!, image.alt_text || '') }}>
-            <img className="attachment-image" src={image.image_url} alt={image.alt_text || 'Image attachment'} loading="lazy" />
+            <MessageImage className="attachment-image" src={image.image_url} alt={image.alt_text || 'Image attachment'} loading="lazy" />
           </button>
         ))}</div>}
         {webview && webviewImages.length ? <div className="message-images">{webviewImages.map((image) => <WebviewImage key={image.src} image={image} />)}</div> : null}

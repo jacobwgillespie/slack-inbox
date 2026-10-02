@@ -19,6 +19,7 @@ function readTimeline(): WebviewConversation {
   const text = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return escape(node.textContent ?? '')
     if (!(node instanceof HTMLElement)) return ''
+    if (node.matches('.c-file, .c-file__meta, .c-file__size, .c-image_block, .c-message_kit__attachments, [data-qa="file_size"]')) return ''
     if (node.tagName === 'BR') return '\n'
     if (node instanceof HTMLImageElement) {
       const name = emojiName(node)
@@ -31,7 +32,7 @@ function readTimeline(): WebviewConversation {
       return /^https?:\/\//.test(href) ? `<${href.replace(/[<>|]/g, '')}|${content}>` : content
     }
     if (node.tagName === 'STRONG' || node.tagName === 'B') return `*${content}*`
-    if (node.tagName === 'EM' || node.tagName === 'I') return `_${content}_`
+    if (node.tagName === 'EM' || node.tagName === 'I') return content.trim() ? `_${content}_` : ''
     if (node.tagName === 'CODE') return '`' + content + '`'
     if (node.tagName === 'LI') {
       const prefix = node.parentElement?.tagName === 'OL' ? `${[...node.parentElement.children].indexOf(node) + 1}. ` : '• '
@@ -71,7 +72,10 @@ function readTimeline(): WebviewConversation {
       return { name, count: Number(reaction.querySelector('.c-reaction__count')?.textContent) || 1,
         mine: reaction.classList.contains('c-reaction--reacted') || reaction.getAttribute('aria-pressed') === 'true' }
     })
-    if (body || images.length || attachments.length) messages.push({ ts, text: body ? text(body).trim() : '', user: author, username: name, images, reactions, attachments, emoji })
+    let messageText = body ? text(body).trim() : ''
+    // Some file-only rows use the text container for size and collapse controls.
+    if (images.length && /^\([\d.,]+\s*[KMGT]?B\)[_\s]*$/i.test(messageText)) messageText = ''
+    if (body || images.length || attachments.length) messages.push({ ts, text: messageText, user: author, username: name, images, reactions, attachments, emoji })
   }
   const beginning = Boolean(pane.querySelector('.c-message_list__day_divider__label--start, .c-message_list__channel_intro'))
   return { channel, messages, ready: messages.length > 0 || beginning, hasMore: !beginning }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { SlackFile } from '../slack/types'
 import { openImageLightbox } from './ImageLightbox'
+import { MessageImage } from './MessageImage'
 
 export function isImageFile(file: SlackFile): boolean {
   return Boolean(file.mimetype?.startsWith('image/') || /\.(png|jpe?g|gif|webp|avif|bmp|svg|heic|heif|tiff?)$/i.test(file.name ?? file.title ?? ''))
@@ -14,7 +15,8 @@ export function FileAttachment({ file }: { file: SlackFile }) {
   if (image && !failed) {
     return (
       <button className="file-image" onClick={() => openImageLightbox(source, title)} title={title} aria-label={`Open image: ${title}`}>
-        <img
+        <MessageImage
+          gif={file.mimetype === 'image/gif' || /\.gif$/i.test(file.name ?? file.title ?? '')}
           src={source}
           alt={title}
           width={file.original_w}

@@ -1399,7 +1399,8 @@ a.message-time:hover {
   right: 20px;
 }
 
-.file-image img {
+.file-image img,
+.file-image canvas {
   display: block;
   width: auto;
   height: auto;
@@ -1416,18 +1417,52 @@ a.message-time:hover {
   background: var(--surface);
 }
 
-.webview-image img {
+.webview-image img,
+.webview-image canvas {
   width: 100%;
   height: 100%;
   min-height: 0;
 }
 
-.webview-image > span {
+.webview-image > span:not(.message-image) {
   display: flex;
   height: 100%;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+}
+
+.message-image {
+  position: relative;
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.message-image > img,
+.message-image > canvas {
+  grid-area: 1 / 1;
+}
+
+.message-image > [hidden] { display: none; }
+
+.webview-image > .message-image {
+  width: 100%;
+  height: 100%;
+}
+
+.gif-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  pointer-events: none;
 }
 
 .reaction {

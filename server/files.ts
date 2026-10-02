@@ -27,7 +27,7 @@ export class Files {
       this.database.cacheFile(file)
     }
     if (!file.mimetype?.startsWith('image/')) throw new SlackError('files.download', 'not_an_image')
-    const url = file.thumb_720 ?? file.url_private
+    const url = file.mimetype === 'image/gif' ? file.url_private ?? file.thumb_720 : file.thumb_720 ?? file.url_private
     if (!url) throw new SlackError('files.download', 'preview_unavailable')
     const response = await this.client.downloadFile(url)
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim() ?? ''
