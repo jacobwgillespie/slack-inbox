@@ -10,6 +10,7 @@ import type {
   TypingEvent,
   Reaction,
   User,
+  Presence,
 } from './slack/types'
 
 export class LocalApiError extends Error {
@@ -41,6 +42,8 @@ function post<T>(path: string, body: unknown = {}): Promise<T> {
 }
 
 export const localApi = {
+  presence: (user: string) => request<{ presence: Presence }>(`/local/presence?${new URLSearchParams({ user })}`),
+  setPresence: (presence: 'auto' | 'away') => post<{ presence: Presence }>('/local/presence', { presence }),
   inbox: () => request<InboxPayload>('/local/inbox'),
   emoji: () => request<Record<string, string>>('/local/emoji'),
   sync: () => post('/local/sync'),

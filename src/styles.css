@@ -334,6 +334,7 @@ kbd {
 }
 
 .account-button {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   padding: 0;
@@ -341,6 +342,36 @@ kbd {
   border-radius: 50%;
   background: none;
   cursor: default;
+}
+
+.presence-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border: 2px solid #939393;
+  border-radius: 50%;
+}
+
+.presence-active {
+  border-color: #63b56e;
+  background: #63b56e;
+}
+
+.account-button .presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  box-shadow: 0 0 0 3px #111111;
+}
+
+.account-presence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .account-button .avatar {

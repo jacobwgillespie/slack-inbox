@@ -1,7 +1,7 @@
 import { createCollection, localOnlyCollectionOptions } from '@tanstack/react-db'
 import type { CachedConversation } from './slack/dm-cache'
 import type { WebviewMessage } from './slack/webview'
-import type { DirectMessage, ConversationSummary, InboxItem, LaterItem, User, Session, SyncStatus } from './slack/types'
+import type { DirectMessage, ConversationSummary, InboxItem, LaterItem, User, Session, SyncStatus, Presence } from './slack/types'
 import type { LocalApiError } from './api'
 
 function local<T extends { id: string }>(id: string) {
@@ -12,6 +12,7 @@ export const channelCollection = local<ConversationSummary>('channels')
 export const inboxCollection = local<InboxItem>('inbox')
 export const laterCollection = local<LaterItem>('later')
 export const userCollection = local<User>('users')
+export const presenceCollection = local<{ id: string; presence: Presence }>('presence')
 export const preferenceCollection = local<{ id: string; done?: string; muted: boolean; inboxMuted?: boolean }>('preferences')
 export interface RuntimeData {
   id: string

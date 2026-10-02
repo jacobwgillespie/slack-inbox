@@ -61,6 +61,8 @@ export interface Message {
   bot_profile?: { name?: string; icons?: { image_48?: string } }
 }
 
+export type Presence = 'active' | 'away'
+
 export interface User {
   id: string
   handle: string

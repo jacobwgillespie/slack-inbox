@@ -85,6 +85,16 @@ function streamEvents(engine: SyncEngine): Handler {
 
 export function localApi(engine: SyncEngine) {
   const routes: Record<string, Handler> = {
+    'GET /local/presence': async (_, response, url) => {
+      const result = await engine.presence(requireString(url.searchParams.get('user'), 'user'))
+      sendJson(response, 200, { presence: result.presence })
+    },
+    'POST /local/presence': async (request, response) => {
+      const body = await readJson(request)
+      if (body.presence !== 'auto' && body.presence !== 'away') throw new RequestError(400, 'invalid_presence')
+      const result = await engine.setPresence(body.presence)
+      sendJson(response, 200, { presence: result.presence })
+    },
     'GET /local/inbox': (_, response) => sendJson(response, 200, engine.inbox()),
     'GET /local/emoji': (_, response) => sendJson(response, 200, engine.emoji()),
     'GET /local/image': async (_, response, url) => {

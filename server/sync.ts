@@ -13,6 +13,7 @@ import type {
   ThreadPayload,
   TypingEvent,
   RealtimeEvent,
+  Presence,
 } from '../src/slack/types.ts'
 import type { Database } from './database.ts'
 import { Preferences } from './preferences.ts'
@@ -146,6 +147,15 @@ export class SyncEngine {
   }
 
   webviewChanged() { this.changed() }
+
+  async presence(user: string) {
+    return this.client.call<{ presence: Presence }>('users.getPresence', { user })
+  }
+
+  async setPresence(presence: 'auto' | 'away') {
+    await this.client.call('users.setPresence', { presence })
+    return this.client.call<{ presence: Presence }>('users.getPresence')
+  }
 
   requestSync() {
     if (this.stopped) return

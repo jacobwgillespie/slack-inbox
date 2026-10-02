@@ -10,6 +10,8 @@ import { conversationLabel } from '../format'
 import { useCurrentItem, useFormatContext, useInboxEmpty } from '../hooks'
 import { inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
+import { PresenceDot } from './PresenceDot'
+import { usePresence } from '../presence'
 import { Composer } from './Composer'
 import { TypingIndicator } from './TypingIndicator'
 import { Toast } from './Toast'
@@ -68,6 +70,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const headerRef = useRef<HTMLElement>(null)
   const openedThread = useStore((state) => state.focusedThread)
   const selectedId = useStore((state) => state.selectedId)
+  const presence = usePresence(selectedId === item?.id && item?.conversation.kind === 'dm' ? item.conversation.userId : undefined)
   const [dismissedThread, setDismissedThread] = useState<string>()
   const savedTs = view === 'later' ? (item as LaterItem | undefined)?.ts : undefined
   const saved = item?.messages.find((message) => message.ts === savedTs)
@@ -125,6 +128,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           <div className="conversation-pill">
             <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
             <h2>{focusedThread ? `Thread in ${label}` : label}</h2>
+            {item.conversation.kind === 'dm' && <PresenceDot presence={presence} />}
           </div>
         </div>
         <div className="detail-actions">
