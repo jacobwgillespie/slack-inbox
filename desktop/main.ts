@@ -85,7 +85,6 @@ async function start() {
   window.contentView.addChildView(slack)
   window.contentView.addChildView(ui)
   slack.setVisible(true)
-  observeSlack(slack, credentials, engine)
   const layout = () => {
     const { width, height } = window.getContentBounds()
     const toolbarHeight = process.platform === 'darwin' ? 68 : 44
@@ -95,6 +94,7 @@ async function start() {
     collectorView.setBounds(bounds)
   }
   let slackVisible = false
+  let quitting = false
   const showSlack = async (channel?: string) => {
     const team = database.getMetadata<{ teamId: string }>('session')?.teamId
     slackVisible = true
@@ -236,6 +236,8 @@ async function start() {
     } } }
   })
   const savedTeam = database.getMetadata<boolean>('signed-out') ? undefined : database.getMetadata<{ teamId: string }>('session')?.teamId
+  await slackContents.loadURL('about:blank')
+  const stopObservingSlack = await observeSlack(slack, credentials, engine, () => Boolean(savedTeam || credentials.sessionToken) && !slackVisible && !quitting)
   await ui.webContents.loadURL(origin)
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })
@@ -243,13 +245,13 @@ async function start() {
   slack.webContents.on('did-finish-load', () => { if (!slackVisible) ui.webContents.focus() })
   if (savedTeam) void collectorView.webContents.loadURL(`https://app.slack.com/client/${savedTeam}`).catch(() => {})
   if (!savedTeam) engine.start()
-  let quitting = false
   app.once('before-quit', (event) => {
     event.preventDefault()
     quitting = true
     void shutdown().catch((error) => console.error('Could not finish shutdown', error)).finally(() => app.quit())
   })
   async function shutdown() {
+    stopObservingSlack()
     collector.stop()
     unsubscribeCache()
     if (!collectorContents.isDestroyed()) collectorContents.close()
