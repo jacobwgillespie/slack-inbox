@@ -3,7 +3,7 @@ import { commands } from '../commands'
 import { prepareConversation } from '../cacheConversationResource'
 import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
-import { dmCollection, channelCollection } from '../collections'
+import { dmCollection, channelCollection, inboxCollection } from '../collections'
 import type { InboxItem, LaterItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
@@ -56,11 +56,11 @@ function LoadedConversation({ item, view }: { item?: InboxItem; view: View }) {
 }
 
 function RetainedConversation({ id, active, view }: { id: string; active: boolean; view: View }) {
-  if (active) use(prepareConversation(id))
   const { data } = useLiveQuery({ query: (q) => q.from({ dm: dmCollection }).where(({ dm }) => eq(dm.id, id)), queryKey: [id] })
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: channelCollection }).where(({ channel }) => eq(channel.id, id)), queryKey: [id] })
-  const summary = data[0] ?? channels[0]
-  const item = summary
+  const { data: threads } = useLiveQuery({ query: (q) => q.from({ thread: inboxCollection }).where(({ thread }) => eq(thread.id, id)), queryKey: [id] })
+  const item = data[0] ?? channels[0] ?? threads[0]
+  if (active && item) use(prepareConversation(item.conversation.id))
   return <ConversationDetail item={item} view={view} />
 }
 

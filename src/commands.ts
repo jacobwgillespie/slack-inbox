@@ -75,6 +75,7 @@ function toLaterItem(item: InboxItem): LaterItem | undefined {
     id: `${item.conversation.id}:${message.ts}`,
     conversation: item.conversation,
     messages: [message],
+    thread: item.thread,
     ts: message.ts,
     savedAt: Date.now(),
   }
@@ -315,7 +316,7 @@ export const commands: Commands = {
   refresh: () => {
     run(localApi.sync())
     const state = get()
-    if (isConversationView(state.view) && state.selectedId) run(window.slackDesktop.refreshConversation(state.selectedId))
+    if (isConversationView(state.view) && state.selectedId) run(window.slackDesktop.refreshConversation(currentItem(state)?.conversation.id ?? state.selectedId))
   },
 
   setView: (view) => {
@@ -375,7 +376,7 @@ export const commands: Commands = {
     const state = get()
     if (!ids.length) return
 
-    if (isConversationView(state.view)) {
+    if (isConversationView(state.view) && !ids.some((id) => state.items[id]?.thread)) {
       const targets = ids.map((id) => state.channels[id] ?? state.directMessages[id]).filter((item) => item !== undefined)
       if (!targets.length) return
       const previous = targets.map((item) => [item.id, state.done[item.id]] as const)
@@ -438,7 +439,7 @@ export const commands: Commands = {
   saveForLater: (ids = targetIds()) => {
     const state = get()
     if (!ids.length || state.view === 'later' || state.view === 'done') return
-    if (state.view === 'inbox') {
+    if (state.view === 'inbox' && !ids.some((id) => state.items[id]?.thread)) {
       const targets = ids.map((id) => state.channels[id] ?? state.directMessages[id]).filter((item): item is ConversationSummary => item !== undefined && item.latestTs !== '0')
       run((async () => {
         for (const target of targets) {
@@ -488,11 +489,11 @@ export const commands: Commands = {
   },
 
   toggleInboxMute: (item) => {
-    const channel = item.conversation.id
+    const channel = item.thread ? `thread:${item.conversation.id}:${item.thread.ts}` : item.conversation.id
     const muted = !get().inboxMuted[channel]
     run((async () => {
       await localApi.setInboxMuted(channel, muted)
-      if (muted && !get().done[channel]) setDone(channel, latestTs(item))
+      if (muted && !item.thread && !get().done[channel]) setDone(channel, latestTs(item))
       await commands.load()
       if (get().view === 'inbox' && muted) set(selectionPatch(computeVisible(get())[0]?.id))
       showToast(muted ? 'Muted thread' : 'Unmuted thread')

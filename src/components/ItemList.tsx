@@ -76,7 +76,7 @@ export function ItemList() {
     let timer: ReturnType<typeof setTimeout>
     const watch = () => {
       clearTimeout(timer)
-      timer = setTimeout(() => void bridge.watchConversations([...visible], selected).catch(console.error), 80)
+      timer = setTimeout(() => void bridge.watchConversations([...visible], items.find((item) => item.id === selected)?.conversation.id).catch(console.error), 80)
     }
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
@@ -122,7 +122,7 @@ export function ItemList() {
 function ItemRow({ item }: { item: InboxItem }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>()
   const { id } = item
-  const muted = useInboxMuted(item.conversation.id)
+  const muted = useInboxMuted(item.thread ? `thread:${item.conversation.id}:${item.thread.ts}` : item.conversation.id)
   const typing = useTyping(item.conversation.id)
   const context = useFormatContext()
   const session = useRuntime().session
@@ -130,14 +130,14 @@ function ItemRow({ item }: { item: InboxItem }) {
   const selected = useStore((state) => state.selectedId === id)
   const checked = useStore((state) => Boolean(state.checked[id]))
   const reading = useStore((state) => state.mode === 'reading')
-  const conversation = useConversation(id)
+  const conversation = useConversation(item.conversation.id)
   const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = commands
 
   const latest = item.messages[item.messages.length - 1]
   const label = conversationLabel(item.conversation, context.users, session)
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
   const mentioned = item.conversation.kind !== 'dm' && mentionsSelf(item, session)
-  const unread = isConversationView(view) && conversation && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0
+  const unread = Boolean(item.thread) || isConversationView(view) && conversation && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0
 
   const onClick = (event: MouseEvent) => {
     event.currentTarget.closest<HTMLElement>('.item-list')?.focus({ preventScroll: true })
@@ -155,7 +155,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const doneLabel = view === 'done' ? 'Restore to inbox' : view === 'later' ? 'Complete' : 'Mark done'
 
   return (
-    <li data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}
+    <li data-conversation-id={item.conversation.id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}
       onMouseUp={(event) => {
         if (event.button === 2 || event.button === 0 && event.ctrlKey) {
           setContextMenu({ x: event.clientX, y: event.clientY })

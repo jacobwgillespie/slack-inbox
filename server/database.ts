@@ -122,6 +122,7 @@ const SCHEMA = `
 
 const COLUMN_MIGRATIONS = [
   { table: 'conversations', column: 'inbox_muted', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'threads', column: 'inbox_muted', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'conversations', column: 'done_ts', definition: 'TEXT' },
   { table: 'webview_history', column: 'oldest', definition: 'TEXT' },
   { table: 'webview_history', column: 'newest', definition: 'TEXT' },
@@ -414,11 +415,18 @@ export class Database {
   }
 
   inboxMutedIds(): string[] {
-    return (this.db.prepare('SELECT id FROM conversations WHERE inbox_muted = 1').all() as { id: string }[]).map((row) => row.id)
+    const channels = (this.db.prepare('SELECT id FROM conversations WHERE inbox_muted = 1').all() as { id: string }[]).map((row) => row.id)
+    const threads = (this.db.prepare('SELECT conversation_id, thread_ts FROM threads WHERE inbox_muted = 1').all() as { conversation_id: string; thread_ts: string }[]).map((row) => `thread:${row.conversation_id}:${row.thread_ts}`)
+    return [...channels, ...threads]
   }
 
   setInboxMuted(id: string, muted: boolean) {
-    this.db.prepare('UPDATE conversations SET inbox_muted = ? WHERE id = ?').run(muted ? 1 : 0, id)
+    if (id.startsWith('thread:')) {
+      const [, channel, ts] = id.split(':')
+      this.db.prepare('UPDATE threads SET inbox_muted = ? WHERE conversation_id = ? AND thread_ts = ?').run(muted ? 1 : 0, channel!, ts!)
+    } else {
+      this.db.prepare('UPDATE conversations SET inbox_muted = ? WHERE id = ?').run(muted ? 1 : 0, id)
+    }
   }
 
   mutedConversationIds(): string[] {
@@ -484,10 +492,13 @@ export class Database {
         continue
       }
       const conversation = JSON.parse(row.conversation) as Conversation
+      const message = JSON.parse(row.message) as Message
+      const root = message.thread_ts && message.thread_ts !== message.ts ? this.message(row.conversation_id, message.thread_ts) : undefined
       result.items.push({
+        thread: root ? { ts: root.ts, root } : undefined,
         id: `${row.conversation_id}:${row.ts}`,
         conversation,
-        messages: [JSON.parse(row.message) as Message],
+        messages: [message],
         ts: row.ts,
         savedAt: row.date_created * 1000,
       })

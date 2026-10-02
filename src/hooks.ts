@@ -47,7 +47,7 @@ export function useCurrentItem() {
   const id = useStore((state) => state.selectedId)
   if (!id) return undefined
   if (isConversationView(source.view)) {
-    const item = source.channels[id] ?? source.directMessages[id]
+    const item = source.channels[id] ?? source.directMessages[id] ?? source.items[id]
     return item
   }
   return source.view === 'later' ? source.later[id] : source.items[id]

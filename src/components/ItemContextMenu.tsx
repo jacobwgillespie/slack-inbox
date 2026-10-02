@@ -9,7 +9,7 @@ import { ArrowLeftIcon, BookmarkIcon, CheckIcon, MuteIcon } from './Icons'
 export function ItemContextMenu({ item, x, y, onClose }: { item: InboxItem; x: number; y: number; onClose: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
   const view = useStore((state) => state.view)
-  const muted = useInboxMuted(item.conversation.id)
+  const muted = useInboxMuted(item.thread ? `thread:${item.conversation.id}:${item.thread.ts}` : item.conversation.id)
   useLayoutEffect(() => {
     const panel = menu.current!
     panel.showPopover()

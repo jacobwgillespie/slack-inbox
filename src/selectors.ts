@@ -46,6 +46,7 @@ const bySavedAt = (a: LaterItem, b: LaterItem) => b.savedAt - a.savedAt
 export function computeVisible(state: VisibleSource): InboxItem[] {
   const summaries = { ...state.directMessages, ...state.channels }
   const archived = (item: InboxItem) => {
+    if (item.thread) return Boolean(state.inboxMuted[item.id])
     const through = state.done[item.conversation.id]
     return Boolean(state.inboxMuted[item.conversation.id]) || through !== undefined && compareTs(summaries[item.conversation.id]?.latestTs ?? latestTs(item), through) <= 0
   }
@@ -54,8 +55,8 @@ export function computeVisible(state: VisibleSource): InboxItem[] {
     case 'done':
       return Object.values(summaries).filter((item) => archived(item) && !state.later[`${item.id}:${state.done[item.id]}`]).sort((a, b) => compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name))
     case 'inbox':
-      return Object.values(summaries).filter((item) => !archived(item)).sort((a, b) =>
-        compareTs(b.latestTs, a.latestTs) || a.conversation.name.localeCompare(b.conversation.name),
+      return [...Object.values(summaries).filter((item) => !archived(item)), ...inbox.filter((item) => item.thread)].sort((a, b) =>
+        compareTs(summaries[b.id]?.latestTs ?? latestTs(b), summaries[a.id]?.latestTs ?? latestTs(a)) || a.conversation.name.localeCompare(b.conversation.name),
       )
     case 'later':
       return Object.values(state.later).sort(bySavedAt)
@@ -80,7 +81,7 @@ export function computeCounts(state: VisibleSource): Record<View, number> {
 
 export function currentItem(state: VisibleSource & Pick<InboxState, 'selectedId'>): InboxItem | undefined {
   if (!state.selectedId) return undefined
-  if (isConversationView(state.view)) return state.channels[state.selectedId] ?? state.directMessages[state.selectedId]
+  if (isConversationView(state.view)) return state.channels[state.selectedId] ?? state.directMessages[state.selectedId] ?? state.items[state.selectedId]
   return state.view === 'later' ? state.later[state.selectedId] : state.items[state.selectedId]
 }
 
