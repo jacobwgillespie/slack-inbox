@@ -349,7 +349,8 @@ export class SyncEngine {
   async threadReplies(channel: string, ts: string): Promise<ThreadPayload> {
     const raw = await this.client.paginate<Message>('conversations.replies', 'messages', { channel, ts, limit: 200 })
     const normalized = raw.map(toMessage)
-    this.database.reconcileMessages(channel, normalized, ts, undefined, ts)
+    this.database.deleteMissingMessages(channel, normalized, ts, undefined, ts)
+    this.database.upsertMessages(channel, normalized)
     const all = normalized.filter((message) => !this.database.isMessageDeleted(channel, message.ts))
     const messages = all.filter((message) => message.ts !== ts)
     const users = await this.resolveUsers([...messageUserIds(all)])
@@ -367,7 +368,8 @@ export class SyncEngine {
       cursor = page.response_metadata?.next_cursor || undefined
       if (page.has_more && !cursor) throw new Error('Slack returned an incomplete history window.')
     } while (cursor)
-    this.database.reconcileMessages(channel, messages, oldest, newest)
+    this.database.deleteMissingMessages(channel, messages, oldest, newest)
+    this.database.upsertMessages(channel, messages.filter((message) => !this.database.message(channel, message.ts)))
     this.changed()
   }
 

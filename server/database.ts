@@ -646,13 +646,12 @@ export class Database {
     return Boolean(this.db.prepare('SELECT 1 FROM deleted_messages WHERE conversation_id = ? AND ts = ?').get(conversationId, ts))
   }
 
-  reconcileMessages(conversationId: string, messages: Message[], oldest: string, newest?: string, threadTs?: string) {
+  deleteMissingMessages(conversationId: string, messages: Message[], oldest: string, newest?: string, threadTs?: string) {
     const returned = new Set(messages.map((message) => message.ts))
     const cached = this.db.prepare(`SELECT ts FROM messages WHERE conversation_id = ? AND ts >= ? ${newest ? 'AND ts <= ?' : ''}
       AND ${threadTs ? '(ts = ? OR thread_ts = ?)' : topLevel()}`)
       .all(conversationId, oldest, ...(newest ? [newest] : []), ...(threadTs ? [threadTs, threadTs] : [])) as { ts: string }[]
     for (const { ts } of cached) if (!returned.has(ts)) this.deleteMessage(conversationId, ts)
-    this.upsertMessages(conversationId, messages)
   }
 
   upsertMessages(conversationId: string, messages: Message[]) {
@@ -672,9 +671,9 @@ export class Database {
         // timeline still shows the old reaction state.
         const reactions = previous?.reactions?.every((reaction) => reaction.users !== undefined)
           ? previous.reactions : message.reactions
-        // Rendered snapshots can arrive before Slack's image attachment mounts.
-        const attachments = message.attachments?.length || message.images?.length
-          ? message.attachments : previous?.attachments?.filter((attachment) => attachment.image_url) ?? message.attachments
+        // Slack's rendered timeline omits or lazily mounts attachment previews.
+        // API snapshots own existing attachment data, including an empty list.
+        const attachments = previous?.attachments ?? message.attachments
         const next = preserveHuddleText(previous, { ...previous, ...message, attachments, reactions, user: message.user ?? previous?.user, username: message.username ?? previous?.username })
         if (JSON.stringify(previous) !== JSON.stringify(next)) {
           this.insertMessages(snapshot.channel, [next])
