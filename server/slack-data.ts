@@ -15,7 +15,7 @@ export interface RawConversation {
 export interface RawUser {
   id: string
   name: string
-  profile?: { first_name?: string; display_name?: string; real_name?: string; image_48?: string }
+  profile?: { first_name?: string; display_name?: string; real_name?: string; image_48?: string; status_text?: string; status_emoji?: string; status_expiration?: number }
 }
 
 export interface RawCount {
@@ -42,6 +42,9 @@ export function toUser(raw: RawUser): User {
     displayName: profile.display_name || profile.real_name || raw.name,
     firstName: profile.first_name?.trim() || undefined,
     avatar: profile.image_48,
+    statusText: profile.status_text,
+    statusEmoji: profile.status_emoji,
+    statusExpiration: profile.status_expiration,
   }
 }
 

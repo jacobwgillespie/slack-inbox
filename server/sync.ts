@@ -177,6 +177,18 @@ export class SyncEngine {
     })
   }
 
+  async setCustomStatus(text: string, emoji: string, expiration: number) {
+    if (!this.session) throw new SlackError('users.profile.set', 'session_not_ready')
+    const { user: raw } = await this.client.call<{ user: RawUser }>('users.info', { user: this.session.userId })
+    const { profile } = await this.client.call<{ profile: RawUser['profile'] }>('users.profile.set', {
+      profile: JSON.stringify({ status_text: text, status_emoji: emoji, status_expiration: expiration }),
+    })
+    const user = toUser({ ...raw, profile: { ...raw.profile, ...profile } })
+    this.database.upsertUser(user)
+    this.changed()
+    return user
+  }
+
   async reportActivity() {
     return this.updatePresence(async () => {
       const current = await this.client.call<{ presence: Presence; manual_away?: boolean }>('users.getPresence')
@@ -484,7 +496,7 @@ export class SyncEngine {
       this.database.setReadStates([[channel, event.ts]])
     } else if (event.type === 'reaction_added' || event.type === 'reaction_removed') {
       this.handleReactionEvent(event)
-    } else if (event.type === 'user_change' && event.user && typeof event.user === 'object') {
+    } else if (['user_change', 'user_status_changed', 'user_profile_changed'].includes(event.type) && event.user && typeof event.user === 'object') {
       this.database.upsertUser(toUser(event.user as RawUser))
     } else if (MEMBERSHIP_EVENTS.has(event.type)) {
       this.invalidateDirectory('conversations')

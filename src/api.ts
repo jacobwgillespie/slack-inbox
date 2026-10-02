@@ -43,6 +43,7 @@ function post<T>(path: string, body: unknown = {}): Promise<T> {
 }
 
 export const localApi = {
+  setCustomStatus: (text: string, emoji: string, expiration: number) => post<{ user: User }>('/local/status', { text, emoji, expiration }),
   presence: (user: string) => request<{ presence: Presence }>(`/local/presence?${new URLSearchParams({ user })}`),
   setPresence: (presence: 'auto' | 'away') => post<{ presence: Presence }>('/local/presence', { presence }),
   inbox: () => request<InboxPayload>('/local/inbox'),

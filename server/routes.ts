@@ -85,6 +85,16 @@ function streamEvents(engine: SyncEngine): Handler {
 
 export function localApi(engine: SyncEngine) {
   const routes: Record<string, Handler> = {
+    'POST /local/status': async (request, response) => {
+      const body = await readJson(request)
+      if (typeof body.text !== 'string' || body.text.length > 100 || typeof body.emoji !== 'string' ||
+          !(body.emoji === '' || /^:[a-z0-9_+\-]+(?:::skin-tone-[2-6])?:$/i.test(body.emoji)) ||
+          typeof body.expiration !== 'number' || !Number.isSafeInteger(body.expiration) || body.expiration < 0) {
+        throw new RequestError(400, 'invalid_status')
+      }
+      const user = await engine.setCustomStatus(body.text, body.emoji, body.expiration)
+      sendJson(response, 200, { user })
+    },
     'GET /local/presence': async (_, response, url) => {
       const result = await engine.presence(requireString(url.searchParams.get('user'), 'user'))
       sendJson(response, 200, { presence: result.presence })

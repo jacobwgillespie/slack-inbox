@@ -70,6 +70,9 @@ export interface User {
   firstName?: string
   avatar?: string
   lastActivityTs?: string
+  statusText?: string
+  statusEmoji?: string
+  statusExpiration?: number
 }
 
 export interface Session {
