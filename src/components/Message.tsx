@@ -214,7 +214,7 @@ function SaveLaterButton({ channel, message, className = '' }: { channel: string
   const label = saved ? 'Saved for later' : 'Save message for later'
   return (
     <button
-      className={`icon-button ${className}`}
+      className={`icon-button save-later-button${saved ? ' is-saved' : ''} ${className}`}
       aria-label={label}
       title={label}
       disabled={saved}

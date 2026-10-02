@@ -1086,20 +1086,34 @@ kbd {
   align-items: center;
   padding: 16px 8px;
   transform: translateY(-50%);
-  opacity: 0;
   pointer-events: auto;
-  transition: opacity 120ms;
+  --bookmark-rest-offset: -28px;
 }
 
 .message-own .message-actions {
   left: auto;
   right: 100%;
   padding: 16px 8px;
+  --bookmark-rest-offset: 28px;
 }
 
-.message:hover .message-actions,
-.message:focus-within .message-actions {
+.message-actions > .icon-button {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(var(--bookmark-rest-offset));
+  transition: opacity 160ms ease, transform 180ms ease;
+}
+
+.message-actions > .save-later-button.is-saved {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.message:hover .message-actions > .icon-button,
+.message:focus-within .message-actions > .icon-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 .message-actions .icon-button {
@@ -1116,11 +1130,23 @@ kbd {
   color: var(--text);
 }
 
+.save-later-button.is-saved,
+.message-actions .save-later-button.is-saved:hover {
+  color: var(--link);
+}
+
+.save-later-button.is-saved svg path { fill: currentColor; }
+
 @media (hover: none) {
-  .message-actions {
+  .message-actions > .icon-button {
     opacity: 1;
     pointer-events: auto;
+    transform: translateX(0);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-actions > .icon-button { transition: none; }
 }
 
 .message.continued:not(.message-own) > .message-bubble {
@@ -1980,9 +2006,11 @@ a:focus-visible {
 .message-row.saved-message .message-bubble { outline: 1px solid var(--text-muted); outline-offset: 3px; }
 
 .thread-reply { position: relative; padding-right: 64px; }
-.thread-save { position: absolute; display: flex; top: 0; right: 0; opacity: 0; }
-.thread-reply:hover > .thread-save,
-.thread-reply:focus-within > .thread-save { opacity: 1; }
+.thread-save { position: absolute; display: flex; top: 0; right: 0; }
+.thread-save > .icon-button { opacity: 0; }
+.thread-save > .save-later-button.is-saved { opacity: 1; }
+.thread-reply:hover > .thread-save > .icon-button,
+.thread-reply:focus-within > .thread-save > .icon-button { opacity: 1; }
 .thread-save::before { content: ""; position: absolute; inset: -8px; }
 
 .reaction-picker {
