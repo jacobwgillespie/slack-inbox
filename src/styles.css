@@ -2200,6 +2200,9 @@ a.message-time:hover {
   font-size: inherit;
 }
 .composer-command-suggestions .suggestion-kind { flex-shrink: 0; color: var(--text-muted); }
+.composer-mention-suggestions img { width: 20px; height: 20px; margin: 0 2px; object-fit: cover; border-radius: 50%; }
+.composer-mention-suggestions .suggestion-glyph { border: 0; font-size: 16px; }
+.composer-mention-suggestions .suggestion-label { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .composer-formatting { display: flex; gap: 2px; padding: 4px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-raised); box-shadow: var(--shadow); }
 .composer-formatting button { min-width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; cursor: default; }

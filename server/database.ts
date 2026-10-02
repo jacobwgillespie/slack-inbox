@@ -61,6 +61,7 @@ const SCHEMA = `
     PRIMARY KEY (conversation_id, ts)
   );
   CREATE INDEX IF NOT EXISTS messages_by_thread ON messages (conversation_id, thread_ts);
+  CREATE INDEX IF NOT EXISTS messages_by_user ON messages (user_id, ts);
   CREATE TABLE IF NOT EXISTS deleted_messages (
     conversation_id TEXT NOT NULL,
     ts TEXT NOT NULL,
@@ -279,8 +280,9 @@ export class Database {
   usersById(ids: string[]): Record<string, User> {
     if (!ids.length) return {}
     const placeholders = ids.map(() => '?').join(', ')
-    const rows = this.db.prepare(`SELECT data FROM users WHERE id IN (${placeholders})`).all(...ids) as { data: string }[]
-    const users = rows.map((row) => JSON.parse(row.data) as User)
+    const rows = this.db.prepare(`SELECT data, (SELECT MAX(ts) FROM messages WHERE user_id = users.id) AS last_activity_ts
+      FROM users WHERE id IN (${placeholders})`).all(...ids) as { data: string; last_activity_ts: string | null }[]
+    const users = rows.map((row) => ({ ...JSON.parse(row.data) as User, lastActivityTs: row.last_activity_ts ?? undefined }))
     return Object.fromEntries(users.map((user) => [user.id, user]))
   }
 

@@ -1,4 +1,6 @@
 import type { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion'
+import type { User } from '../slack/types'
+import { compareTs } from '../slack/timestamps'
 
 export interface ComposerSuggestion {
   id: string
@@ -11,8 +13,16 @@ export interface ComposerSuggestion {
 
 export const GIF_COMMAND: ComposerSuggestion = { id: 'gif', label: 'gif', detail: 'Find and send a GIF', glyph: 'GIF', kind: 'Action' }
 
+export function mentionSuggestions(users: Record<string, User>, query: string): ComposerSuggestion[] {
+  const people = Object.values(users).sort((a, b) => compareTs(b.lastActivityTs ?? '0', a.lastActivityTs ?? '0')
+    || (a.displayName || a.handle).localeCompare(b.displayName || b.handle))
+    .map((user) => ({ id: user.id, label: user.displayName || user.handle, detail: user.handle, image: user.avatar, glyph: user.avatar ? undefined : '@' }))
+  const broadcasts = ['here', 'channel', 'everyone'].map((name) => ({ id: name, label: name, detail: 'Notify members', glyph: '@' }))
+  return [...people, ...broadcasts].filter((entry) => `${entry.label} ${entry.detail}`.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+}
+
 /** Shared keyboard navigation for composer suggestions. */
-export function suggestionMenu(onOpen: (open: boolean) => void, variant: 'autocomplete' | 'commands' = 'autocomplete'): SuggestionOptions<ComposerSuggestion>['render'] {
+export function suggestionMenu(onOpen: (open: boolean) => void, variant: 'autocomplete' | 'commands' | 'mentions' = 'autocomplete'): SuggestionOptions<ComposerSuggestion>['render'] {
   return () => {
     let panel: HTMLDivElement | undefined
     let props: SuggestionProps<ComposerSuggestion>
@@ -58,7 +68,7 @@ export function suggestionMenu(onOpen: (open: boolean) => void, variant: 'autoco
       if (!props.items.length) panel.textContent = 'No matches'
       const rect = props.clientRect?.()
       if (rect) {
-        const label = variant === 'commands' ? panel.querySelector<HTMLElement>('.suggestion-label') : null
+        const label = variant !== 'autocomplete' ? panel.querySelector<HTMLElement>('.suggestion-label') : null
         const labelOffset = label ? label.getBoundingClientRect().left - panel.getBoundingClientRect().left : 0
         panel.style.left = `${Math.max(8, Math.min(rect.left - labelOffset, window.innerWidth - panel.offsetWidth - 8))}px`
         panel.style.top = `${Math.max(8, rect.top - panel.offsetHeight - 8)}px`
@@ -70,9 +80,9 @@ export function suggestionMenu(onOpen: (open: boolean) => void, variant: 'autoco
         props = next
         selected = 0
         panel = document.createElement('div')
-        panel.className = `composer-suggestions${variant === 'commands' ? ' composer-command-suggestions' : ''}`
+        panel.className = `composer-suggestions${variant !== 'autocomplete' ? ' composer-command-suggestions' : ''}${variant === 'mentions' ? ' composer-mention-suggestions' : ''}`
         panel.role = 'listbox'
-        panel.setAttribute('aria-label', variant === 'commands' ? 'Commands' : 'Suggestions')
+        panel.setAttribute('aria-label', variant === 'commands' ? 'Commands' : variant === 'mentions' ? 'Mention someone' : 'Suggestions')
         document.body.append(panel)
         onOpen(true)
         draw()

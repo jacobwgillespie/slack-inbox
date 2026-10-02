@@ -19,7 +19,7 @@ import emojiData from '../slack/emoji-data.json'
 import type { InboxItem } from '../slack/types'
 import type { Gif } from '../gifs'
 import { ArrowUpIcon, CloseIcon } from './Icons'
-import { GIF_COMMAND, suggestionMenu, type ComposerSuggestion } from './composer-suggestions'
+import { GIF_COMMAND, mentionSuggestions, suggestionMenu, type ComposerSuggestion } from './composer-suggestions'
 import { GifPicker } from './GifPicker'
 
 const standardEmoji: Record<string, string> = emojiData
@@ -110,11 +110,8 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       Mention.configure({
         HTMLAttributes: { class: 'composer-mention' },
         suggestion: {
-          items: ({ query }) => [
-            ...['here', 'channel', 'everyone'].map((name) => ({ id: name, label: name, detail: 'Notify members' })),
-            ...Object.values(contextRef.current.users).map((user) => ({ id: user.id, label: user.displayName || user.handle, detail: user.handle, image: user.avatar })),
-          ].filter((entry) => `${entry.label} ${entry.detail}`.toLowerCase().includes(query.toLowerCase())).slice(0, 8),
-          render,
+          items: ({ query }) => mentionSuggestions(contextRef.current.users, query),
+          render: suggestionMenu((open) => { suggestionsOpen.current = open }, 'mentions'),
         },
       }),
       Emoji,

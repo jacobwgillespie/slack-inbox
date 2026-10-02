@@ -66,6 +66,7 @@ export interface User {
   displayName: string
   firstName?: string
   avatar?: string
+  lastActivityTs?: string
 }
 
 export interface Session {
