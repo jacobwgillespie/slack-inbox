@@ -101,7 +101,9 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
           editor: this.editor, char: ':', allowSpaces: false,
           items: ({ query }) => {
             const custom = contextRef.current.emoji
-            return prioritizeEmoji([...new Set([...Object.keys(custom), ...Object.keys(standardEmoji)])], query)
+            const names = query === ')' ? ['slightly_smiling_face']
+              : prioritizeEmoji([...new Set([...Object.keys(custom), ...Object.keys(standardEmoji)])], query)
+            return names
               .slice(0, 8)
               .map((name) => ({ id: name, label: `:${name}:`, ...emojiAppearance(name, custom) }))
           },
