@@ -95,6 +95,7 @@ Configure these [repository Actions secrets](https://github.com/jacobwgillespie/
 | `APPLE_ID` | Apple Developer account email |
 | `APPLE_APP_SPECIFIC_PASSWORD` | Apple app-specific password for notarization |
 | `APPLE_TEAM_ID` | Apple Developer team ID |
+| `HOMEBREW_TAP_DEPLOY_KEY` | SSH private key with a write-enabled deploy key on `jacobwgillespie/homebrew-tap` |
 
 Use a **Developer ID Application** certificate from Apple's **G2 Sub-CA**. Export it with its private key as a password-protected `.p12` and keep a secure backup outside the repository. For OpenSSL exports, use Keychain-compatible encryption: `-keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1`.
 
@@ -112,7 +113,9 @@ Run the **Release** workflow manually to download signed artifacts without creat
 4. Install the DMG on a clean Mac and check sign-in and startup.
 5. Review the release notes and publish the draft. Keep the ZIPs, blockmaps, and `latest-mac.yml` with the DMGs; automatic updates need them.
 
-Make the repository public before distributing builds. The updater reads public GitHub Releases without an access token; draft releases aren't visible to update checks. Update the README's release status when the first public release is available.
+The updater reads public GitHub Releases without an access token; draft releases aren't visible to update checks.
+
+Publishing a stable release triggers **Update Homebrew cask**. It updates `Casks/slack-inbox.rb` in `jacobwgillespie/homebrew-tap` with the published version and GitHub's SHA-256 digests for both DMGs, then commits directly to the tap's `main` branch. Prereleases and releases that aren't the latest stable version are skipped. Run this workflow manually to retry an update; an already-current cask produces no commit.
 
 `desktop/updates.ts` checks at startup and every four hours in packaged macOS apps. It downloads in the background and notifies the renderer when an update is ready. The footer's download button restarts and installs it. Development runs skip update checks.
 

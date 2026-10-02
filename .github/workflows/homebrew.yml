@@ -1,0 +1,48 @@
+name: Update Homebrew cask
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homebrew-cask
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/checkout@v4
+        with:
+          repository: jacobwgillespie/homebrew-tap
+          ref: main
+          path: homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+      - name: Update version and checksums from published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node scripts/update-homebrew.mjs
+      - name: Push cask update
+        working-directory: homebrew-tap
+        run: |
+          if git diff --quiet -- Casks/slack-inbox.rb; then
+            echo "Cask is already current"
+            exit 0
+          fi
+          git diff --check
+          ruby -c Casks/slack-inbox.rb
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Casks/slack-inbox.rb
+          git commit -m 'Update Slack Inbox cask to latest release'
+          git push origin HEAD:main
