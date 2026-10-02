@@ -648,7 +648,10 @@ export class Database {
         // timeline still shows the old reaction state.
         const reactions = previous?.reactions?.every((reaction) => reaction.users !== undefined)
           ? previous.reactions : message.reactions
-        const next = preserveHuddleText(previous, { ...previous, ...message, reactions, user: message.user ?? previous?.user, username: message.username ?? previous?.username })
+        // Rendered snapshots can arrive before Slack's image attachment mounts.
+        const attachments = message.attachments?.length || message.images?.length
+          ? message.attachments : previous?.attachments?.filter((attachment) => attachment.image_url) ?? message.attachments
+        const next = preserveHuddleText(previous, { ...previous, ...message, attachments, reactions, user: message.user ?? previous?.user, username: message.username ?? previous?.username })
         if (JSON.stringify(previous) !== JSON.stringify(next)) {
           this.insertMessages(snapshot.channel, [next])
           changed = true
