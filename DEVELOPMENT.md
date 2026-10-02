@@ -53,7 +53,7 @@ A dedicated background Slack view collects rendered history into SQLite, keyed b
 
 The renderer hydrates conversations from SQLite through IPC, reads older pages as you scroll, and shows cached messages when collection fails. React Activities retain the eight most recently opened conversation panels and their scroll positions.
 
-The separate Slack view follows the selected conversation for composing. Sanitized snapshots supply Slack's editor and suggestion menus; edits and supported control actions are forwarded to Slack's composer. Thread replies use the app's plain-text composer and Slack API. **Open Slack** reveals the full client with the same draft.
+The app uses a Tiptap rich-text editor for messages and thread replies, with user mentions and emoji suggestions. Drafts are saved in renderer local storage per account, conversation, and thread. The editor serializes messages into Slack rich-text blocks and sends them through the Slack API. **Open Slack** reveals the separate Slack view with the same sign-in; drafts aren't shared between the two editors.
 
 Background HTTP and WebSocket read-marker writes are blocked. Explicit read actions and the visible Slack view can mark messages read. Sending, marking read, reactions, workspace discovery, and inbox synchronization still use the Slack API.
 

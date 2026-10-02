@@ -34,7 +34,9 @@ Press **E** to mark a conversation read in Slack and move it to Done. A new mess
 
 Open a conversation to read its cached history. Scroll up for earlier messages, hover a message to reply in a thread, and swipe or drag left to reveal timestamps. Reading at the bottom marks the displayed messages read; browsing older history leaves newer messages unread. Sending a reply keeps the conversation open.
 
-Press **L** to save a message for later. Choose **Open Slack** when you need the full Slack interface; it shares your current draft and sign-in. Cached messages remain readable if sync fails. Choose **Retry sync** to try again.
+Compose messages and thread replies with rich-text formatting, user mentions, and emoji suggestions. Drafts are saved locally for each conversation and thread. Hover emoji reactions to see who reacted.
+
+Press **L** to save a message for later. Choose **Open Slack** when you need the full Slack interface; it shares your sign-in. Cached messages remain readable if sync fails. Choose **Retry sync** to try again.
 
 ## Keyboard shortcuts
 
@@ -54,6 +56,7 @@ Press **L** to save a message for later. Choose **Open Slack** when you need the
 | `1` / `2` / `3` | Inbox, Later, or Done |
 | `Shift+R` | Refresh |
 | `?` | Show keyboard shortcuts |
+| `/` | Search DMs and channels |
 
 The avatar menu also contains **Welcome**, **Help**, and **Log out**.
 
