@@ -113,9 +113,9 @@ export function localApi(engine: SyncEngine) {
       const ts = requireString(url.searchParams.get('ts'), 'ts')
       sendJson(response, 200, await engine.threadReplies(channel, ts))
     },
-    'POST /local/sync': (_, response) => {
-      engine.requestSync()
-      sendJson(response, 202, { ok: true })
+    'POST /local/sync': async (_, response) => {
+      await engine.refresh()
+      sendJson(response, 200, { ok: true })
     },
     'POST /local/done': async (request, response) => {
       const body = await readJson(request)

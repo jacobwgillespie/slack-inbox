@@ -211,6 +211,13 @@ export class SyncEngine {
     })
   }
 
+  async refresh() {
+    const previous = this.running
+    this.requestSync()
+    if (previous) await previous
+    await this.running
+  }
+
   inbox(): InboxPayload {
     const items = this.session
       ? [

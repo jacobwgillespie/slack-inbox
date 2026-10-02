@@ -5,6 +5,7 @@ import { openDesktopSlack } from '../desktop'
 import { Avatar } from './Avatar'
 import { PresenceDot } from './PresenceDot'
 import { usePresence } from '../presence'
+import { useStore } from '../store'
 import { localApi } from '../api'
 import { presenceCollection, reconcile } from '../collections'
 import { BugIcon, DownloadIcon, HelpIcon, LogoutIcon, RefreshIcon, ThreadIcon } from './Icons'
@@ -15,7 +16,7 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const self = session ? users[session.userId] : undefined
   const presence = usePresence(session?.userId)
   const [settingPresence, setSettingPresence] = useState(false)
-  const scanning = Boolean(useRuntime().sync?.running)
+  const refreshing = useStore((state) => state.refreshing)
   const refresh = commands.refresh
   const toggleHelp = commands.toggleHelp
   const menu = useRef<HTMLDivElement>(null)
@@ -104,7 +105,7 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
           title={`Restart to update to ${updateVersion}`} aria-label={restarting ? 'Restarting to update' : `Restart to update to ${updateVersion}`}>
           <DownloadIcon />
         </button>}
-        <button className={`icon-button${scanning ? ' spinning' : ''}`} onClick={refresh} disabled={scanning} title="Refresh (Shift+R)" aria-label="Refresh">
+        <button className={`icon-button${refreshing ? ' spinning' : ''}`} onClick={refresh} disabled={refreshing} title="Refresh (Shift+R)" aria-label="Refresh">
           <RefreshIcon />
         </button>
       </div>

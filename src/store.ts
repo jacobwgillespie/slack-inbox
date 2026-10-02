@@ -24,6 +24,7 @@ export interface InboxState {
   toast?: Toast
   helpOpen: boolean
   searchOpen: boolean
+  refreshing: boolean
   composerFocusRequest: number
   composerFocusChannel?: string
 }
@@ -47,6 +48,7 @@ export const inboxStore = create<InboxState>()(
     checked: {},
     helpOpen: false,
     searchOpen: false,
+    refreshing: false,
     composerFocusRequest: 0,
   }), {
     name: 'slack-inbox',

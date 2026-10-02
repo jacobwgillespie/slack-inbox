@@ -321,9 +321,12 @@ export const commands: Commands = {
   },
 
   refresh: () => {
-    run(localApi.sync())
     const state = get()
-    if (isConversationView(state.view) && state.selectedId) run(window.slackDesktop.refreshConversation(currentItem(state)?.conversation.id ?? state.selectedId))
+    if (state.refreshing) return
+    set({ refreshing: true })
+    const requests = [localApi.sync()]
+    if (isConversationView(state.view) && state.selectedId) requests.push(window.slackDesktop.refreshConversation(currentItem(state)?.conversation.id ?? state.selectedId))
+    run(Promise.all(requests).finally(() => set({ refreshing: false })))
   },
 
   setView: (view) => {
