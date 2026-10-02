@@ -1419,8 +1419,8 @@ a.message-time:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
-  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border: 0;
   border-radius: 12px;
   font-size: 12px;
   line-height: 18px;
@@ -1431,7 +1431,7 @@ a.message-time:hover {
 }
 
 .reaction:hover { background: rgb(255 255 255 / 10%); }
-.reaction-own { border-color: #9b9b9b; background: #3a3a3a; }
+.reaction-own { background: #3a3a3a; }
 
 .reaction-tooltip {
   position: fixed;
