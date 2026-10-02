@@ -74,6 +74,8 @@ async function start() {
   const uiContents = ui.webContents
   const slackContents = slack.webContents
   const collectorContents = collectorView.webContents
+  slackContents.setAudioMuted(true)
+  collectorContents.setAudioMuted(true)
   const slackContentsId = slackContents.id
   const collectorContentsId = collectorContents.id
   collectorView.webContents.setUserAgent(slackSession.getUserAgent())
