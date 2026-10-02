@@ -68,12 +68,12 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
           pluginKey: new PluginKey('slashCommands'),
           editor: this.editor, char: '/', startOfLine: true,
           allow: ({ range }) => range.from === 1,
-          items: ({ query }) => 'gif'.startsWith(query.toLowerCase()) ? [{ id: 'gif', label: '/gif', detail: 'Find and send a GIF', glyph: 'GIF' }] : [],
+          items: ({ query }) => 'gif'.startsWith(query.toLowerCase()) ? [{ id: 'gif', label: 'gif', detail: 'Find and send a GIF', glyph: 'GIF', kind: 'Action' }] : [],
           command: ({ editor, range }) => {
             editor.chain().focus().deleteRange(range).run()
             openGif.current()
           },
-          render,
+          render: suggestionMenu((open) => { suggestionsOpen.current = open }, 'commands'),
         })]
       },
     })

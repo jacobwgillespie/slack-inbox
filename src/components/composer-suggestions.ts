@@ -6,10 +6,11 @@ export interface ComposerSuggestion {
   detail?: string
   image?: string
   glyph?: string
+  kind?: string
 }
 
 /** Shared keyboard navigation for composer suggestions. */
-export function suggestionMenu(onOpen: (open: boolean) => void): SuggestionOptions<ComposerSuggestion>['render'] {
+export function suggestionMenu(onOpen: (open: boolean) => void, variant: 'autocomplete' | 'commands' = 'autocomplete'): SuggestionOptions<ComposerSuggestion>['render'] {
   return () => {
     let panel: HTMLDivElement | undefined
     let props: SuggestionProps<ComposerSuggestion>
@@ -36,6 +37,7 @@ export function suggestionMenu(onOpen: (open: boolean) => void): SuggestionOptio
           button.append(glyph)
         }
         const label = document.createElement('span')
+        label.className = 'suggestion-label'
         label.textContent = item.label
         button.append(label)
         if (item.detail) {
@@ -43,12 +45,18 @@ export function suggestionMenu(onOpen: (open: boolean) => void): SuggestionOptio
           detail.textContent = item.detail
           button.append(detail)
         }
+        if (item.kind) {
+          const kind = document.createElement('span')
+          kind.className = 'suggestion-kind'
+          kind.textContent = item.kind
+          button.append(kind)
+        }
         panel.append(button)
       }
       if (!props.items.length) panel.textContent = 'No matches'
       const rect = props.clientRect?.()
       if (rect) {
-        panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 328))}px`
+        panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8))}px`
         panel.style.top = `${Math.max(8, rect.top - panel.offsetHeight - 8)}px`
       }
       panel.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
@@ -58,9 +66,9 @@ export function suggestionMenu(onOpen: (open: boolean) => void): SuggestionOptio
         props = next
         selected = 0
         panel = document.createElement('div')
-        panel.className = 'composer-suggestions'
+        panel.className = `composer-suggestions${variant === 'commands' ? ' composer-command-suggestions' : ''}`
         panel.role = 'listbox'
-        panel.setAttribute('aria-label', 'Suggestions')
+        panel.setAttribute('aria-label', variant === 'commands' ? 'Commands' : 'Suggestions')
         document.body.append(panel)
         onOpen(true)
         draw()

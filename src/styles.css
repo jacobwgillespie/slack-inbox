@@ -2180,6 +2180,39 @@ a.message-time:hover {
 .composer-suggestions img, .suggestion-glyph { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; }
 .composer-suggestions small { color: var(--text-muted); margin-left: auto; }
 
+.composer-command-suggestions {
+  width: min(480px, calc(100vw - 16px));
+  padding: 6px;
+  border-color: #303030;
+  border-radius: 16px;
+  background: #080808;
+}
+.composer-command-suggestions button { min-height: 40px; padding: 8px 10px; gap: 10px; border-radius: 10px; }
+.composer-command-suggestions button[aria-selected="true"],
+.composer-command-suggestions button:hover { background: #2b2b2b; }
+.composer-command-suggestions .suggestion-glyph {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+.composer-command-suggestions .suggestion-label { flex-shrink: 0; }
+.composer-command-suggestions small {
+  flex: 1;
+  min-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: inherit;
+}
+.composer-command-suggestions .suggestion-kind { flex-shrink: 0; color: var(--text-muted); }
+
 .composer-formatting { display: flex; gap: 2px; padding: 4px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-raised); box-shadow: var(--shadow); }
 .composer-formatting button { min-width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; cursor: default; }
 .composer-formatting button:hover { background: rgb(255 255 255 / 10%); }
