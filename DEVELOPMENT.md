@@ -11,7 +11,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-`pnpm dev` builds and launches Electron. Sign in through the app; no `.env.local` file, Slack app registration, or manually copied tokens are required.
+`pnpm dev` builds and launches **Slack Inbox Dev**. Sign in through the app; no `.env.local` file, Slack app registration, or manually copied tokens are required.
 
 | Command | Purpose |
 | --- | --- |
@@ -22,7 +22,9 @@ pnpm dev
 | `pnpm desktop:release` | Build signed releases for Apple Silicon and Intel |
 | `pnpm icons` | Regenerate app icons |
 
-After building, `pnpm exec electron electron-dist/main.cjs` launches directly. Rebuild and relaunch to pick up code changes. Vite builds the renderer; it doesn't host a separate Slack backend.
+After the first `pnpm dev`, you can reopen `.dev/Slack Inbox Dev.app` from Finder or the Dock. This development bundle points at the checkout, uses the existing Slack Inbox profile, and skips automatic updates. It is refreshed when the Electron version changes. Opening `node_modules/electron/dist/Electron.app` directly opens Electron's default screen because that bundle has no Slack Inbox entry point.
+
+After building, `node scripts/start-desktop.mjs` launches directly. Rebuild and relaunch to pick up code changes. Vite builds the renderer; it doesn't host a separate Slack backend.
 
 The existing file-cache and credential-redirect checks run with:
 

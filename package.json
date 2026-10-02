@@ -14,7 +14,7 @@
     "icons": "node scripts/build-icons.mjs",
     "typecheck": "tsc -b",
     "desktop:build": "pnpm build && node scripts/build-desktop.mjs",
-    "desktop": "pnpm exec install-electron && pnpm desktop:build && electron electron-dist/main.cjs",
+    "desktop": "pnpm exec install-electron && pnpm desktop:build && node scripts/start-desktop.mjs",
     "desktop:package": "pnpm exec install-electron && pnpm desktop:build && electron-builder --mac --publish never --config.mac.identity=- --config.mac.notarize=false --config.mac.hardenedRuntime=false",
     "desktop:release": "pnpm exec install-electron && pnpm desktop:build && electron-builder --mac --arm64 --x64 --publish never --config.forceCodeSigning=true"
   },
