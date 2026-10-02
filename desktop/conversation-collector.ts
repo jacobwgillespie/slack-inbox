@@ -4,8 +4,9 @@ import type { SyncEngine } from '../server/sync.ts'
 import { compareTs } from '../src/slack/timestamps.ts'
 import type { WebviewConversation } from '../src/slack/webview.ts'
 import { readConversation, scrollConversation } from './conversation.ts'
+import { navigateConversation } from './conversation-navigation.ts'
 
-interface Job { channel: string; older: boolean; priority: number; before?: string; until?: string }
+interface Job { channel: string; older: boolean; priority: number; until?: string }
 
 export class ConversationCollector {
   private queue = new Map<string, Job>()
@@ -92,28 +93,17 @@ export class ConversationCollector {
     if (this.paused || this.stopped) throw new Error('Collection paused')
   }
 
-  private async navigate(channel: string, before?: string) {
-    const team = this.database.getMetadata<{ teamId: string }>('session')?.teamId
-    if (!team) throw new Error('Slack is not signed in.')
-    const destination = `https://app.slack.com/client/${team}/${channel}`
-    if (this.contents.getURL().split('/')[5]?.split('?')[0] === channel) {
-      if (!before) return
-      const current = await readConversation(this.contents)
-      this.ensureActive()
-      if (!current.hasMore || (current.messages[0] && compareTs(current.messages[0].ts, before) <= 0)) return
-    }
-    if (before) {
-      await this.contents.loadURL(`${destination}?message_ts=${before}&cid=${channel}`)
-      return
-    }
-    const clicked = this.contents.getURL().startsWith('https://app.slack.com/client/') && await this.contents.executeJavaScript(`(() => {
-      const destination = ${JSON.stringify(destination)};
-      const link = [...document.querySelectorAll('.p-channel_sidebar a[href]')].find(link => link.href.split('?')[0] === destination);
-      if (!link) return false;
-      link.click(); return true;
-    })()`)
+  private async navigate(channel: string) {
+    if (this.contents.getURL().split('/')[5]?.split('?')[0] === channel) return
+    const conversation = this.database.conversationSummaries(channel)[0]?.conversation
+    if (!conversation) throw new Error('Conversation not found.')
+    const session = this.database.getMetadata<{ handle: string }>('session')
+    const user = conversation.userId ? this.database.usersById([conversation.userId])[conversation.userId] : undefined
+    const query = user?.handle ?? (conversation.kind === 'group'
+      ? conversation.name.split(', ').find((handle) => handle !== session?.handle) ?? conversation.name
+      : conversation.name)
+    await navigateConversation(this.contents, channel, query)
     this.ensureActive()
-    if (!clicked) await this.contents.loadURL(destination)
   }
 
   private waitForSnapshot(channel: string, before?: string, newest?: string): Promise<WebviewConversation> {
@@ -166,7 +156,7 @@ export class ConversationCollector {
       this.changed(job.channel)
       try {
         const cached = this.database.cachedConversation(job.channel)
-        await this.navigate(job.channel, job.before ?? (job.older ? cached.oldest : undefined))
+        await this.navigate(job.channel)
         this.ensureActive()
         let snapshot = await this.waitForSnapshot(job.channel)
         if (!job.older) {
@@ -200,7 +190,7 @@ export class ConversationCollector {
         this.ensureActive()
         const gap = overlap && snapshot.messages[0] && compareTs(snapshot.messages[0].ts, overlap) > 0
         if (snapshot.hasMore && stalled < 2 && gap) {
-          this.queue.set(`${job.channel}:gap`, { channel: job.channel, older: true, priority: 1, before: snapshot.messages[0]!.ts, until: overlap })
+          this.queue.set(`${job.channel}:gap`, { channel: job.channel, older: true, priority: 1, until: overlap })
         } else if (snapshot.hasMore && stalled < 2 && !cached.complete && this.visible.has(job.channel)) {
           this.queue.set(`${job.channel}:true`, { channel: job.channel, older: true, priority: 2 })
         }
