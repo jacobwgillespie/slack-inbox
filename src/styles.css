@@ -1663,8 +1663,17 @@ a.message-time:hover {
   cursor: default;
 }
 
-.send-button:hover:not(:disabled), .composer-add-button:hover:not(:disabled) {
+.send-button:hover:not(:disabled) {
   background: #ffffff;
+}
+
+.composer-add-button {
+  background: #424242;
+  color: #939393;
+}
+
+.composer-add-button:hover:not(:disabled) {
+  color: #eeeeee;
 }
 
 .toast {
