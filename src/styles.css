@@ -827,7 +827,7 @@ kbd {
 }
 
 .date-divider {
-  margin: 8px 0 26px;
+  margin: 26px 0;
   font-size: 12px;
   text-align: center;
   color: var(--text-muted);
