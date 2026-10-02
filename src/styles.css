@@ -1592,7 +1592,6 @@ a.message-time:hover {
 .gif-picker { width: min(420px, calc(100vw - 16px)); max-height: calc(100dvh - 140px); overflow-y: auto; }
 .gif-picker-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .gif-picker-header .icon-button { flex-shrink: 0; width: 28px; height: 28px; }
-.gif-picker-header strong { flex: 1; font-size: 15px; font-weight: 500; }
 .gif-picker input { flex: 1; min-width: 0; width: 100%; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--background); color: var(--text); font: inherit; font-size: 13px; line-height: 18px; }
 .gif-picker-results { height: min(360px, calc(100dvh - 280px)); overflow-y: auto; }
 .gif-picker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -1600,10 +1599,6 @@ a.message-time:hover {
 .gif-picker-grid img { display: block; width: 100%; height: 140px; object-fit: contain; }
 .gif-picker-grid button:hover { opacity: .8; }
 .gif-load-more { display: block; margin: 12px auto; }
-.gif-preview { display: flex; justify-content: center; border-radius: 10px; overflow: hidden; background: var(--background); }
-.gif-preview img { max-width: 100%; max-height: min(300px, calc(100dvh - 320px)); object-fit: contain; }
-.gif-destination { margin: 12px 0; font-size: 12px; color: var(--text-muted); }
-.gif-send { width: 100%; }
 .gif-error { font-size: 12px; color: var(--danger); }
 .gif-attribution { position: absolute; bottom: 0; left: 0; right: 0; margin: 0; padding: 20px 12px 8px; border-radius: 0 0 9px 9px; background: linear-gradient(to bottom, transparent, #303030 100%); color: var(--text-muted); font-size: 11px; text-align: right; pointer-events: none; }
 .attachment-image { display: block; max-width: min(100%, 480px); max-height: 360px; border-radius: 10px; object-fit: contain; }
@@ -2247,3 +2242,9 @@ a.message-time:hover {
 
 .composer-command-popover { inset: auto; margin: 0; }
 .composer-command-popover button:focus { background: #2b2b2b; outline: none; }
+
+.composer-gif { position: relative; width: fit-content; margin: 4px 0 8px; }
+.composer-gif img { display: block; max-width: 160px; height: 100px; border-radius: 10px; object-fit: contain; background: #202020; }
+.composer-gif button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #535353; border-radius: 50%; background: rgb(25 25 25 / 90%); color: #eee; opacity: 0; transition: opacity 120ms; }
+.composer-gif button .icon { width: 14px; height: 14px; }
+.composer-gif:hover button, .composer-gif:focus-within button { opacity: 1; }

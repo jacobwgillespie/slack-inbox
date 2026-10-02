@@ -17,7 +17,8 @@ import { readDraft, saveDraft, clearSentDraft, useDraftSending } from '../compos
 import { serializeMessage } from '../slack/rich-text'
 import emojiData from '../slack/emoji-data.json'
 import type { InboxItem } from '../slack/types'
-import { ArrowUpIcon } from './Icons'
+import type { Gif } from '../gifs'
+import { ArrowUpIcon, CloseIcon } from './Icons'
 import { GIF_COMMAND, suggestionMenu, type ComposerSuggestion } from './composer-suggestions'
 import { GifPicker } from './GifPicker'
 
@@ -47,6 +48,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
   const sentId = useDraftSending((state) => state.sent[draftKey])
   const [initialDraft] = useState(() => readDraft(draftKey))
   const draft = useRef(initialDraft)
+  const [pendingGif, setPendingGif] = useState(initialDraft?.gif)
   const [error, setError] = useState<string>()
   const [gifRequest, setGifRequest] = useState<{ query: string }>()
   const openGif = useRef((query = '') => setGifRequest({ query }))
@@ -143,9 +145,12 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
     },
     onUpdate({ editor }) {
       try {
-        if (editor.isEmpty) localStorage.removeItem(draftKey)
+        if (editor.isEmpty && !draft.current?.gif) {
+          localStorage.removeItem(draftKey)
+          draft.current = undefined
+        }
         else {
-          draft.current = { document: editor.getJSON(), clientMsgId: crypto.randomUUID() }
+          draft.current = { document: editor.getJSON(), gif: draft.current?.gif, clientMsgId: crypto.randomUUID() }
           saveDraft(draftKey, draft.current)
         }
       } catch { setError('Could not save this draft on this device.') }
@@ -173,12 +178,14 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
 
   useEffect(() => {
     submitRef.current = async () => {
-      if (!editor || useDraftSending.getState().pending[draftKey] || editor.isEmpty) return
+      if (!editor || useDraftSending.getState().pending[draftKey]) return
+      const gif = draft.current?.gif
+      if (editor.isEmpty && !gif) return
       const document = editor.getJSON()
       const message = serializeMessage(document)
-      if (!message.text.trim()) return
+      if (!message.text.trim() && !gif) return
       const gifCommand = /^\/gif(?:\s+(.*))?$/is.exec(editor.getText().trim())
-      if (gifCommand) {
+      if (gifCommand && !gif) {
         openGif.current(gifCommand[1]?.trim() ?? '')
         editor.commands.clearContent()
         draft.current = undefined
@@ -189,7 +196,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       setError(undefined)
       editor.setEditable(false, false)
       try {
-        await commands.send({ ...message, clientMsgId }, item, thread)
+        await commands.send({ ...message, text: message.text || gif?.title || '', gif: gif && { url: gif.url, title: gif.title }, clientMsgId }, item, thread)
         clearSentDraft(draftKey, clientMsgId)
         useDraftSending.getState().markSent(draftKey, clientMsgId)
       } catch (failure) {
@@ -204,29 +211,48 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
     if (!editor) return
     editor.setEditable(!sending, false)
     if (!sending && draft.current?.clientMsgId === sentId && sentId) {
-      editor.commands.clearContent()
       draft.current = undefined
+      editor.commands.clearContent()
+      setPendingGif(undefined)
     }
   }, [editor, sending, sentId])
 
+  const changeGif = (gif?: Gif) => {
+    if (!editor || sending) return
+    setPendingGif(gif)
+    setError(undefined)
+    if (editor.isEmpty && !gif) {
+      draft.current = undefined
+      localStorage.removeItem(draftKey)
+    } else {
+      draft.current = { document: editor.getJSON(), gif, clientMsgId: crypto.randomUUID() }
+      try { saveDraft(draftKey, draft.current) } catch { setError('Could not save this draft on this device.') }
+    }
+    editor.commands.focus()
+  }
+
   const parent = thread ? findMessage(item, thread) : undefined
-  return <form className="composer" onSubmit={(event) => { event.preventDefault(); void submitRef.current() }}>
+  return <form className="composer" onKeyDownCapture={(event) => {
+    if (event.key === 'Escape' && pendingGif && !sending && !suggestionsOpen.current && !(event.target as HTMLElement).closest('.gif-picker, .composer-suggestions')) {
+      event.preventDefault()
+      event.stopPropagation()
+      changeGif()
+    }
+  }} onSubmit={(event) => { event.preventDefault(); void submitRef.current() }}>
     {thread && <div className="composer-context">
       Replying in thread{parent ? ` to ${authorName(parent, context.users)}` : ''}
       {!item.thread && <button type="button" className="link-button" onClick={() => commands.clearThreadTarget()}>Cancel</button>}
     </div>}
     <div className="composer-row">
-      <GifPicker request={gifRequest} disabled={sending} destination={thread ? `Reply in thread in ${label}` : `Send to ${label}`}
-        onClose={() => editor?.commands.focus()}
-        onSend={async (gif, clientMsgId) => {
-          if (useDraftSending.getState().pending[draftKey]) throw new Error('A message is already being sent. Please wait a moment.')
-          useDraftSending.getState().setPending(draftKey, true)
-          try {
-            await commands.send({ text: gif.title, gif: { url: gif.url, title: gif.title }, clientMsgId }, item, thread)
-          } finally { useDraftSending.getState().setPending(draftKey, false) }
-        }} />
-      <EditorContent editor={editor} className="rich-composer" />
-      <button className="send-button" type="submit" disabled={sending || empty} aria-label={sending ? 'Sending' : 'Send message'} title="Send message (Enter)"><ArrowUpIcon /></button>
+      <GifPicker request={gifRequest} disabled={sending} onClose={() => editor?.commands.focus()} onSelect={changeGif} />
+      <div className="rich-composer">
+        {pendingGif && <div className="composer-gif">
+          <img src={pendingGif.preview} alt={pendingGif.title} />
+          <button type="button" aria-label="Remove GIF" title="Remove GIF (Escape)" disabled={sending} onClick={() => changeGif()}><CloseIcon /></button>
+        </div>}
+        <EditorContent editor={editor} />
+      </div>
+      <button className="send-button" type="submit" disabled={sending || (empty && !pendingGif)} aria-label={sending ? 'Sending' : 'Send message'} title="Send message (Enter)"><ArrowUpIcon /></button>
     </div>
     {editor && <BubbleMenu editor={editor} className="composer-formatting">
       <button type="button" aria-label="Bold" title="Bold (⌘B)" onMouseDown={(event) => event.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()}><strong>B</strong></button>

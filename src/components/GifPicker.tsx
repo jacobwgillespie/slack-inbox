@@ -1,13 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { browseGifs, gifsConfigured, type Gif } from '../gifs'
-import { ArrowLeftIcon, CloseIcon, PlusIcon } from './Icons'
+import { CloseIcon, PlusIcon } from './Icons'
 import { GIF_COMMAND } from './composer-suggestions'
 
-export function GifPicker({ request, disabled, destination, onSend, onClose }: {
+export function GifPicker({ request, disabled, onSelect, onClose }: {
   request?: { query: string }
   disabled: boolean
-  destination: string
-  onSend: (gif: Gif, clientMsgId: string) => Promise<void>
+  onSelect: (gif: Gif) => void
   onClose: () => void
 }) {
   const menuId = useId()
@@ -25,9 +24,6 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
   const [retry, setRetry] = useState(0)
-  const [selection, setSelection] = useState<{ gif: Gif; clientMsgId: string }>()
-  const [sending, setSending] = useState(false)
-  const busy = useRef(false)
 
   const position = (panel: HTMLDivElement, width: number) => {
     const bounds = trigger.current!.getBoundingClientRect()
@@ -43,7 +39,6 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
     setQuery(initialQuery)
     setPage(1)
     setGifs([])
-    setSelection(undefined)
     setError(undefined)
     position(browser.current!, 420)
     browser.current?.showPopover()
@@ -70,19 +65,6 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
     }, query ? 350 : 0)
     return () => { clearTimeout(timer); abort.abort() }
   }, [open, query, page, retry])
-
-  const send = async () => {
-    if (!selection || busy.current || disabled) return
-    busy.current = true
-    setSending(true)
-    setError(undefined)
-    try {
-      await onSend(selection.gif, selection.clientMsgId)
-      browser.current?.hidePopover()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not send this GIF. Please try again.')
-    } finally { busy.current = false; setSending(false) }
-  }
 
   return <>
     <button ref={trigger} type="button" className="composer-add-button" aria-label="Add to message" title="Add to message" disabled={disabled} popoverTarget={menuId}
@@ -114,27 +96,20 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
         else onClose()
       }}>
       <div className="gif-picker-header">
-        {selection && <button type="button" className="icon-button" aria-label="Back to GIFs" disabled={sending} onClick={() => { setSelection(undefined); setError(undefined) }}><ArrowLeftIcon /></button>}
-        {selection ? <strong>Send GIF</strong> : <input ref={search} aria-label="Search GIFs" placeholder="Search KLIPY" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); setHasMore(false) }} />}
+        <input ref={search} aria-label="Search GIFs" placeholder="Search KLIPY" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); setHasMore(false) }} />
         <button type="button" className="icon-button" aria-label="Close GIF browser" onClick={() => browser.current?.hidePopover()}><CloseIcon /></button>
       </div>
-      {selection ? <>
-        <div className="gif-preview"><img src={selection.gif.url} alt={selection.gif.title} /></div>
-        <p className="gif-destination">{destination}</p>
-        <button type="button" className="gif-send button primary" disabled={sending || disabled} onClick={() => void send()}>{sending ? 'Sending…' : 'Send GIF'}</button>
-      </> : <>
-        <div className="gif-picker-results" aria-busy={loading}>
-          <div className="gif-picker-grid">
-            {gifs.map((gif) => <button key={gif.id} type="button" aria-label={`Preview ${gif.title}`} onClick={() => { setSelection({ gif, clientMsgId: crypto.randomUUID() }); setError(undefined) }}>
-              <img src={gif.preview} alt={gif.title} loading="lazy" />
-            </button>)}
-          </div>
-          {loading && !gifs.length && <p className="muted" role="status">Loading GIFs…</p>}
-          {!loading && !error && !gifs.length && <p className="muted">No GIFs found. Try another search.</p>}
-          {hasMore && !error && <button type="button" className="link-button gif-load-more" disabled={loading} onClick={() => setPage(nextPage)}>Load more</button>}
+      <div className="gif-picker-results" aria-busy={loading}>
+        <div className="gif-picker-grid">
+          {gifs.map((gif) => <button key={gif.id} type="button" aria-label={`Select ${gif.title}`} onClick={() => { onSelect(gif); browser.current?.hidePopover() }}>
+            <img src={gif.preview} alt={gif.title} loading="lazy" />
+          </button>)}
         </div>
-      </>}
-      {error && <p className="gif-error" role="alert">{error} {!selection && gifsConfigured && <button type="button" className="link-button" onClick={() => setRetry((value) => value + 1)}>Retry</button>}</p>}
+        {loading && !gifs.length && <p className="muted" role="status">Loading GIFs…</p>}
+        {!loading && !error && !gifs.length && <p className="muted">No GIFs found. Try another search.</p>}
+        {hasMore && !error && <button type="button" className="link-button gif-load-more" disabled={loading} onClick={() => setPage(nextPage)}>Load more</button>}
+      </div>
+      {error && <p className="gif-error" role="alert">{error} {gifsConfigured && <button type="button" className="link-button" onClick={() => setRetry((value) => value + 1)}>Retry</button>}</p>}
       <p className="gif-attribution">Powered by KLIPY</p>
     </div>
   </>
