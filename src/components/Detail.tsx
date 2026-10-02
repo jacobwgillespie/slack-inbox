@@ -6,11 +6,12 @@ import { eq, useLiveQuery } from '@tanstack/react-db'
 import { dmCollection, channelCollection, inboxCollection } from '../collections'
 import type { InboxItem, LaterItem } from '../slack/types'
 import type { View } from '../store'
-import { conversationLabel, renderEmoji } from '../format'
+import { conversationLabel } from '../format'
 import { useCurrentItem, useFormatContext, useInboxEmpty } from '../hooks'
 import { inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
 import { PresenceDot } from './PresenceDot'
+import { AvatarStatus } from './AvatarStatus'
 import { usePresence } from '../presence'
 import { useCustomStatus } from '../custom-status'
 import { Composer } from './Composer'
@@ -129,14 +130,13 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
         </button>
         <div className="conversation-heading">
           <div className="conversation-pill">
-            <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
+            {hasStatus && dmUser ? <AvatarStatus user={dmUser} context={context}>
+              <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
+            </AvatarStatus> : <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />}
             <h2>{focusedThread ? `Thread in ${label}` : label}</h2>
             {item.conversation.kind === 'dm' && <PresenceDot presence={presence} />}
           </div>
-          {hasStatus && <div className="conversation-pill conversation-status" title={dmUser?.statusText || 'Custom status'}>
-            {dmUser?.statusEmoji && renderEmoji(dmUser.statusEmoji.replace(/^:|:$/g, ''), context)}
-            {dmUser?.statusText && <span>{dmUser.statusText}</span>}
-          </div>}
+
         </div>
         <div className="detail-actions">
           {focusedThread && <button className="icon-button" onClick={onCloseThread} aria-label="Close thread" title="Close (Esc)"><CloseIcon /></button>}

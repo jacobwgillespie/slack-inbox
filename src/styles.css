@@ -2426,24 +2426,80 @@ a.message-time:hover {
   background: #fff;
 }
 
-.conversation-pill.conversation-status {
-  padding: 4px 10px;
-  gap: 6px;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 16px;
+.conversation-avatar-status {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
 }
 
-.conversation-status > span {
+.conversation-status-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #191919;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.conversation-status-badge .emoji,
+.conversation-status-overlay .emoji {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.conversation-status-overlay {
+  position: fixed;
+  inset: auto;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 16px));
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid #383838;
+  border-radius: 30px;
+  background: #191919;
+  color: var(--text-muted);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0;
+  transform: translateX(-4px) scale(.96);
+  transform-origin: left center;
+  transition: opacity 140ms, transform 140ms, display 140ms allow-discrete, overlay 140ms allow-discrete;
+}
+
+.conversation-status-overlay:popover-open {
+  display: flex;
+  opacity: 1;
+  transform: none;
+}
+
+@starting-style {
+  .conversation-status-overlay:popover-open {
+    opacity: 0;
+    transform: translateX(-4px) scale(.96);
+  }
+}
+
+.conversation-status-overlay > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.conversation-status .emoji {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
+@media (prefers-reduced-motion: reduce) {
+  .conversation-status-overlay { transition: none; }
 }
 
 @media (max-width: 760px) {
