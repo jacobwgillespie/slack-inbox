@@ -1,4 +1,5 @@
 import { prepareConversation } from '../cacheConversationResource'
+import type { ReactNode } from 'react'
 import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
 import { dmCollection, channelCollection } from '../collections'
@@ -53,12 +54,9 @@ function LaterConversation({ item }: { item: InboxItem }) {
   const saved = item.messages.find((message) => message.ts === (item as LaterItem).ts)
   const threadTs = saved?.thread_ts && saved.thread_ts !== saved.ts ? saved.thread_ts : undefined
   const [focused, setFocused] = useState(true)
-  return <>
-    <ConversationDetail item={item} view="later" targetTs={threadTs} />
-    {threadTs && (focused
-      ? <ThreadFocus item={item as LaterItem} threadTs={threadTs} onClose={() => setFocused(false)} />
-      : <button className="button reopen-thread" onClick={() => setFocused(true)}>View saved thread</button>)}
-  </>
+  return <ConversationDetail item={item} view="later" targetTs={threadTs}
+    focusedThread={threadTs && focused ? <ThreadFocus item={item as LaterItem} threadTs={threadTs} onClose={() => setFocused(false)} /> : undefined}
+    threadAction={threadTs && !focused ? <button className="button reopen-thread" onClick={() => setFocused(true)}>View saved thread</button> : undefined} />
 }
 
 function RetainedConversation({ id, active, view }: { id: string; active: boolean; view: View }) {
@@ -70,7 +68,7 @@ function RetainedConversation({ id, active, view }: { id: string; active: boolea
   return <ConversationDetail item={item} view={view} />
 }
 
-function ConversationDetail({ item, view, targetTs }: { item?: InboxItem; view: View; targetTs?: string }) {
+function ConversationDetail({ item, view, targetTs, focusedThread, threadAction }: { item?: InboxItem; view: View; targetTs?: string; focusedThread?: ReactNode; threadAction?: ReactNode }) {
   const headerRef = useRef<HTMLElement>(null)
   const context = useFormatContext()
   const session = useStore((state) => state.session)
@@ -102,7 +100,7 @@ function ConversationDetail({ item, view, targetTs }: { item?: InboxItem; view: 
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
 
   return (
-    <section className={`detail${reading ? ' reading' : ''}`} aria-label="Conversation" aria-busy={pending} inert={pending}>
+    <section className={`detail${reading ? ' reading' : ''}${focusedThread ? ' detail-thread-focused' : ''}`} aria-label="Conversation" aria-busy={pending} inert={pending}>
       <header ref={headerRef} className="detail-header">
         <button
           className="icon-button mobile-back"
@@ -153,12 +151,16 @@ function ConversationDetail({ item, view, targetTs }: { item?: InboxItem; view: 
           )}
         </div>
       </header>
-      <MessageList item={item} fullHistory={isConversationView(view) || view === 'later'} targetTs={view === 'later' ? targetTs ?? (item as LaterItem).ts : undefined} />
-      <div className="conversation-composer">
-        <Toast />
-        <TypingIndicator channel={item.conversation.id} />
-        <Composer item={item} />
+      <div className="conversation-content" inert={Boolean(focusedThread)} aria-hidden={Boolean(focusedThread)}>
+        <MessageList item={item} fullHistory={isConversationView(view) || view === 'later'} targetTs={view === 'later' ? targetTs ?? (item as LaterItem).ts : undefined} />
+        <div className="conversation-composer">
+          <Toast />
+          <TypingIndicator channel={item.conversation.id} />
+          <Composer item={item} />
+        </div>
       </div>
+      {focusedThread}
+      {threadAction}
     </section>
   )
 }
