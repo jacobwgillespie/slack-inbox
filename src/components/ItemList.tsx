@@ -92,7 +92,7 @@ export function ItemList() {
 
   if (!items.length) {
     const empty = view === 'inbox' && (counts.later > 0 || counts.done > 0)
-      ? { title: 'Everything is handled', detail: 'New activity will appear here.' }
+      ? { title: 'Everything is handled', detail: 'Enjoy the calm.' }
       : EMPTY_STATES[view]
     return (
       <section ref={listRef} className="item-list item-list-empty">
