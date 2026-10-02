@@ -36,6 +36,13 @@
       "electron-dist/**/*",
       "package.json"
     ],
+    "dmg": {
+      "background": "assets/dmg-background.png",
+      "contents": [
+        { "x": 130, "y": 183, "type": "file" },
+        { "x": 410, "y": 183, "type": "link", "path": "/Applications" }
+      ]
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.icns",
