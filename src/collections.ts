@@ -47,9 +47,11 @@ export function reconcile<T extends { id: string }>(collection: ReturnType<typeo
 
 export function reconcileMessages(rows: CachedMessage[]) {
   for (const message of rows) {
-    if (!message.client_msg_id) continue
+    if (!message.client_msg_id && !message.files?.length) continue
     for (const pending of messageCollection.values()) {
-      if (pending.pending && pending.channel === message.channel && pending.client_msg_id === message.client_msg_id && pending.id !== message.id) messageCollection.delete(pending.id)
+      const sameMessage = message.client_msg_id && pending.client_msg_id === message.client_msg_id
+      const sameFiles = pending.files?.length && pending.files.every((file) => message.files?.some((confirmed) => confirmed.id === file.id))
+      if (pending.pending && pending.channel === message.channel && (sameMessage || sameFiles) && pending.id !== message.id) messageCollection.delete(pending.id)
     }
   }
   reconcile(messageCollection, rows, false)

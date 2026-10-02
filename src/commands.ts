@@ -626,6 +626,7 @@ export const commands: Commands = {
       user: state.session?.userId, thread_ts: threadTs,
       text: message.gif && !message.blocks?.length ? '' : message.text,
       blocks: message.gif ? [{ type: 'image', image_url: message.gif.url, alt_text: message.gif.title }] : undefined,
+      files: message.files,
     }
     messageCollection.insert(pending)
     let result

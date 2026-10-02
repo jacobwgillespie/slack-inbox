@@ -2301,3 +2301,5 @@ a.message-time:hover {
 .composer-gif button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #535353; border-radius: 50%; background: rgb(25 25 25 / 90%); color: #eee; opacity: 0; transition: opacity 120ms; }
 .composer-gif button .icon { width: 14px; height: 14px; }
 .composer-gif:hover button, .composer-gif:focus-within button { opacity: 1; }
+.composer-images { display: flex; flex-wrap: wrap; gap: 8px; }
+.composer-image > span { display: grid; place-items: center; min-width: 120px; height: 100px; font-size: 12px; color: var(--text-muted); }

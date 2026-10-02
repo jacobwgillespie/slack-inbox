@@ -14,6 +14,7 @@ import type {
   TypingEvent,
   RealtimeEvent,
   Presence,
+  SlackFile,
 } from '../src/slack/types.ts'
 import type { Database } from './database.ts'
 import { Preferences } from './preferences.ts'
@@ -24,6 +25,7 @@ import {
   hasUnreads,
   toConversation,
   toMessage,
+  toFile,
   toUser,
   type RawConversation,
   type RawCount,
@@ -380,10 +382,45 @@ export class SyncEngine {
     this.changed()
   }
 
+  async uploadImage(name: string, data: Uint8Array, mimetype: string): Promise<SlackFile> {
+    const id = await this.client.uploadImage(name, data, mimetype)
+    const file = { id, name, title: name, mimetype }
+    this.database.cacheFile(file)
+    this.database.cacheImagePreview(id, mimetype, data)
+    return file
+  }
+
   async postMessage(channel: string, message: OutgoingMessage, threadTs?: string) {
     const blocks = message.gif
       ? [...(message.blocks ?? []), { type: 'image', image_url: message.gif.url, alt_text: message.gif.title }]
       : message.blocks
+    if (message.files?.length) {
+      await this.client.call('files.completeUploadExternal', {
+        files: JSON.stringify(message.files.map(({ id, title }) => ({ id, title }))),
+        channel_id: channel, thread_ts: threadTs,
+        blocks: blocks?.length ? JSON.stringify(blocks) : undefined,
+        initial_comment: blocks?.length ? undefined : message.text || undefined,
+      })
+      // File sharing returns files rather than the resulting message timestamp.
+      // Resolve the share for the optimistic message, keeping a successful send
+      // successful even if Slack's file metadata has not caught up yet.
+      let ts: string | undefined
+      for (const file of message.files) {
+        try {
+          const result = await this.client.call<{ file: SlackFile & { shares?: Record<string, Record<string, { ts: string }[]>> } }>('files.info', { file: file.id })
+          this.database.cacheFile(toFile(result.file))
+          ts ??= Object.values(result.file.shares ?? {}).flatMap((shares) => shares[channel] ?? [])[0]?.ts
+        } catch (error) { console.warn('Could not resolve uploaded image metadata', error) }
+      }
+      if (ts) this.database.upsertMessages(channel, [{
+        ts, text: message.gif && !message.blocks?.length ? '' : message.text,
+        user: this.session?.userId, client_msg_id: message.clientMsgId, thread_ts: threadTs,
+        files: message.files.map((file) => this.database.file(file.id) ?? file),
+        blocks: message.gif ? [{ type: 'image', image_url: message.gif.url, alt_text: message.gif.title }] : undefined,
+      }])
+      this.changed()
+      return ts
+    }
     const result = await this.client.call<{ message?: Message }>('chat.postMessage', {
       channel,
       text: message.text,

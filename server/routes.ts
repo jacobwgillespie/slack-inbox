@@ -1,7 +1,7 @@
 import type { OutgoingMessage, RichTextBlock } from '../src/slack/rich-text.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { SlackError } from './slack-client.ts'
-import type { Classification, LegacyPreferences } from '../src/slack/types.ts'
+import type { Classification, LegacyPreferences, SlackFile } from '../src/slack/types.ts'
 import type { SyncEngine } from './sync.ts'
 
 type Handler = (request: IncomingMessage, response: ServerResponse, url: URL) => Promise<void> | void
@@ -205,11 +205,30 @@ export function localApi(engine: SyncEngine) {
       await engine.importLegacyPreferences(readLegacyPreferences(await readJson(request)))
       sendJson(response, 200, { ok: true })
     },
+    'POST /local/upload-image': async (request, response, url) => {
+      const type = request.headers['content-type']?.split(';')[0] ?? ''
+      if (!type.startsWith('image/')) throw new RequestError(400, 'invalid_image_type')
+      const chunks: Buffer[] = []
+      let size = 0
+      for await (const chunk of request) {
+        size += chunk.length
+        if (size > 50 * 1024 * 1024) throw new RequestError(413, 'image_too_large')
+        chunks.push(chunk as Buffer)
+      }
+      if (!size) throw new RequestError(400, 'empty_image')
+      const file = await engine.uploadImage(requireString(url.searchParams.get('name'), 'filename'), Buffer.concat(chunks), type)
+      sendJson(response, 200, file)
+    },
     'POST /local/post': async (request, response) => {
       const body = await readJson(request)
       const threadTs = typeof body.threadTs === 'string' ? body.threadTs : undefined
       if (body.blocks !== undefined && (!Array.isArray(body.blocks) || body.blocks.some((block) => block?.type !== 'rich_text' || !Array.isArray(block.elements)))) throw new RequestError(400, 'invalid_blocks')
       const clientMsgId = typeof body.clientMsgId === 'string' ? body.clientMsgId : undefined
+      let files: SlackFile[] | undefined
+      if (body.files !== undefined) {
+        if (!Array.isArray(body.files) || !body.files.length || body.files.some((file) => !/^F[A-Z0-9]+$/.test(file?.id))) throw new RequestError(400, 'invalid_files')
+        files = body.files.map((file) => ({ id: file.id, title: typeof file.title === 'string' ? file.title : undefined }))
+      }
       let gif: OutgoingMessage['gif']
       if (body.gif !== undefined) {
         const value = body.gif as Record<string, unknown>
@@ -218,7 +237,7 @@ export function localApi(engine: SyncEngine) {
         gif = { url, title: requireString(value.title, 'gif_title') }
       }
       const ts = await engine.postMessage(requireString(body.channel, 'channel'), {
-        text: requireString(body.text, 'text'), blocks: body.blocks as RichTextBlock[] | undefined, gif,
+        text: typeof body.text === 'string' ? body.text : requireString(body.text, 'text'), blocks: body.blocks as RichTextBlock[] | undefined, gif, files,
         clientMsgId: clientMsgId ?? crypto.randomUUID(),
       }, threadTs)
       sendJson(response, 200, { ok: true, ts })

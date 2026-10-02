@@ -14,6 +14,8 @@ import { authorName, conversationLabel } from '../format'
 import { useFormatContext } from '../hooks'
 import { useStore } from '../store'
 import { readDraft, saveDraft, clearSentDraft, useDraftSending } from '../composer-drafts'
+import { readPastedImage, removePastedImage, storePastedImage, type DraftImage } from '../composer-images'
+import { localApi } from '../api'
 import { serializeMessage } from '../slack/rich-text'
 import emojiData from '../slack/emoji-data.json'
 import { prioritizeEmoji, recordEmojiAcceptance } from '../emoji-usage'
@@ -22,6 +24,7 @@ import type { Gif } from '../gifs'
 import { ArrowUpIcon, CloseIcon } from './Icons'
 import { GIF_COMMAND, mentionSuggestions, suggestionMenu, type ComposerSuggestion } from './composer-suggestions'
 import { GifPicker } from './GifPicker'
+import { ComposerImage } from './ComposerImage'
 
 const standardEmoji: Record<string, string> = emojiData
 
@@ -50,6 +53,10 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
   const [initialDraft] = useState(() => readDraft(draftKey))
   const draft = useRef(initialDraft)
   const [pendingGif, setPendingGif] = useState(initialDraft?.gif)
+  const [pendingImages, setPendingImages] = useState(initialDraft?.images ?? [])
+  const [pasting, setPasting] = useState(false)
+  const pasteCount = useRef(0)
+  const pasteImages = useRef<(files: File[]) => void>(() => {})
   const [error, setError] = useState<string>()
   const [gifRequest, setGifRequest] = useState<{ query: string }>()
   const openGif = useRef((query = '') => setGifRequest({ query }))
@@ -129,6 +136,15 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
     content: initialDraft?.document,
     editorProps: {
       attributes: { 'aria-label': placeholder, role: 'textbox', 'aria-multiline': 'true' },
+      handlePaste(_view, event) {
+        const files = [...(event.clipboardData?.items ?? [])]
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+          .map((item) => item.getAsFile()).filter((file): file is File => Boolean(file))
+        if (!files.length) return false
+        event.preventDefault()
+        pasteImages.current(files)
+        return true
+      },
       handleKeyDown(view, event) {
         if (event.isComposing || view.composing || suggestionsOpen.current) return false
         if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
@@ -146,12 +162,12 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
     },
     onUpdate({ editor }) {
       try {
-        if (editor.isEmpty && !draft.current?.gif) {
+        if (editor.isEmpty && !draft.current?.gif && !draft.current?.images?.length) {
           localStorage.removeItem(draftKey)
           draft.current = undefined
         }
         else {
-          draft.current = { document: editor.getJSON(), gif: draft.current?.gif, clientMsgId: crypto.randomUUID() }
+          draft.current = { document: editor.getJSON(), gif: draft.current?.gif, images: draft.current?.images, clientMsgId: crypto.randomUUID() }
           saveDraft(draftKey, draft.current)
         }
       } catch { setError('Could not save this draft on this device.') }
@@ -162,6 +178,40 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
     },
   })
   const empty = useEditorState({ editor, selector: ({ editor }) => editor?.isEmpty ?? true })
+
+  const changeImages = (images: DraftImage[]) => {
+    if (!editor) return
+    setPendingImages(images)
+    if (editor.isEmpty && !draft.current?.gif && !images.length) {
+      draft.current = undefined
+      localStorage.removeItem(draftKey)
+    } else {
+      draft.current = { document: editor.getJSON(), gif: draft.current?.gif, images, clientMsgId: crypto.randomUUID() }
+      try { saveDraft(draftKey, draft.current) } catch { setError('Could not save this draft on this device.') }
+    }
+  }
+  pasteImages.current = (files) => {
+    if (!editor || useDraftSending.getState().pending[draftKey]) return
+    pasteCount.current++
+    setPasting(true)
+    setError(undefined)
+    void (async () => {
+      try {
+        for (const file of files) {
+          if (file.size > 50 * 1024 * 1024) throw new Error('Images must be smaller than 50 MB.')
+          const image = await storePastedImage(file)
+          changeImages([...(draft.current?.images ?? []), image])
+        }
+      } catch (error) { setError(error instanceof Error ? error.message : 'Could not attach this image.') }
+      finally { pasteCount.current--; setPasting(pasteCount.current > 0) }
+    })()
+  }
+
+  const removeImage = (id: string) => {
+    changeImages((draft.current?.images ?? []).filter((image) => image.id !== id))
+    void removePastedImage(id).catch(console.error)
+    editor?.commands.focus()
+  }
 
   useEffect(() => {
     placeholderRef.current = placeholder
@@ -179,14 +229,15 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
 
   useEffect(() => {
     submitRef.current = async () => {
-      if (!editor || useDraftSending.getState().pending[draftKey]) return
+      if (!editor || useDraftSending.getState().pending[draftKey] || pasteCount.current) return
       const gif = draft.current?.gif
-      if (editor.isEmpty && !gif) return
+      const images = draft.current?.images ?? []
+      if (editor.isEmpty && !gif && !images.length) return
       const document = editor.getJSON()
       const message = serializeMessage(document)
-      if (!message.text.trim() && !gif) return
+      if (!message.text.trim() && !gif && !images.length) return
       const gifCommand = /^\/gif(?:\s+(.*))?$/is.exec(editor.getText().trim())
-      if (gifCommand && !gif) {
+      if (gifCommand && !gif && !images.length) {
         openGif.current(gifCommand[1]?.trim() ?? '')
         editor.commands.clearContent()
         draft.current = undefined
@@ -197,9 +248,16 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       setError(undefined)
       editor.setEditable(false, false)
       try {
-        await commands.send({ ...message, text: message.text || gif?.title || '', gif: gif && { url: gif.url, title: gif.title }, clientMsgId }, item, thread)
+        const files = []
+        for (const image of images) {
+          image.uploaded ??= await localApi.uploadImage(await readPastedImage(image.id), image.name)
+          files.push(image.uploaded)
+          if (draft.current) saveDraft(draftKey, draft.current)
+        }
+        await commands.send({ ...message, text: message.text || gif?.title || '', gif: gif && { url: gif.url, title: gif.title }, files: files.length ? files : undefined, clientMsgId }, item, thread)
         clearSentDraft(draftKey, clientMsgId)
         useDraftSending.getState().markSent(draftKey, clientMsgId)
+        for (const image of images) void removePastedImage(image.id).catch(console.error)
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : 'Could not send this message. Your draft has been kept.')
       } finally {
@@ -215,6 +273,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       draft.current = undefined
       editor.commands.clearContent()
       setPendingGif(undefined)
+      setPendingImages([])
     }
   }, [editor, sending, sentId])
 
@@ -222,11 +281,11 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
     if (!editor || sending) return
     setPendingGif(gif)
     setError(undefined)
-    if (editor.isEmpty && !gif) {
+    if (editor.isEmpty && !gif && !draft.current?.images?.length) {
       draft.current = undefined
       localStorage.removeItem(draftKey)
     } else {
-      draft.current = { document: editor.getJSON(), gif, clientMsgId: crypto.randomUUID() }
+      draft.current = { document: editor.getJSON(), gif, images: draft.current?.images, clientMsgId: crypto.randomUUID() }
       try { saveDraft(draftKey, draft.current) } catch { setError('Could not save this draft on this device.') }
     }
     editor.commands.focus()
@@ -234,10 +293,11 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
 
   const parent = thread ? findMessage(item, thread) : undefined
   return <form className="composer" onKeyDownCapture={(event) => {
-    if (event.key === 'Escape' && pendingGif && !sending && !suggestionsOpen.current && !(event.target as HTMLElement).closest('.gif-picker, .composer-suggestions')) {
+    if (event.key === 'Escape' && (pendingGif || pendingImages.length) && !sending && !suggestionsOpen.current && !(event.target as HTMLElement).closest('.gif-picker, .composer-suggestions')) {
       event.preventDefault()
       event.stopPropagation()
-      changeGif()
+      if (pendingGif) changeGif()
+      else removeImage(pendingImages[pendingImages.length - 1]!.id)
     }
   }} onSubmit={(event) => { event.preventDefault(); void submitRef.current() }}>
     {thread && <div className="composer-context">
@@ -247,13 +307,16 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
     <div className="composer-row">
       <GifPicker request={gifRequest} disabled={sending} onClose={() => editor?.commands.focus()} onSelect={changeGif} />
       <div className="rich-composer">
+        {pendingImages.length > 0 && <div className="composer-images">{pendingImages.map((image) =>
+          <ComposerImage key={image.id} image={image} disabled={sending} onRemove={() => removeImage(image.id)} />
+        )}</div>}
         {pendingGif && <div className="composer-gif">
           <img src={pendingGif.preview} alt={pendingGif.title} />
           <button type="button" aria-label="Remove GIF" title="Remove GIF (Escape)" disabled={sending} onClick={() => changeGif()}><CloseIcon /></button>
         </div>}
         <EditorContent editor={editor} />
       </div>
-      <button className="send-button" type="submit" disabled={sending || (empty && !pendingGif)} aria-label={sending ? 'Sending' : 'Send message'} title="Send message (Enter)"><ArrowUpIcon /></button>
+      <button className="send-button" type="submit" disabled={sending || pasting || (empty && !pendingGif && !pendingImages.length)} aria-label={sending ? 'Sending' : 'Send message'} title="Send message (Enter)"><ArrowUpIcon /></button>
     </div>
     {editor && <BubbleMenu editor={editor} className="composer-formatting">
       <button type="button" aria-label="Bold" title="Bold (⌘B)" onMouseDown={(event) => event.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()}><strong>B</strong></button>

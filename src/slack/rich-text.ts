@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import type { SlackFile } from './types'
 
 export interface RichTextElement {
   type: string
@@ -21,6 +22,7 @@ export interface OutgoingMessage {
   text: string
   blocks?: RichTextBlock[]
   gif?: { url: string; title: string }
+  files?: SlackFile[]
   clientMsgId: string
 }
 

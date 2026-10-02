@@ -117,6 +117,16 @@ export class SlackClient {
     throw new SlackError('files.download', 'too_many_redirects')
   }
 
+  async uploadImage(filename: string, data: Uint8Array, contentType: string): Promise<string> {
+    const result = await this.call<{ upload_url: string; file_id: string }>('files.getUploadURLExternal', { filename, length: data.length })
+    const url = new URL(result.upload_url)
+    if (url.protocol !== 'https:' || !(url.hostname === 'slack.com' || url.hostname.endsWith('.slack.com'))) throw new SlackError('files.upload', 'invalid_upload_host')
+    const response = await this.fetchRequest(url, { method: 'POST', headers: { 'content-type': contentType }, body: new Uint8Array(data) })
+    if (!response.ok) throw new SlackError('files.upload', `http_${response.status}`)
+    await response.body?.cancel()
+    return result.file_id
+  }
+
   private send(method: string, params: Params): Promise<Response> {
     const body = new URLSearchParams()
     for (const [key, value] of Object.entries(params)) {

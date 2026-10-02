@@ -1,10 +1,12 @@
 import type { JSONContent } from '@tiptap/core'
 import type { Gif } from './gifs'
 import { create } from 'zustand'
+import type { DraftImage } from './composer-images'
 
 export interface ComposerDraft {
   document: JSONContent
   gif?: Gif
+  images?: DraftImage[]
   clientMsgId: string
 }
 

@@ -11,6 +11,7 @@ import type {
   Reaction,
   User,
   Presence,
+  SlackFile,
 } from './slack/types'
 
 export class LocalApiError extends Error {
@@ -52,6 +53,9 @@ export const localApi = {
   markThreadRead: (channel: string, threadTs: string, ts: string) =>
     post('/local/thread/mark', { channel, threadTs, ts }),
   postMessage: (channel: string, message: OutgoingMessage, threadTs?: string) => post<{ ts?: string }>('/local/post', { channel, ...message, threadTs }),
+  uploadImage: (image: Blob, name: string) => request<SlackFile>(`/local/upload-image?${new URLSearchParams({ name })}`, {
+    method: 'POST', headers: { 'content-type': image.type }, body: image,
+  }),
   saveForLater: (channel: string, ts: string) => post<{ created: boolean }>('/local/later', { channel, ts }),
   reactionDetails: (channel: string, ts: string) => request<{ reactions: Reaction[]; users: Record<string, User> }>(`/local/reactions?${new URLSearchParams({ channel, ts })}`),
   addReaction: (channel: string, ts: string, name: string) => post<{ reactions: Reaction[] }>('/local/reaction', { channel, ts, name }),
