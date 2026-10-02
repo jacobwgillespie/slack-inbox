@@ -2427,6 +2427,7 @@ a.message-time:hover {
 }
 
 .conversation-avatar-status {
+  -webkit-app-region: no-drag;
   position: relative;
   display: flex;
   flex-shrink: 0;
@@ -2457,10 +2458,13 @@ a.message-time:hover {
 }
 
 .conversation-status-overlay {
+  -webkit-app-region: no-drag;
   position: fixed;
+  z-index: 10000;
   pointer-events: none;
+  visibility: hidden;
   inset: auto;
-  display: none;
+  display: flex;
   align-items: center;
   gap: 6px;
   width: max-content;
@@ -2477,21 +2481,15 @@ a.message-time:hover {
   opacity: 0;
   transform: translateX(-4px) scale(.96);
   transform-origin: left center;
-  transition: opacity 140ms, transform 140ms, display 140ms allow-discrete, overlay 140ms allow-discrete;
+  transition: opacity 140ms, transform 140ms, visibility 140ms;
 }
 
-.conversation-status-overlay:popover-open {
-  display: flex;
+.conversation-status-overlay.is-visible {
+  visibility: visible;
   opacity: 1;
   transform: none;
 }
 
-@starting-style {
-  .conversation-status-overlay:popover-open {
-    opacity: 0;
-    transform: translateX(-4px) scale(.96);
-  }
-}
 
 .conversation-status-overlay > span {
   overflow: hidden;
