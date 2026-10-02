@@ -1529,6 +1529,7 @@ a.message-time:hover {
   display: flex;
   gap: 8px;
   align-items: center;
+  padding-inline: 19px;
   margin-bottom: 6px;
   font-size: 12px;
   color: var(--text-muted);
