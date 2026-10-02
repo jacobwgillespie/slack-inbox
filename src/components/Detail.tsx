@@ -14,7 +14,7 @@ import { TypingIndicator } from './TypingIndicator'
 import { Toast } from './Toast'
 import { MessageList } from './MessageList'
 import { ThreadFocus } from './ThreadFocus'
-import { ArrowLeftIcon, ClockIcon, MuteIcon, SwapIcon } from './Icons'
+import { ArrowLeftIcon, ClockIcon, CloseIcon, MuteIcon, SwapIcon } from './Icons'
 
 export function Detail() {
   return <Suspense fallback={<section className="detail detail-empty"><p className="muted">Opening conversation…</p><Toast /></section>}><DeferredDetail /></Suspense>
@@ -56,6 +56,7 @@ function LaterConversation({ item }: { item: InboxItem }) {
   const [focused, setFocused] = useState(true)
   return <ConversationDetail item={item} view="later" targetTs={threadTs}
     focusedThread={threadTs && focused ? <ThreadFocus item={item as LaterItem} threadTs={threadTs} onClose={() => setFocused(false)} /> : undefined}
+    onCloseThread={() => setFocused(false)}
     threadAction={threadTs && !focused ? <button className="button reopen-thread" onClick={() => setFocused(true)}>View saved thread</button> : undefined} />
 }
 
@@ -68,7 +69,7 @@ function RetainedConversation({ id, active, view }: { id: string; active: boolea
   return <ConversationDetail item={item} view={view} />
 }
 
-function ConversationDetail({ item, view, targetTs, focusedThread, threadAction }: { item?: InboxItem; view: View; targetTs?: string; focusedThread?: ReactNode; threadAction?: ReactNode }) {
+function ConversationDetail({ item, view, targetTs, focusedThread, threadAction, onCloseThread }: { item?: InboxItem; view: View; targetTs?: string; focusedThread?: ReactNode; threadAction?: ReactNode; onCloseThread?: () => void }) {
   const headerRef = useRef<HTMLElement>(null)
   const context = useFormatContext()
   const session = useStore((state) => state.session)
@@ -113,10 +114,11 @@ function ConversationDetail({ item, view, targetTs, focusedThread, threadAction 
         <div className="conversation-heading">
           <div className="conversation-pill">
             <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
-            <h2>{label}</h2>
+            <h2>{focusedThread ? `Thread in ${label}` : label}</h2>
           </div>
         </div>
         <div className="detail-actions">
+          {focusedThread && <button className="icon-button" onClick={onCloseThread} aria-label="Close thread" title="Close (Esc)"><CloseIcon /></button>}
           {view !== 'later' && !isConversationView(view) && (
             <>
               <button

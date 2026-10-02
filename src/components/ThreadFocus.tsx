@@ -5,7 +5,6 @@ import type { LaterItem, ThreadPayload } from '../slack/types'
 import { inboxStore, useStore } from '../store'
 import { readCachedConversation } from '../useCachedConversation'
 import { Composer } from './Composer'
-import { CloseIcon } from './Icons'
 import { MessageView } from './Message'
 
 export function ThreadFocus({ item, threadTs, onClose }: { item: LaterItem; threadTs: string; onClose: () => void }) {
@@ -45,7 +44,6 @@ export function ThreadFocus({ item, threadTs, onClose }: { item: LaterItem; thre
   const threadItem = payload?.root ? { ...item, thread: { ts: threadTs, root: payload.root }, messages: payload.messages } : undefined
   return <section ref={section} className="thread-focus" aria-label="Thread" tabIndex={-1}
     onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape' && !event.defaultPrevented) onClose() }}>
-    <button className="icon-button thread-focus-close" onClick={onClose} aria-label="Close thread" title="Close (Esc)"><CloseIcon /></button>
     <div ref={list} className="message-list thread-focus-messages">
       {!payload && <p className="muted" role="status">{error || 'Loading thread…'}</p>}
       {error && <button className="link-button" onClick={() => setAttempt((value) => value + 1)}>Retry</button>}
