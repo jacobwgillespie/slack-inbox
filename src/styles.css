@@ -1859,7 +1859,7 @@ a:focus-visible {
   visibility: hidden;
 }
 
-.desktop .sidebar-heading,
+.desktop .header,
 .desktop .detail-header,
 .desktop .desktop-slack-toolbar {
   -webkit-app-region: drag;
