@@ -2,6 +2,7 @@ import { findMessage, threadTargetFor } from '../selectors'
 import { useRuntime } from '../data'
 import { commands } from '../commands'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Extension, Node, mergeAttributes } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
@@ -260,11 +261,23 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
           files.push(image.uploaded)
           if (draft.current) saveDraft(draftKey, draft.current)
         }
+        if (!editor.isDestroyed) {
+          flushSync(() => {
+            editor.commands.clearContent(false)
+            setPendingGif(undefined)
+            setPendingImages([])
+          })
+        }
         await commands.send({ ...message, text: message.text || gif?.title || '', gif: gif && { url: gif.url, title: gif.title }, files: files.length ? files : undefined, clientMsgId }, item, thread)
         clearSentDraft(draftKey, clientMsgId)
         useDraftSending.getState().markSent(draftKey, clientMsgId)
         for (const image of images) void removePastedImage(image.id).catch(console.error)
       } catch (failure) {
+        if (!editor.isDestroyed) {
+          editor.commands.setContent(document, { emitUpdate: false })
+          setPendingGif(gif)
+          setPendingImages(images)
+        }
         setError(failure instanceof Error ? failure.message : 'Could not send this message. Your draft has been kept.')
       } finally {
         focusDocument.removeEventListener('pointerdown', cancelFocusRestore)
