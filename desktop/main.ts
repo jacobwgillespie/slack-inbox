@@ -187,8 +187,9 @@ async function start() {
     database.cacheImagePreview(source, contentType, bytes)
     return image
   })
-  ipcMain.handle('slack:signin', async (event) => {
+  ipcMain.handle('slack:signin', async (event, restart?: boolean) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    if (restart === true) await browserSignin.stop()
     await browserSignin.start()
     await slackContents.loadURL('https://app.slack.com/client').catch((error) => {
       if (error.code !== 'ERR_ABORTED') throw error

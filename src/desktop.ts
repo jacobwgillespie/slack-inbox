@@ -14,7 +14,7 @@ declare global {
       onCacheChange(callback: (channel?: string) => void): () => void
       readImage(source: string): Promise<string>
       showSlack(channel?: string): Promise<void>
-      signInWithBrowser(): Promise<void>
+      signInWithBrowser(restart?: boolean): Promise<void>
       logOut(): Promise<void>
       hideSlack(): Promise<void>
     }

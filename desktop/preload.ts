@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld('slackDesktop', {
   },
   readImage: (source: string) => ipcRenderer.invoke('slack:conversation-image', source),
   showSlack: (channel?: string) => ipcRenderer.invoke('slack:show', channel),
-  signInWithBrowser: () => ipcRenderer.invoke('slack:signin'),
+  signInWithBrowser: (restart?: boolean) => ipcRenderer.invoke('slack:signin', restart),
   logOut: () => ipcRenderer.invoke('slack:logout'),
   hideSlack: () => ipcRenderer.invoke('slack:hide'),
 })
