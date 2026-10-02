@@ -45,8 +45,8 @@ export function MessageView({ channel, message, continued, continues = false, we
   useLayoutEffect(() => {
     const article = ref.current
     const row = article?.parentElement
-    const bubble = article?.querySelector<HTMLElement>('.message-bubble')
-    if (!article || !row || !bubble || !(images.length || webviewImages.length)) return
+    const bubble = article?.querySelector<HTMLElement>(':scope > .message-bubble')
+    if (!article || !row || !bubble) return
     const alignControls = () => {
       const bounds = bubble.getBoundingClientRect()
       const center = bounds.top - row.getBoundingClientRect().top + bounds.height / 2
