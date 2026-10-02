@@ -156,7 +156,16 @@ function ItemRow({ item }: { item: InboxItem }) {
 
   return (
     <li data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}
-      onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY }) }}>
+      onMouseUp={(event) => {
+        if (event.button === 2 || event.button === 0 && event.ctrlKey) {
+          setContextMenu({ x: event.clientX, y: event.clientY })
+        }
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        // macOS dispatches contextmenu before mouseup, which dismisses a newly opened popover.
+        if (event.buttons === 0) setContextMenu({ x: event.clientX, y: event.clientY })
+      }}>
       {contextMenu && <ItemContextMenu item={item} {...contextMenu} onClose={() => setContextMenu(undefined)} />}
       <button
         className="done-button"
