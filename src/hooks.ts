@@ -130,12 +130,22 @@ export function useInboxSync() {
 export function useSelectionRepair() {
   const visible = useVisibleItems()
   const selectedId = useStore((state) => state.selectedId)
-  const mode = useStore((state) => state.mode)
   useEffect(() => {
-    if (visible.some((item) => item.id === selectedId)) return
-    // Search can open a completed conversation whose latest message is saved for Later.
     const state = useStore.getState()
-    if (mode === 'reading' && isConversationView(state.view) && selectedId && (state.channels[selectedId] || state.directMessages[selectedId])) return
-    useStore.getState().select(visible[0]?.id)
-  }, [visible, selectedId, mode])
+    const currentVisible = computeVisible(state)
+    if (currentVisible.some((item) => item.id === state.selectedId)) return
+    if (state.selectedId && VIEWS.includes(state.view)) {
+      const channel = isConversationView(state.view) ? state.selectedId : state.selectedId.split(':')[0]!
+      for (const view of VIEWS) {
+        if (view === state.view) continue
+        const item = computeVisible({ ...state, view }).find((item) =>
+          item.id === channel || item.id === `${channel}:${state.done[channel]}`,
+        )
+        if (!item) continue
+        useStore.setState({ view, selectedId: item.id, checked: {} })
+        return
+      }
+    }
+    state.select(currentVisible[0]?.id)
+  }, [visible, selectedId])
 }
