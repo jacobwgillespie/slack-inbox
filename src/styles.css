@@ -2336,23 +2336,11 @@ a.message-time:hover {
   backdrop-filter: blur(6px);
 }
 
-.status-editor-header,
 .status-editor-message,
 .status-editor-actions {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.status-editor-header {
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.status-editor h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 500;
 }
 
 .status-editor-message {
@@ -2403,18 +2391,24 @@ a.message-time:hover {
   margin-bottom: 8px;
 }
 
-.status-expiration {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 16px;
+.status-editor .status-expiration {
+  flex: 1;
+  padding-right: 32px;
+  appearance: none;
   color: var(--text-muted);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23909090' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  text-overflow: ellipsis;
 }
 
 .status-editor-actions {
-  justify-content: flex-end;
-  margin-top: 18px;
+  margin-top: 16px;
+}
+
+.status-editor-actions .button {
+  flex-shrink: 0;
 }
 
 .status-save {

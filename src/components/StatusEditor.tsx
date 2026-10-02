@@ -5,7 +5,6 @@ import { renderEmoji } from '../format'
 import { useFormatContext } from '../hooks'
 import emojiData from '../slack/emoji-data.json'
 import type { User } from '../slack/types'
-import { CloseIcon } from './Icons'
 
 const common = ['speech_balloon', 'calendar', 'headphones', 'palm_tree', 'house', 'face_with_thermometer', 'coffee']
 
@@ -41,13 +40,10 @@ export function StatusEditor({ user, onClose }: { user: User; onClose: () => voi
     } finally { setSaving(false) }
   }
 
-  return <dialog ref={dialog} className="status-editor" aria-labelledby="status-title" onClose={onClose}
+  return <dialog ref={dialog} className="status-editor" aria-label="Set a status" onClose={onClose}
     onClick={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}
     onCancel={(event) => { if (saving) event.preventDefault() }} onKeyDown={(event) => event.stopPropagation()}>
     <form onSubmit={(event) => { event.preventDefault(); void save() }}>
-      <div className="status-editor-header"><h2 id="status-title">Set a status</h2>
-        <button type="button" className="icon-button" aria-label="Close status editor" disabled={saving} onClick={onClose}><CloseIcon /></button>
-      </div>
       <div className="status-editor-message">
         <button type="button" className="status-emoji-choice" aria-label="Choose status emoji" disabled={saving} onClick={() => setChoosingEmoji(!choosingEmoji)}>{renderEmoji(emoji, context)}</button>
         <input autoFocus aria-label="Status text" placeholder="What's your status?" maxLength={100} value={text} disabled={saving} onChange={(event) => setText(event.target.value)} />
@@ -57,16 +53,15 @@ export function StatusEditor({ user, onClose }: { user: User; onClose: () => voi
         <div className="reaction-picker-grid">{matches.map((name) => <button key={name} type="button" title={`:${name}:`} aria-label={name.replaceAll('_', ' ')} onClick={() => { setEmoji(name); setChoosingEmoji(false) }}>{renderEmoji(name, context)}</button>)}</div>
         {!matches.length && <p className="muted">No emoji found</p>}
       </div>}
-      <label className="status-expiration">Clear after
-        <select value={expiration} disabled={saving} onChange={(event) => setExpiration(event.target.value)}>
-          {currentExpiration > 0 && <option value="current">{new Date(currentExpiration * 1000).toLocaleString()}</option>}
-          <option value="1">1 hour</option><option value="4">4 hours</option><option value="today">Today</option><option value="never">Don't clear</option>
+      <div className="status-editor-actions">
+        <select className="status-expiration" aria-label="Clear status after" value={expiration} disabled={saving} onChange={(event) => setExpiration(event.target.value)}>
+          {currentExpiration > 0 && <option value="current">Clear after {new Date(currentExpiration * 1000).toLocaleString()}</option>}
+          <option value="1">Clear after 1 hour</option><option value="4">Clear after 4 hours</option><option value="today">Clear after today</option><option value="never">Don't clear</option>
         </select>
-      </label>
-      {error && <p role="alert" className="account-error">{error}</p>}
-      <div className="status-editor-actions"><button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button>
+        <button type="button" className="button" disabled={saving} onClick={onClose}>Cancel</button>
         <button type="submit" className="button status-save" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       </div>
+      {error && <p role="alert" className="account-error">{error}</p>}
     </form>
   </dialog>
 }
