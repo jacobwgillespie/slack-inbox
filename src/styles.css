@@ -1538,7 +1538,18 @@ a.message-time:hover {
 
 .conversation-composer {
   position: relative;
+  z-index: 1;
   flex-shrink: 0;
+}
+
+.conversation-composer::before {
+  content: '';
+  position: absolute;
+  inset: -48px 0 auto;
+  height: 48px;
+  background: linear-gradient(to top, var(--background) 12px, transparent);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .composer {
