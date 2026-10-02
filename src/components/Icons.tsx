@@ -27,6 +27,18 @@ export const CloseIcon = () => (
   <Icon><path d="M6 6l12 12M18 6L6 18" /></Icon>
 )
 
+export const MoreIcon = () => (
+  <Icon><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></Icon>
+)
+
+export const EditIcon = () => (
+  <Icon><path d="m16 3 5 5-12 12H4v-5zM13 6l5 5" /></Icon>
+)
+
+export const DeleteIcon = () => (
+  <Icon><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></Icon>
+)
+
 export const HelpIcon = () => (
   <Icon>
     <circle cx="12" cy="12" r="9" />

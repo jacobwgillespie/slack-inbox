@@ -229,6 +229,17 @@ export function localApi(engine: SyncEngine) {
       const file = await engine.uploadImage(requireString(url.searchParams.get('name'), 'filename'), Buffer.concat(chunks), type)
       sendJson(response, 200, file)
     },
+    'POST /local/message/edit': async (request, response) => {
+      const body = await readJson(request)
+      if (typeof body.text !== 'string') throw new RequestError(400, 'missing_text')
+      const message = await engine.editMessage(requireString(body.channel, 'channel'), requireString(body.ts, 'ts'), body.text)
+      sendJson(response, 200, { message })
+    },
+    'POST /local/message/delete': async (request, response) => {
+      const body = await readJson(request)
+      await engine.deleteMessage(requireString(body.channel, 'channel'), requireString(body.ts, 'ts'))
+      sendJson(response, 200, { ok: true })
+    },
     'POST /local/post': async (request, response) => {
       const body = await readJson(request)
       const threadTs = typeof body.threadTs === 'string' ? body.threadTs : undefined

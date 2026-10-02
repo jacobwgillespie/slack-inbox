@@ -12,6 +12,7 @@ import type {
   User,
   Presence,
   SlackFile,
+  Message,
 } from './slack/types'
 
 export class LocalApiError extends Error {
@@ -54,6 +55,8 @@ export const localApi = {
   markThreadRead: (channel: string, threadTs: string, ts: string) =>
     post('/local/thread/mark', { channel, threadTs, ts }),
   postMessage: (channel: string, message: OutgoingMessage, threadTs?: string) => post<{ ts?: string }>('/local/post', { channel, ...message, threadTs }),
+  editMessage: (channel: string, ts: string, text: string) => post<{ message: Message }>('/local/message/edit', { channel, ts, text }),
+  deleteMessage: (channel: string, ts: string) => post('/local/message/delete', { channel, ts }),
   uploadImage: (image: Blob, name: string) => request<SlackFile>(`/local/upload-image?${new URLSearchParams({ name })}`, {
     method: 'POST', headers: { 'content-type': image.type }, body: image,
   }),

@@ -28,6 +28,31 @@ export interface OutgoingMessage {
 
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
+// Image captions must remain rich-text blocks when editing a rich-text message.
+export function mrkdwnElements(text: string, style: Record<string, boolean> = {}): RichTextElement[] {
+  const decode = (value: string) => value.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')
+  const pattern = /<([^<>]+)>|`([^`\n]+)`|\*([^*\n]+)\*|_([^_\n]+)_|~([^~\n]+)~|:([a-z0-9_+'-]+)(?:::skin-tone-([2-6]))?:/gi
+  const elements: RichTextElement[] = []
+  let offset = 0
+  const literal = (value: string) => { if (value) elements.push({ type: 'text', text: decode(value), style }) }
+  for (const match of text.matchAll(pattern)) {
+    literal(text.slice(offset, match.index))
+    const [, angle, code, bold, italic, strike, emoji, tone] = match
+    if (angle) {
+      const [target = '', label] = angle.split('|')
+      if (target.startsWith('@')) elements.push({ type: 'user', user_id: target.slice(1), style })
+      else if (/^https?:|^mailto:/i.test(target)) elements.push({ type: 'link', url: decode(target), text: decode(label ?? target), style })
+      else if (['!here', '!channel', '!everyone'].includes(target)) elements.push({ type: 'broadcast', range: target.slice(1), style })
+      else literal(match[0])
+    } else if (code) elements.push({ type: 'text', text: decode(code), style: { ...style, code: true } })
+    else if (bold || italic || strike) elements.push(...mrkdwnElements((bold ?? italic ?? strike)!, { ...style, [bold ? 'bold' : italic ? 'italic' : 'strike']: true }))
+    else if (emoji) elements.push({ type: 'emoji', name: emoji, ...(tone ? { skin_tone: Number(tone) } : {}) })
+    offset = match.index + match[0].length
+  }
+  literal(text.slice(offset))
+  return elements
+}
+
 function inline(nodes: JSONContent[] = []): RichTextElement[] {
   return nodes.flatMap((node): RichTextElement[] => {
     if (node.type === 'hardBreak') return [{ type: 'text', text: '\n' }]

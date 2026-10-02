@@ -10,7 +10,8 @@ import { openImageLightbox } from './ImageLightbox'
 import type { Classification, Message, Reaction } from '../slack/types'
 import { Avatar } from './Avatar'
 import { FileAttachment, isImageFile } from './FileAttachment'
-import { BookmarkIcon, ReplyIcon, ThreadIcon } from './Icons'
+import { BookmarkIcon, MoreIcon, ReplyIcon, ThreadIcon } from './Icons'
+import { MessageEditor, MessageMenu } from './MessageMenu'
 import { ReactionPicker } from './ReactionPicker'
 import { ReactionList } from './ReactionList'
 import { readCachedConversation } from '../useCachedConversation'
@@ -38,9 +39,12 @@ export function MessageView({ channel, message, continued, continues = false, we
   const group = Boolean(conversation && !compact)
   const { toggleThread, replyInThread } = commands
   const ref = useRef<HTMLElement>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number }>()
+  const [action, setAction] = useState<'edit' | 'delete'>()
 
   const name = authorName(message, context.users)
   const own = Boolean(session && message.user === session.userId)
+  const editable = own && !message.bot_profile && /^\d+\.\d+$/.test(message.ts) && (!message.subtype || ['me_message', 'file_share'].includes(message.subtype)) && !('pending' in message && message.pending)
   const blockImages = message.blocks?.filter((block) => block.type === 'image' && block.image_url) ?? []
   const webviewImages = message.images?.filter((image) => !blockImages.some((block) => block.image_url === image.src)) ?? []
   const images = webview && webviewImages.length ? [] : message.files?.filter(isImageFile) ?? []
@@ -70,7 +74,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   const className = ['message', continued && 'continued', continues && 'continues', own && 'message-own'].filter(Boolean).join(' ')
 
   const actions = (
-        <div className="message-actions" role="toolbar" aria-label={`Actions for ${name}'s message`}>
+        <div className={`message-actions${editable ? ' message-actions-editable' : ''}`} role="toolbar" aria-label={`Actions for ${name}'s message`}>
           <button
             className="icon-button"
             aria-label="Reply in thread"
@@ -84,11 +88,23 @@ export function MessageView({ channel, message, continued, continues = false, we
           </button>
           <SaveLaterButton channel={channel} message={message} />
           <ReactionPicker channel={channel} ts={message.ts} onReact={(reactions) => refreshReactions(channel, message.ts, reactions)} />
+          {editable && <button className="icon-button" aria-label="More message actions" title="More message actions" onClick={(event) => {
+            event.stopPropagation()
+            const bounds = event.currentTarget.getBoundingClientRect()
+            setMenu({ x: bounds.left, y: bounds.bottom + 4 })
+          }}><MoreIcon /></button>}
         </div>
   )
 
   return (
-    <div data-message-ts={message.ts} className={`message-row${continued ? ' continued' : ''}${own ? ' message-row-own' : ''}${group ? ' message-row-group' : ''}`}>
+    <div data-message-ts={message.ts} className={`message-row${continued ? ' continued' : ''}${own ? ' message-row-own' : ''}${group ? ' message-row-group' : ''}`} onContextMenu={(event) => {
+      if (!editable) return
+      event.preventDefault()
+      event.stopPropagation()
+      setMenu({ x: event.clientX, y: event.clientY })
+    }}>
+      {menu && <MessageMenu {...menu} onClose={() => setMenu(undefined)} onAction={setAction} />}
+      {action && <MessageEditor channel={channel} message={message} action={action} onClose={() => setAction(undefined)} />}
       {group && !own && !continues && (
         <div className="group-message-avatar">
           <Avatar url={authorAvatar(message, context.users)} name={name} size="small" />

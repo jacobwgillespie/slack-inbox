@@ -1130,6 +1130,8 @@ kbd {
   --bookmark-rest-offset: 28px;
 }
 
+.message-own .message-actions-editable { --bookmark-rest-offset: 56px; }
+
 .message-actions > .icon-button {
   opacity: 0;
   pointer-events: none;
@@ -2286,6 +2288,35 @@ a.message-time:hover {
 .item-context-menu button:hover, .item-context-menu button:focus-visible { background: #303030; outline: none; }
 .item-context-menu .icon { width: 15px; height: 15px; }
 .item-context-menu hr { margin: 4px 9px; border: 0; border-top: 1px solid #383838; }
+.item-context-menu .message-delete, .message-editor .message-delete { color: var(--danger); }
+
+.message-editor {
+  width: min(480px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid #383838;
+  border-radius: 16px;
+  background: #191919;
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+.message-editor::backdrop { background: #0006; backdrop-filter: blur(6px); }
+.message-editor p { margin: 0 0 16px; }
+.message-editor textarea {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #292929;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  max-height: 60vh;
+}
+.message-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.message-editor .account-error { margin-top: 12px; }
 
 .item-muted { display: flex; color: var(--text-muted); }
 .item-muted .icon { width: 13px; height: 13px; }

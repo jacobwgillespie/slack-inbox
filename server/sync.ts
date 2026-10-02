@@ -1,4 +1,4 @@
-import type { OutgoingMessage } from '../src/slack/rich-text.ts'
+import { mrkdwnElements, type OutgoingMessage } from '../src/slack/rich-text.ts'
 import type {
   InboxItem,
   ClassificationEntry,
@@ -445,6 +445,36 @@ export class SyncEngine {
     }
     this.changed()
     return result.message?.ts
+  }
+
+  private ownMessage(channel: string, ts: string, method: string) {
+    const message = this.database.message(channel, ts)
+    if (!message) throw new SlackError(method, 'message_not_found')
+    if (!this.session || message.user !== this.session.userId) throw new SlackError(method, 'cant_update_message')
+    return message
+  }
+
+  async editMessage(channel: string, ts: string, text: string) {
+    const previous = this.ownMessage(channel, ts, 'chat.update')
+    const images = previous.blocks?.filter((block) => block.type === 'image') ?? []
+    if (!text.trim() && !images.length && !previous.files?.length) throw new SlackError('chat.update', 'no_text')
+    const blocks = images.length
+      ? [...(text.trim() ? [{ type: 'rich_text', elements: [{ type: 'rich_text_section', elements: mrkdwnElements(text) }] }] : []), ...images]
+      : []
+    const result = await this.client.call<{ text?: string; message?: Partial<Message> }>('chat.update', {
+      channel, ts, text, blocks: JSON.stringify(blocks),
+    })
+    const message = toMessage({ ...previous, ...result.message, ts, text: result.text ?? result.message?.text ?? text, blocks })
+    this.database.upsertMessages(channel, [message])
+    this.changed()
+    return message
+  }
+
+  async deleteMessage(channel: string, ts: string) {
+    this.ownMessage(channel, ts, 'chat.delete')
+    await this.client.call('chat.delete', { channel, ts })
+    this.database.deleteMessage(channel, ts)
+    this.changed()
   }
 
   async threadReplies(channel: string, ts: string): Promise<ThreadPayload> {
