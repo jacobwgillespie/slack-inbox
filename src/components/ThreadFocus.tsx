@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { localApi } from '../api'
+import { LocalApiError, localApi } from '../api'
 import { isSameAuthorGroup } from '../format'
 import type { LaterItem, ThreadPayload } from '../slack/types'
 import { inboxStore, useStore } from '../store'
@@ -29,7 +29,10 @@ export function ThreadFocus({ item, threadTs, onClose }: { item: LaterItem; thre
       inboxStore.setState((state) => ({ users: { ...state.users, ...result.users } }))
       setPayload(result)
       void readCachedConversation(item.conversation.id).catch(console.error)
-    }).catch((error) => { if (!disposed) setError(error instanceof Error ? error.message : 'Could not load thread') })
+    }).catch((error) => {
+      if (disposed || error instanceof LocalApiError && error.code === 'session_not_ready') return
+      setError(error instanceof Error ? error.message : 'Could not load thread')
+    })
     return () => { disposed = true }
   }, [item.conversation.id, threadTs, attempt, lastSync])
 

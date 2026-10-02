@@ -26,7 +26,7 @@ async function start() {
   const credentials: SlackCredentials = { origin: 'https://slack.com' }
   const database = new Database(process.env.SLACK_DESKTOP_DATABASE_PATH || join(app.getPath('userData'), 'slack.sqlite'))
   const transport: typeof fetch = (input, init) => {
-    if (!credentials.sessionToken) return Promise.reject(new SlackError('auth.test', 'not_authed'))
+    if (!credentials.sessionToken) return Promise.reject(new SlackError('session', 'session_not_ready'))
     return slackSession.fetch(input instanceof Request ? input : String(input), { ...init, credentials: 'include' })
   }
   const engine = new SyncEngine(database, new SlackClient(credentials, transport))

@@ -1,7 +1,7 @@
 import { BrowserSigninButton } from './BrowserSigninButton'
 import { useStore } from '../store'
 
-const AUTH_ERRORS = new Set(['not_authed', 'invalid_auth', 'token_revoked', 'token_expired', 'account_inactive'])
+const AUTH_ERRORS = new Set(['session_not_ready', 'not_authed', 'invalid_auth', 'token_revoked', 'token_expired', 'account_inactive'])
 
 export function SetupScreen() {
   const error = useStore((state) => state.error)

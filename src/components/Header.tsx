@@ -27,13 +27,13 @@ export function Header() {
       <div className="sidebar-heading">
         {window.slackDesktop.platform !== 'darwin' && <div className="brand">Inbox</div>}
         <div className="sync-status" role="status">
-          {sync?.error && !scanning && (
+          {sync?.error && sync.error.code !== 'session_not_ready' && !scanning && (
             <span className="scan-status scan-error" title={sync.error.message}>
               Sync failed: {sync.error.code}
             </span>
           )}
           {sync?.realtime === 'disconnected' && <span className="scan-status">Reconnecting</span>}
-          {sync?.realtime === 'connecting' && !scanning && !sync.error && (
+          {sync?.realtime === 'connecting' && !scanning && (!sync.error || sync.error.code === 'session_not_ready') && (
             <span className="scan-status">Connecting to Slack…</span>
           )}
           {showProgress && (
