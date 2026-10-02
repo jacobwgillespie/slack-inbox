@@ -19,7 +19,8 @@ export interface RichTextBlock {
 }
 export interface OutgoingMessage {
   text: string
-  blocks: RichTextBlock[]
+  blocks?: RichTextBlock[]
+  gif?: { url: string; title: string }
   clientMsgId: string
 }
 

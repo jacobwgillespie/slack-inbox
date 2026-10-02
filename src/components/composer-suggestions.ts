@@ -8,7 +8,7 @@ export interface ComposerSuggestion {
   glyph?: string
 }
 
-/** Both menus share navigation; they insert different editor nodes. */
+/** Shared keyboard navigation for composer suggestions. */
 export function suggestionMenu(onOpen: (open: boolean) => void): SuggestionOptions<ComposerSuggestion>['render'] {
   return () => {
     let panel: HTMLDivElement | undefined

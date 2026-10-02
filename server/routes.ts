@@ -1,4 +1,4 @@
-import type { RichTextBlock } from '../src/slack/rich-text.ts'
+import type { OutgoingMessage, RichTextBlock } from '../src/slack/rich-text.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { SlackError } from './slack-client.ts'
 import type { Classification, LegacyPreferences } from '../src/slack/types.ts'
@@ -194,7 +194,17 @@ export function localApi(engine: SyncEngine) {
       const threadTs = typeof body.threadTs === 'string' ? body.threadTs : undefined
       if (body.blocks !== undefined && (!Array.isArray(body.blocks) || body.blocks.some((block) => block?.type !== 'rich_text' || !Array.isArray(block.elements)))) throw new RequestError(400, 'invalid_blocks')
       const clientMsgId = typeof body.clientMsgId === 'string' ? body.clientMsgId : undefined
-      const ts = await engine.postMessage(requireString(body.channel, 'channel'), requireString(body.text, 'text'), threadTs, body.blocks as RichTextBlock[] | undefined, clientMsgId)
+      let gif: OutgoingMessage['gif']
+      if (body.gif !== undefined) {
+        const value = body.gif as Record<string, unknown>
+        const url = requireString(value?.url, 'gif_url')
+        if (!/^https:\/\/[^/]+\.giphy\.com\//i.test(url)) throw new RequestError(400, 'invalid_gif_url')
+        gif = { url, title: requireString(value.title, 'gif_title') }
+      }
+      const ts = await engine.postMessage(requireString(body.channel, 'channel'), {
+        text: requireString(body.text, 'text'), blocks: body.blocks as RichTextBlock[] | undefined, gif,
+        clientMsgId: clientMsgId ?? crypto.randomUUID(),
+      }, threadTs)
       sendJson(response, 200, { ok: true, ts })
     },
   }

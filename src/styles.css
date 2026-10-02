@@ -965,12 +965,12 @@ kbd {
 }
 
 .message-row-group:not(.message-row-own) {
-  padding-left: 19px;
+  padding-left: 57px;
 }
 
 .group-message-avatar {
   position: absolute;
-  left: -15px;
+  left: 23px;
   bottom: 0;
 }
 
@@ -1550,7 +1550,7 @@ a.message-time:hover {
   display: flex;
   gap: 8px;
   align-items: center;
-  padding-inline: 19px;
+  padding-inline: 57px 19px;
   margin-bottom: 6px;
   font-size: 12px;
   color: var(--text-muted);
@@ -1566,6 +1566,63 @@ a.message-time:hover {
   background: #303030;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
 }
+
+.composer-add-button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+.composer-add-button:hover:not(:disabled) { color: var(--text); }
+.composer-add-menu, .gif-picker {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  padding: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.composer-add-menu { width: 180px; padding: 6px; }
+.composer-add-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.composer-add-menu > button:hover { background: rgb(255 255 255 / 8%); }
+.gif-label { border: 1px solid currentColor; border-radius: 4px; padding: 2px 3px; font-size: 10px; }
+.gif-picker { width: min(420px, calc(100vw - 16px)); max-height: calc(100dvh - 140px); overflow-y: auto; }
+.gif-picker-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.gif-picker-header strong { flex: 1; font-size: 15px; font-weight: 500; }
+.gif-picker input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--background); color: var(--text); font: inherit; }
+.gif-picker-results { max-height: min(360px, calc(100dvh - 280px)); overflow-y: auto; margin-top: 12px; }
+.gif-picker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.gif-picker-grid button { padding: 0; border: 0; border-radius: 8px; overflow: hidden; background: var(--background); }
+.gif-picker-grid img { display: block; width: 100%; height: 140px; object-fit: contain; }
+.gif-picker-grid button:hover { opacity: .8; }
+.gif-load-more { display: block; margin: 12px auto; }
+.gif-preview { display: flex; justify-content: center; border-radius: 10px; overflow: hidden; background: var(--background); }
+.gif-preview img { max-width: 100%; max-height: min(300px, calc(100dvh - 320px)); object-fit: contain; }
+.gif-destination { margin: 12px 0; font-size: 12px; color: var(--text-muted); }
+.gif-send { width: 100%; }
+.gif-error { font-size: 12px; color: var(--danger); }
+.giphy-attribution { display: block; width: 120px; height: auto; margin: 12px 0 0 auto; }
+.attachment-image { display: block; max-width: min(100%, 480px); max-height: 360px; border-radius: 10px; object-fit: contain; }
 
 .composer textarea {
   flex: 1;

@@ -34,6 +34,12 @@ node --experimental-transform-types --test server/files.test.ts
 
 Only add tests for critical behavior.
 
+### GIF search
+
+The composer supports `/gif`, `/gif search terms`, and **+ → GIF**. The browser shows trending GIFs, search results, and a preview before sending an image attachment to the current conversation or thread. Sending a GIF keeps any text draft.
+
+Create a [GIPHY API key](https://developers.giphy.com/dashboard/) for the app and set `VITE_GIPHY_API_KEY` in `.env.local` before building. This is a client API key: Vite includes it in the renderer so requests go directly to GIPHY, as required by its integration guidelines. The release workflow reads the key from the `GIPHY_API_KEY` repository secret. Beta keys are limited to 100 API calls per hour; request production access before wider distribution. The picker includes GIPHY's official attribution mark.
+
 ## Architecture
 
 - `desktop/main.ts` owns the window, embedded Slack views, authentication, local HTTP API, sync engine, and shutdown.

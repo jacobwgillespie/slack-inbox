@@ -112,9 +112,10 @@ export function MessageView({ channel, message, continued, continues = false, we
                   <div className="attachment-title">{attachment.title}</div>
                 ))}
               {attachment.text && <div className="mrkdwn">{renderMrkdwn(attachment.text, context)}</div>}
-              {!attachment.title && !attachment.text && attachment.fallback && (
+              {!attachment.title && !attachment.text && !attachment.image_url && attachment.fallback && (
                 <div className="mrkdwn">{renderMrkdwn(attachment.fallback, context)}</div>
               )}
+              {attachment.image_url && !(webview && webviewImages.length) && <img className="attachment-image" src={attachment.image_url} alt={attachment.fallback || 'Image attachment'} loading="lazy" />}
             </div>
           ))}
           {files.length ? (

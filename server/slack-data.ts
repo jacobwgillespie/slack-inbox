@@ -60,12 +60,13 @@ export function toMessage(raw: Message): Message {
     thread_ts: raw.thread_ts,
     reply_count: raw.reply_count,
     files: raw.files?.map(toFile),
-    attachments: raw.attachments?.map(({ fallback, pretext, title, title_link, text }) => ({
+    attachments: raw.attachments?.map(({ fallback, pretext, title, title_link, text, image_url }) => ({
       fallback,
       pretext,
       title,
       title_link,
       text,
+      image_url,
     })),
     reactions: raw.reactions?.map(({ name, count, users }) => ({ name, count, users })),
     bot_profile: raw.bot_profile && { name: raw.bot_profile.name, icons: { image_48: raw.bot_profile.icons?.image_48 } },

@@ -20,6 +20,7 @@ export interface SlackFile {
 }
 
 export interface SlackAttachment {
+  image_url?: string
   fallback?: string
   pretext?: string
   title?: string

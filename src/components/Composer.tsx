@@ -2,7 +2,8 @@ import { findMessage, threadTargetFor } from '../selectors'
 import { useRuntime } from '../data'
 import { commands } from '../commands'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Node, mergeAttributes } from '@tiptap/core'
+import { Extension, Node, mergeAttributes } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
@@ -18,6 +19,7 @@ import emojiData from '../slack/emoji-data.json'
 import type { InboxItem } from '../slack/types'
 import { ArrowUpIcon } from './Icons'
 import { suggestionMenu, type ComposerSuggestion } from './composer-suggestions'
+import { GifPicker } from './GifPicker'
 
 const standardEmoji: Record<string, string> = emojiData
 
@@ -46,6 +48,8 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
   const [initialDraft] = useState(() => readDraft(draftKey))
   const draft = useRef(initialDraft)
   const [error, setError] = useState<string>()
+  const [gifRequest, setGifRequest] = useState<{ query: string }>()
+  const openGif = useRef((query = '') => setGifRequest({ query }))
   const suggestionsOpen = useRef(false)
   const contextRef = useRef(context)
   useEffect(() => { contextRef.current = context }, [context])
@@ -57,6 +61,22 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
 
   const extensions = useMemo(() => {
     const render = suggestionMenu((open) => { suggestionsOpen.current = open })
+    const SlashCommands = Extension.create({
+      name: 'slashCommands',
+      addProseMirrorPlugins() {
+        return [Suggestion<ComposerSuggestion>({
+          pluginKey: new PluginKey('slashCommands'),
+          editor: this.editor, char: '/', startOfLine: true,
+          allow: ({ range }) => range.from === 1,
+          items: ({ query }) => 'gif'.startsWith(query.toLowerCase()) ? [{ id: 'gif', label: '/gif', detail: 'Find and send a GIF', glyph: 'GIF' }] : [],
+          command: ({ editor, range }) => {
+            editor.chain().focus().deleteRange(range).run()
+            openGif.current()
+          },
+          render,
+        })]
+      },
+    })
     const Emoji = Node.create({
       name: 'emoji', group: 'inline', inline: true, atom: true,
       addAttributes: () => ({ name: { default: '' }, glyph: { default: undefined }, image: { default: undefined } }),
@@ -96,6 +116,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
         },
       }),
       Emoji,
+      SlashCommands,
     ]
   }, [])
 
@@ -156,6 +177,13 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       const document = editor.getJSON()
       const message = serializeMessage(document)
       if (!message.text.trim()) return
+      const gifCommand = /^\/gif(?:\s+(.*))?$/is.exec(editor.getText().trim())
+      if (gifCommand) {
+        openGif.current(gifCommand[1]?.trim() ?? '')
+        editor.commands.clearContent()
+        draft.current = undefined
+        return
+      }
       const clientMsgId = draft.current?.clientMsgId ?? crypto.randomUUID()
       useDraftSending.getState().setPending(draftKey, true)
       setError(undefined)
@@ -188,6 +216,15 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       {!item.thread && <button type="button" className="link-button" onClick={() => commands.clearThreadTarget()}>Cancel</button>}
     </div>}
     <div className="composer-row">
+      <GifPicker request={gifRequest} disabled={sending} destination={thread ? `Reply in thread in ${label}` : `Send to ${label}`}
+        onClose={() => editor?.commands.focus()}
+        onSend={async (gif, clientMsgId) => {
+          if (useDraftSending.getState().pending[draftKey]) throw new Error('A message is already being sent. Please wait a moment.')
+          useDraftSending.getState().setPending(draftKey, true)
+          try {
+            await commands.send({ text: gif.title, gif: { url: gif.url, title: gif.title }, clientMsgId }, item, thread)
+          } finally { useDraftSending.getState().setPending(draftKey, false) }
+        }} />
       <EditorContent editor={editor} className="rich-composer" />
       <button className="send-button" type="submit" disabled={sending || empty} aria-label={sending ? 'Sending' : 'Send message'} title="Send message (Enter)"><ArrowUpIcon /></button>
     </div>
