@@ -26,6 +26,13 @@ export async function observeSlack(view: WebContentsView, credentials: SlackCred
     disconnectedAt = Date.now()
     connectionChanged(connected)
   }
+  contents.on('did-start-navigation', (event) => {
+    if (!event.isMainFrame || event.isSameDocument) return
+    sockets.clear()
+    connectedSockets.clear()
+    disconnectedAt = Date.now()
+    updateConnection()
+  })
   const enable = async () => {
     if (stopped || enabling) return
     enabling = true

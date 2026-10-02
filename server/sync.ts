@@ -152,9 +152,13 @@ export class SyncEngine {
 
   async presence(user: string) {
     const result = await this.client.call<{ presence: Presence; online?: boolean; manual_away?: boolean; auto_away?: boolean }>('users.getPresence', { user })
+    return user === this.session?.userId ? this.stableSelfPresence(result) : result
+  }
+
+  private stableSelfPresence<T extends { presence: Presence; online?: boolean; manual_away?: boolean; auto_away?: boolean }>(result: T): T {
     // Channel collection briefly disconnects the shared Slack view during navigation.
-    if (user === this.session?.userId && result.online === false && result.manual_away === false && result.auto_away === false && Date.now() - this.lastConfirmedActive < 60_000) {
-      return { ...result, presence: 'active' as const }
+    if (result.online === false && result.manual_away === false && result.auto_away === false && Date.now() - this.lastConfirmedActive < 60_000) {
+      return { ...result, presence: 'active' }
     }
     return result
   }
@@ -164,9 +168,10 @@ export class SyncEngine {
       await this.client.call('users.setPresence', { presence })
       // Slack's web client uses presence.set to register activity, rather than only clearing manual away.
       if (presence === 'auto') await this.client.call('presence.set', { presence: 'active' })
-      const result = await this.client.call<{ presence: Presence }>('users.getPresence')
-      this.lastConfirmedActive = presence === 'auto' && result.presence === 'active' ? Date.now() : 0
-      return result
+      const result = await this.client.call<{ presence: Presence; online?: boolean; manual_away?: boolean; auto_away?: boolean }>('users.getPresence')
+      if (presence === 'away') this.lastConfirmedActive = 0
+      else if (result.presence === 'active') this.lastConfirmedActive = Date.now()
+      return presence === 'auto' ? this.stableSelfPresence(result) : result
     })
   }
 
@@ -175,9 +180,9 @@ export class SyncEngine {
       const current = await this.client.call<{ presence: Presence; manual_away?: boolean }>('users.getPresence')
       if (current.manual_away) { this.lastConfirmedActive = 0; return current }
       await this.client.call('presence.set', { presence: 'active' })
-      const result = await this.client.call<{ presence: Presence }>('users.getPresence')
+      const result = await this.client.call<{ presence: Presence; online?: boolean; manual_away?: boolean; auto_away?: boolean }>('users.getPresence')
       if (result.presence === 'active') this.lastConfirmedActive = Date.now()
-      return result
+      return this.stableSelfPresence(result)
     })
   }
 

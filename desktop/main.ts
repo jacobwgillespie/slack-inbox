@@ -1,4 +1,4 @@
-import { app, BaseWindow, WebContentsView, ipcMain, session, shell } from 'electron'
+import { app, BaseWindow, WebContentsView, ipcMain, powerMonitor, session, shell } from 'electron'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { join, resolve, extname } from 'node:path'
@@ -118,23 +118,28 @@ async function start() {
   })
   const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[CDG][A-Z0-9]+$/.test(channel)
   let lastPresenceActivity = 0
-  let lastUserActivity = 0
+  let suspended = false
+  const desktopActive = () => !suspended && powerMonitor.getSystemIdleState(600) === 'active'
+  powerMonitor.on('suspend', () => { suspended = true })
+  powerMonitor.on('resume', () => { suspended = false })
   const reportActivity = async () => {
     const result = await engine.reportActivity()
     if (!uiContents.isDestroyed()) uiContents.send('slack:self-presence', result.presence)
     return { presence: result.presence }
   }
   const recordActivity = () => {
-    if (!window.isFocused() || slackVisible) return
-    lastUserActivity = Date.now()
-    if (!credentials.sessionToken || Date.now() - lastPresenceActivity < 30_000) return
+    if (!desktopActive() || !credentials.sessionToken || Date.now() - lastPresenceActivity < 30_000) return
     lastPresenceActivity = Date.now()
     return reportActivity()
   }
   ipcMain.handle('slack:activity', async (event) => {
     if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    if (!window.isFocused() || slackVisible) return
     return recordActivity()
   })
+  const presenceTimer = setInterval(() => {
+    void recordActivity()?.catch((error) => console.warn('Could not report Slack activity', error))
+  }, 30_000)
   window.on('focus', () => {
     if (!slackVisible) uiContents.focus()
     void recordActivity()?.catch((error) => console.warn('Could not report Slack activity', error))
@@ -255,8 +260,8 @@ async function start() {
   const canRecover = () => Boolean(savedTeam || credentials.sessionToken) && !slackVisible && !quitting
   const stopObservingSlack = await observeSlack(slack, credentials, engine, canRecover, (connected) => {
     engine.setExternalRealtime(connected)
-    // Collection can replace Slack's connection; restore recent app activity on the new connection.
-    if (connected && credentials.sessionToken && window.isFocused() && !slackVisible && Date.now() - lastUserActivity < 60_000) {
+    // Collection can replace Slack's connection; restore desktop activity on the new connection.
+    if (connected && credentials.sessionToken && desktopActive()) {
       void reportActivity().catch((error) => console.warn('Could not restore Slack activity', error))
     }
   })
@@ -275,6 +280,7 @@ async function start() {
     void shutdown().catch((error) => console.error('Could not finish shutdown', error)).finally(() => app.quit())
   })
   async function shutdown() {
+    clearInterval(presenceTimer)
     stopObservingSlack()
     collector.stop()
     unsubscribeCache()
