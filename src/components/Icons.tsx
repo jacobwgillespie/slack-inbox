@@ -86,6 +86,10 @@ export const RefreshIcon = () => (
   </Icon>
 )
 
+export const SearchIcon = () => (
+  <Icon><circle cx="10.5" cy="10.5" r="7" /><path d="m16 16 5 5" /></Icon>
+)
+
 export const DownloadIcon = () => (
   <Icon>
     <path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4" />

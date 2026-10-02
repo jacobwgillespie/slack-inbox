@@ -12,7 +12,7 @@ import { renderEmoji } from '../format'
 import { useFormatContext } from '../hooks'
 import { useCustomStatus } from '../custom-status'
 import { StatusEditor } from './StatusEditor'
-import { BugIcon, CloseIcon, DownloadIcon, HelpIcon, LogoutIcon, PresenceIcon, ReactionIcon, RefreshIcon, ThreadIcon } from './Icons'
+import { BugIcon, CloseIcon, DownloadIcon, HelpIcon, LogoutIcon, PresenceIcon, ReactionIcon, RefreshIcon, SearchIcon, ThreadIcon } from './Icons'
 
 export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const session = useRuntime().session
@@ -111,6 +111,9 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
         <button onClick={() => { menu.current?.hidePopover(); toggleHelp() }}>
           <HelpIcon /><span>Help</span><kbd>?</kbd>
         </button>
+        <button className={refreshing ? 'spinning' : undefined} onClick={() => { menu.current?.hidePopover(); refresh() }} disabled={refreshing}>
+          <RefreshIcon /><span>{refreshing ? 'Refreshing…' : 'Refresh'}</span><kbd>⇧R</kbd>
+        </button>
         {session && <button onClick={() => {
           menu.current?.hidePopover()
           openDesktopSlack()
@@ -129,8 +132,8 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
           title={`Restart to update to ${updateVersion}`} aria-label={restarting ? 'Restarting to update' : `Restart to update to ${updateVersion}`}>
           <DownloadIcon />
         </button>}
-        <button className={`icon-button${refreshing ? ' spinning' : ''}`} onClick={refresh} disabled={refreshing} title="Refresh (Shift+R)" aria-label="Refresh">
-          <RefreshIcon />
+        <button className="icon-button" onClick={() => commands.setSearchOpen(true)} title="Search threads (/)" aria-label="Search threads">
+          <SearchIcon />
         </button>
       </div>
     </footer>

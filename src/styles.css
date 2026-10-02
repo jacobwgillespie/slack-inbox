@@ -258,7 +258,8 @@ kbd {
   border-color: var(--border-strong);
 }
 
-.icon-button.spinning .icon {
+.icon-button.spinning .icon,
+.account-menu button.spinning .icon {
   animation: spin 1s linear infinite;
 }
 
