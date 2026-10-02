@@ -246,6 +246,10 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
         return
       }
       const clientMsgId = draft.current?.clientMsgId ?? crypto.randomUUID()
+      const focusDocument = editor.view.dom.ownerDocument
+      let restoreFocus = focusDocument.activeElement === editor.view.dom
+      const cancelFocusRestore = () => { restoreFocus = false }
+      focusDocument.addEventListener('pointerdown', cancelFocusRestore)
       useDraftSending.getState().setPending(draftKey, true)
       setError(undefined)
       editor.setEditable(false, false)
@@ -263,7 +267,14 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : 'Could not send this message. Your draft has been kept.')
       } finally {
+        focusDocument.removeEventListener('pointerdown', cancelFocusRestore)
         useDraftSending.getState().setPending(draftKey, false)
+        if (!editor.isDestroyed) {
+          editor.setEditable(true, false)
+          if (restoreFocus && (focusDocument.activeElement === focusDocument.body || focusDocument.activeElement === editor.view.dom)) {
+            editor.commands.focus(undefined, { scrollIntoView: false })
+          }
+        }
       }
     }
   }, [editor, item, thread, draftKey])
