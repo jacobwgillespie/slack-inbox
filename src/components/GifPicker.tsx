@@ -32,7 +32,7 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
   const position = (panel: HTMLDivElement, width: number) => {
     const bounds = trigger.current!.getBoundingClientRect()
     const commandMenu = panel === menu.current
-    panel.style.left = `${Math.max(8, Math.min(commandMenu ? bounds.right + 10 : bounds.left, window.innerWidth - width - 8))}px`
+    panel.style.left = `${Math.max(8, Math.min(commandMenu ? bounds.right + 8 : bounds.left, window.innerWidth - width - 8))}px`
     panel.style.bottom = `${Math.max(8, window.innerHeight - bounds.top + (commandMenu ? 8 : 12))}px`
   }
 
