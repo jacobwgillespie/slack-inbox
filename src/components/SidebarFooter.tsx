@@ -11,7 +11,7 @@ import { presenceCollection, userCollection, reconcile } from '../collections'
 import { renderEmoji } from '../format'
 import { useFormatContext } from '../hooks'
 import { StatusEditor } from './StatusEditor'
-import { BugIcon, CloseIcon, DownloadIcon, HelpIcon, LogoutIcon, ReactionIcon, RefreshIcon, ThreadIcon } from './Icons'
+import { BugIcon, CloseIcon, DownloadIcon, HelpIcon, LogoutIcon, PresenceIcon, ReactionIcon, RefreshIcon, ThreadIcon } from './Icons'
 
 export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const session = useRuntime().session
@@ -107,7 +107,7 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
           </button>
           {hasStatus && <button onClick={() => void clearStatus()} disabled={clearingStatus}><CloseIcon /><span>{clearingStatus ? 'Clearing…' : 'Clear status'}</span></button>}
           {presence && <button onClick={() => void setPresence(presence === 'active' ? 'away' : 'auto')} disabled={settingPresence}>
-            <PresenceDot presence={presence === 'active' ? 'away' : 'active'} /><span>Set yourself {presence === 'active' ? 'away' : 'active'}</span>
+            <PresenceIcon active={presence !== 'active'} /><span>Set yourself {presence === 'active' ? 'away' : 'active'}</span>
           </button>}
           <hr />
         </>}

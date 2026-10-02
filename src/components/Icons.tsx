@@ -47,6 +47,10 @@ export const ClockIcon = () => (
   </Icon>
 )
 
+export const PresenceIcon = ({ active }: { active: boolean }) => (
+  <Icon><circle cx="12" cy="12" r="8.5" fill={active ? 'currentColor' : 'none'} /></Icon>
+)
+
 export const MuteIcon = () => (
   <Icon>
     <path d="M11 5L6.5 9H3v6h3.5L11 19z" />
