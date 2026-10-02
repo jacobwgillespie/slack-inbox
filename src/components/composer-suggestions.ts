@@ -58,7 +58,9 @@ export function suggestionMenu(onOpen: (open: boolean) => void, variant: 'autoco
       if (!props.items.length) panel.textContent = 'No matches'
       const rect = props.clientRect?.()
       if (rect) {
-        panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8))}px`
+        const label = variant === 'commands' ? panel.querySelector<HTMLElement>('.suggestion-label') : null
+        const labelOffset = label ? label.getBoundingClientRect().left - panel.getBoundingClientRect().left : 0
+        panel.style.left = `${Math.max(8, Math.min(rect.left - labelOffset, window.innerWidth - panel.offsetWidth - 8))}px`
         panel.style.top = `${Math.max(8, rect.top - panel.offsetHeight - 8)}px`
       }
       panel.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })

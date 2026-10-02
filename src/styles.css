@@ -1583,17 +1583,18 @@ a.message-time:hover {
   inset: auto;
   margin: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 16px;
-  padding: 12px;
-  background: var(--surface-raised);
+  border-radius: 10px;
+  padding: 8px 8px 32px;
+  background: #191919;
   color: var(--text);
   box-shadow: var(--shadow);
 }
 .gif-picker { width: min(420px, calc(100vw - 16px)); max-height: calc(100dvh - 140px); overflow-y: auto; }
-.gif-picker-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.gif-picker-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.gif-picker-header .icon-button { flex-shrink: 0; width: 28px; height: 28px; }
 .gif-picker-header strong { flex: 1; font-size: 15px; font-weight: 500; }
-.gif-picker input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--background); color: var(--text); font: inherit; }
-.gif-picker-results { max-height: min(360px, calc(100dvh - 280px)); overflow-y: auto; margin-top: 12px; }
+.gif-picker input { flex: 1; min-width: 0; width: 100%; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--background); color: var(--text); font: inherit; font-size: 13px; line-height: 18px; }
+.gif-picker-results { height: min(360px, calc(100dvh - 280px)); overflow-y: auto; }
 .gif-picker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .gif-picker-grid button { padding: 0; border: 0; border-radius: 8px; overflow: hidden; background: var(--background); }
 .gif-picker-grid img { display: block; width: 100%; height: 140px; object-fit: contain; }
@@ -1604,7 +1605,7 @@ a.message-time:hover {
 .gif-destination { margin: 12px 0; font-size: 12px; color: var(--text-muted); }
 .gif-send { width: 100%; }
 .gif-error { font-size: 12px; color: var(--danger); }
-.gif-attribution { margin: 12px 0 0; color: var(--text-muted); font-size: 11px; text-align: right; }
+.gif-attribution { position: absolute; bottom: 0; left: 0; right: 0; margin: 0; padding: 20px 12px 8px; border-radius: 0 0 9px 9px; background: linear-gradient(to bottom, transparent, #303030 100%); color: var(--text-muted); font-size: 11px; text-align: right; pointer-events: none; }
 .attachment-image { display: block; max-width: min(100%, 480px); max-height: 360px; border-radius: 10px; object-fit: contain; }
 
 .composer textarea {
@@ -2179,7 +2180,7 @@ a.message-time:hover {
   border-radius: 16px;
   background: #080808;
 }
-.composer-command-suggestions button { min-height: 40px; padding: 8px 10px; gap: 10px; border-radius: 10px; }
+.composer-command-suggestions button { min-height: 32px; padding: 6px 9px; gap: 8px; border-radius: 5px; font-size: 13px; line-height: 18px; }
 .composer-command-suggestions button[aria-selected="true"],
 .composer-command-suggestions button:hover { background: #2b2b2b; }
 .composer-command-suggestions .suggestion-glyph {

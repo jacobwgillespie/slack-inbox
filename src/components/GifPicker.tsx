@@ -32,7 +32,9 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
   const position = (panel: HTMLDivElement, width: number) => {
     const bounds = trigger.current!.getBoundingClientRect()
     const commandMenu = panel === menu.current
-    panel.style.left = `${Math.max(8, Math.min(commandMenu ? bounds.right + 8 : bounds.left, window.innerWidth - width - 8))}px`
+    const label = panel.querySelector<HTMLElement>('.suggestion-label')
+    const labelOffset = label ? label.getBoundingClientRect().left - panel.getBoundingClientRect().left : 0
+    panel.style.left = `${Math.max(8, Math.min(commandMenu ? bounds.right + 8 - labelOffset : bounds.left, window.innerWidth - width - 8))}px`
     panel.style.bottom = `${Math.max(8, window.innerHeight - bounds.top + (commandMenu ? 8 : 12))}px`
   }
 
@@ -86,7 +88,12 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
     <button ref={trigger} type="button" className="composer-add-button" aria-label="Add to message" title="Add to message" disabled={disabled} popoverTarget={menuId}
       onClick={() => position(menu.current!, menu.current!.offsetWidth || 480)}><PlusIcon /></button>
     <div ref={menu} id={menuId} popover="auto" className="composer-suggestions composer-command-suggestions composer-command-popover" role="menu" aria-label="Commands"
-      onToggle={(event) => { if (event.newState === 'open') menu.current?.querySelector<HTMLButtonElement>('button')?.focus() }}
+      onToggle={(event) => {
+        if (event.newState === 'open') {
+          position(menu.current!, menu.current!.offsetWidth)
+          menu.current?.querySelector<HTMLButtonElement>('button')?.focus()
+        }
+      }}
       onKeyDown={(event) => {
         event.stopPropagation()
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') event.preventDefault()
@@ -108,7 +115,7 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
       }}>
       <div className="gif-picker-header">
         {selection && <button type="button" className="icon-button" aria-label="Back to GIFs" disabled={sending} onClick={() => { setSelection(undefined); setError(undefined) }}><ArrowLeftIcon /></button>}
-        <strong>{selection ? 'Send GIF' : 'GIFs'}</strong>
+        {selection ? <strong>Send GIF</strong> : <input ref={search} aria-label="Search GIFs" placeholder="Search KLIPY" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); setHasMore(false) }} />}
         <button type="button" className="icon-button" aria-label="Close GIF browser" onClick={() => browser.current?.hidePopover()}><CloseIcon /></button>
       </div>
       {selection ? <>
@@ -116,14 +123,13 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
         <p className="gif-destination">{destination}</p>
         <button type="button" className="gif-send button primary" disabled={sending || disabled} onClick={() => void send()}>{sending ? 'Sending…' : 'Send GIF'}</button>
       </> : <>
-        <input ref={search} aria-label="Search GIFs" placeholder="Search KLIPY" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); setGifs([]); setHasMore(false) }} />
         <div className="gif-picker-results" aria-busy={loading}>
           <div className="gif-picker-grid">
             {gifs.map((gif) => <button key={gif.id} type="button" aria-label={`Preview ${gif.title}`} onClick={() => { setSelection({ gif, clientMsgId: crypto.randomUUID() }); setError(undefined) }}>
               <img src={gif.preview} alt={gif.title} loading="lazy" />
             </button>)}
           </div>
-          {loading && <p className="muted" role="status">Loading GIFs…</p>}
+          {loading && !gifs.length && <p className="muted" role="status">Loading GIFs…</p>}
           {!loading && !error && !gifs.length && <p className="muted">No GIFs found. Try another search.</p>}
           {hasMore && !error && <button type="button" className="link-button gif-load-more" disabled={loading} onClick={() => setPage(nextPage)}>Load more</button>}
         </div>
