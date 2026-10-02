@@ -136,7 +136,7 @@ function ItemRow({ item }: { item: InboxItem }) {
   const latest = item.messages[item.messages.length - 1]
   const label = conversationLabel(item.conversation, context.users, session)
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
-  const unread = Boolean(item.thread) || isConversationView(view) && conversation && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0
+  const unread = item.thread ? compareTs(latestTs(item), item.lastRead ?? '0') > 0 : isConversationView(view) && conversation && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0
 
   const onClick = (event: MouseEvent) => {
     event.currentTarget.closest<HTMLElement>('.item-list')?.focus({ preventScroll: true })

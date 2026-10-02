@@ -23,7 +23,8 @@ export interface RuntimeData {
 }
 export const runtimeCollection = local<RuntimeData>('runtime')
 runtimeCollection.insert({ id: 'slack', status: 'loading', emoji: {} })
-export const messageCollection = local<WebviewMessage & { id: string; channel: string }>('messages')
+type CachedMessage = WebviewMessage & { id: string; channel: string; pending?: boolean }
+export const messageCollection = local<CachedMessage>('messages')
 export const cacheCollection = local<Omit<CachedConversation, 'messages'> & { id: string }>('dm-cache')
 
 // SQLite and the existing command layer publish confirmed snapshots here.
@@ -43,6 +44,16 @@ export function reconcile<T extends { id: string }>(collection: ReturnType<typeo
   if (replace) for (const key of collection.keys()) if (!ids.has(key)) collection.delete(key)
 }
 
+export function reconcileMessages(rows: CachedMessage[]) {
+  for (const message of rows) {
+    if (!message.client_msg_id) continue
+    for (const pending of messageCollection.values()) {
+      if (pending.pending && pending.channel === message.channel && pending.client_msg_id === message.client_msg_id && pending.id !== message.id) messageCollection.delete(pending.id)
+    }
+  }
+  reconcile(messageCollection, rows, false)
+}
+
 export function applyCache(snapshot: CachedConversation, replaceFrom?: string) {
   const { messages, deletedTs = [], ...state } = snapshot
   for (const ts of deletedTs) {
@@ -54,10 +65,11 @@ export function applyCache(snapshot: CachedConversation, replaceFrom?: string) {
   if (replaceFrom) {
     const ids = new Set(rows.map((row) => row.id))
     for (const row of messageCollection.values()) {
+      if (row.pending) continue
       // Channel history only includes top-level messages, so it cannot replace thread replies.
       if (row.thread_ts && row.thread_ts !== row.ts && row.subtype !== 'thread_broadcast') continue
       if (row.channel === snapshot.channel && row.ts >= replaceFrom && !ids.has(row.id)) messageCollection.delete(row.id)
     }
   }
-  reconcile(messageCollection, rows, false)
+  reconcileMessages(rows)
 }

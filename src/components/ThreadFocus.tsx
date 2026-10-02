@@ -1,7 +1,7 @@
 import { useRuntime } from '../data'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
-import { messageCollection, userCollection, reconcile } from '../collections'
+import { messageCollection, userCollection, reconcile, reconcileMessages } from '../collections'
 import { LocalApiError, localApi } from '../api'
 import { isSameAuthorGroup } from '../format'
 import type { InboxItem, ThreadPayload } from '../slack/types'
@@ -44,9 +44,9 @@ export function ThreadFocus({ item, threadTs, savedTs, onClose }: { item: InboxI
       const messages = [...(result.root ? [result.root] : []), ...result.messages]
       const timestamps = new Set(messages.map((message) => message.ts))
       for (const message of messageCollection.values()) {
-        if (message.channel === item.conversation.id && message.thread_ts === threadTs && !timestamps.has(message.ts)) messageCollection.delete(message.id)
+        if (!message.pending && message.channel === item.conversation.id && message.thread_ts === threadTs && !timestamps.has(message.ts)) messageCollection.delete(message.id)
       }
-      reconcile(messageCollection, messages.map((message) => ({ ...message, id: `${item.conversation.id}:${message.ts}`, channel: item.conversation.id })), false)
+      reconcileMessages(messages.map((message) => ({ ...message, id: `${item.conversation.id}:${message.ts}`, channel: item.conversation.id })))
       setPayload(result)
       void readCachedConversation(item.conversation.id).catch(console.error)
     }).catch((error) => {
@@ -62,6 +62,11 @@ export function ThreadFocus({ item, threadTs, savedTs, onClose }: { item: InboxI
     if (!target || !list.current) return
     target.classList.add('saved-message')
   }, [payload, savedTs, cachedMessages])
+
+  useLayoutEffect(() => {
+    const pending = cachedMessages.findLast((message) => message.pending && message.thread_ts === threadTs)
+    if (pending) list.current?.querySelector<HTMLElement>(`[data-message-ts="${CSS.escape(pending.ts)}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [cachedMessages, threadTs, payload])
 
   const messages = payload ? cachedMessages.filter((message) => message.ts === threadTs || message.thread_ts === threadTs)
     .sort((a, b) => a.ts.localeCompare(b.ts)) : []

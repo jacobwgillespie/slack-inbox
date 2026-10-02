@@ -161,6 +161,7 @@ interface ThreadInboxRow {
   root: string
   message: string
   thread_ts: string
+  last_read: string
 }
 
 interface LaterRow {
@@ -607,7 +608,7 @@ export class Database {
   threadInbox(selfId: string): InboxItem[] {
     const rows = this.db
       .prepare(
-        `SELECT c.data AS conversation, root.data AS root, m.data AS message, t.thread_ts
+        `SELECT c.data AS conversation, root.data AS root, m.data AS message, t.thread_ts, t.last_read
          FROM threads t
          JOIN conversations c ON c.id = t.conversation_id
          JOIN messages root ON root.conversation_id = t.conversation_id AND root.ts = t.thread_ts
@@ -625,6 +626,7 @@ export class Database {
         id,
         conversation,
         messages: [],
+        lastRead: row.last_read,
         thread: { ts: row.thread_ts, root: JSON.parse(row.root) as Message },
       }
       item.messages.push(JSON.parse(row.message) as Message)

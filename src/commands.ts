@@ -1,5 +1,6 @@
 import type { OutgoingMessage } from './slack/rich-text'
-import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection, preferenceCollection, reconcile } from './collections'
+import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection, preferenceCollection, messageCollection, reconcile } from './collections'
+import { readCachedConversation } from './useCachedConversation'
 import { readData, updateRuntime, setPreference } from './data'
 import { inboxStore, isConversationView, VIEWS, type View, type Toast } from './store'
 import { computeVisible, currentItem, latestTs, findMessage } from './selectors'
@@ -84,6 +85,7 @@ function toLaterItem(item: InboxItem): LaterItem | undefined {
 const pendingUpdates = {
   doneOverrides: {} as Record<string, Override<string | undefined>>,
   cursors: {} as Record<string, Override<string>>,
+  threadReads: {} as Record<string, Override<string>>,
   laterOverrides: {} as Record<string, Override<LaterItem | undefined>>,
   muteOverrides: {} as Record<string, Override<boolean>>,
   classificationOverrides: {} as Record<string, Override<Classification | null>>,
@@ -228,6 +230,7 @@ const clearFromInbox = (items: InboxItem[]) => {
 const applyInbox = (payload: InboxPayload) => {
   const now = Date.now()
   pendingUpdates.cursors = activeOverrides(pendingUpdates.cursors, now)
+  pendingUpdates.threadReads = activeOverrides(pendingUpdates.threadReads, now)
   pendingUpdates.laterOverrides = activeOverrides(pendingUpdates.laterOverrides, now)
   pendingUpdates.muteOverrides = activeOverrides(pendingUpdates.muteOverrides, now)
   pendingUpdates.classificationOverrides = activeOverrides(pendingUpdates.classificationOverrides, now)
@@ -237,8 +240,12 @@ const applyInbox = (payload: InboxPayload) => {
   for (const item of payload.items) {
     const cursor = maxTs(pendingUpdates.cursors[item.id]?.value)
     const messages = item.messages.filter((message) => compareTs(message.ts, cursor) > 0)
-    if (messages.length) items.push(withClassification({ ...item, messages }, classificationFor))
+    if (messages.length) items.push(withClassification({ ...item, messages, lastRead: item.thread ? maxTs(item.lastRead, pendingUpdates.threadReads[item.id]?.value) : item.lastRead }, classificationFor))
   }
+
+  // Keep the thread being read on screen when Slack acknowledges its read marker.
+  const current = currentItem(get())
+  if (get().view === 'inbox' && get().mode === 'reading' && current?.thread && !items.some((item) => item.id === current.id) && !pendingUpdates.cursors[current.id]) items.push(current)
 
   const later: Record<string, LaterItem> = Object.fromEntries(payload.later.map((item) => [item.id, item]))
   for (const [id, { value }] of Object.entries(pendingUpdates.laterOverrides)) {
@@ -342,7 +349,23 @@ export const commands: Commands = {
 
   open: (id) => {
     if (id && id !== get().selectedId) set(selectionPatch(id))
-    if (currentItem(get())) set({ mode: 'reading' })
+    const item = currentItem(get())
+    if (!item) return
+    set({ mode: 'reading' })
+    if (!item.thread || get().view !== 'inbox') return
+    const ts = latestTs(item)
+    if (compareTs(ts, item.lastRead ?? '0') <= 0) return
+    const previous = item.lastRead
+    const read = override(ts)
+    pendingUpdates.threadReads[item.id] = read
+    inboxCollection.update(item.id, (draft) => { draft.lastRead = ts })
+    void localApi.markThreadRead(item.conversation.id, item.thread.ts, ts).catch((error) => {
+      if (pendingUpdates.threadReads[item.id] === read) {
+        delete pendingUpdates.threadReads[item.id]
+        if (inboxCollection.has(item.id)) inboxCollection.update(item.id, (draft) => { draft.lastRead = previous })
+      }
+      reportError(error)
+    })
   },
 
   openConversation: (id) => {
@@ -593,9 +616,32 @@ export const commands: Commands = {
 
   send: async (message, item, threadTs) => {
     const state = get()
-    const result = await localApi.postMessage(item.conversation.id, message, threadTs)
+    const channel = item.conversation.id
+    const pending = {
+      id: `pending:${message.clientMsgId}`, channel, pending: true,
+      ts: (Date.now() / 1000).toFixed(6), client_msg_id: message.clientMsgId,
+      user: state.session?.userId, thread_ts: threadTs,
+      text: message.gif && !message.blocks?.length ? '' : message.text,
+      blocks: message.gif ? [{ type: 'image', image_url: message.gif.url, alt_text: message.gif.title }] : undefined,
+    }
+    messageCollection.insert(pending)
+    let result
+    try {
+      result = await localApi.postMessage(channel, message, threadTs)
+    } catch (error) {
+      if (messageCollection.has(pending.id)) messageCollection.delete(pending.id)
+      throw error
+    }
+    if (messageCollection.has(pending.id) && result.ts) {
+      const id = `${channel}:${result.ts}`
+      messageCollection.delete(pending.id)
+      if (!messageCollection.has(id)) messageCollection.insert({ ...pending, id, ts: result.ts })
+    }
+    void readCachedConversation(channel).catch(console.error)
     if (get().selectedId === item.id && get().threadTarget === state.threadTarget) set({ threadTarget: undefined })
-    if (isConversationView(state.view)) {
+    if (threadTs) {
+      run(localApi.markThreadRead(channel, threadTs, maxTs(latestTs(item), result.ts ?? '0')).then(() => commands.load()))
+    } else if (isConversationView(state.view)) {
       run(localApi.markRead(item.conversation.id, maxTs(latestTs(item), result.ts ?? '0')).then(() => commands.load()))
     } else {
       commands.markDone([item.id], 'Reply sent')

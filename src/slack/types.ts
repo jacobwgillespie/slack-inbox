@@ -45,6 +45,7 @@ export interface Classification {
 
 export interface Message {
   ts: string
+  client_msg_id?: string
   classification?: Classification
   text: string
   user?: string
@@ -86,6 +87,7 @@ export interface InboxItem {
   conversation: Conversation
   messages: Message[]
   thread?: ThreadContext
+  lastRead?: string
 }
 
 export interface ConversationSummary extends InboxItem {
