@@ -247,7 +247,17 @@ export class SyncEngine {
 
   async reactionDetails(channel: string, ts: string) {
     const { reactions } = await this.refreshReactions(channel, ts)
-    const ids = [...new Set(reactions.flatMap((reaction) => reaction.users ?? []))]
+    const users = await this.resolveUsers([...new Set(reactions.flatMap((reaction) => reaction.users ?? []))])
+    return { reactions, users }
+  }
+
+  async cachedConversation(channel: string, before?: string, after?: string) {
+    const snapshot = this.database.cachedConversation(channel, before, after)
+    const users = await this.resolveUsers([...messageUserIds(snapshot.messages)])
+    return { ...snapshot, users }
+  }
+
+  private async resolveUsers(ids: string[]) {
     const users = this.database.usersById(ids)
     await Promise.allSettled(ids.filter((id) => !users[id]).map(async (id) => {
       const result = await this.client.call<{ user: RawUser }>('users.info', { user: id })
@@ -255,7 +265,7 @@ export class SyncEngine {
       this.database.upsertUser(user)
       users[id] = user
     }))
-    return { reactions, users }
+    return users
   }
 
   private refreshReactions(channel: string, ts: string) {
@@ -332,10 +342,8 @@ export class SyncEngine {
     const all = raw.map(toMessage)
     this.database.upsertMessages(channel, all)
     const messages = all.filter((message) => message.ts !== ts)
-    const ids = [...messageUserIds(messages)]
-    const users = this.database.usersById(ids)
-    this.requestMissingUsers(ids.filter((id) => !users[id]))
-    return { messages, users }
+    const users = await this.resolveUsers([...messageUserIds(all)])
+    return { root: all.find((message) => message.ts === ts), messages, users }
   }
 
   imagePreview(id: string) {

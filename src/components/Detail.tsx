@@ -12,6 +12,7 @@ import { Composer } from './Composer'
 import { TypingIndicator } from './TypingIndicator'
 import { Toast } from './Toast'
 import { MessageList } from './MessageList'
+import { ThreadFocus } from './ThreadFocus'
 import { ArrowLeftIcon, ClockIcon, MuteIcon, SwapIcon } from './Icons'
 
 export function Detail() {
@@ -49,7 +50,15 @@ function DeferredDetail() {
 
 function LaterConversation({ item }: { item: InboxItem }) {
   use(prepareConversation(item.conversation.id))
-  return <ConversationDetail item={item} view="later" />
+  const saved = item.messages.find((message) => message.ts === (item as LaterItem).ts)
+  const threadTs = saved?.thread_ts && saved.thread_ts !== saved.ts ? saved.thread_ts : undefined
+  const [focused, setFocused] = useState(true)
+  return <>
+    <ConversationDetail item={item} view="later" targetTs={threadTs} />
+    {threadTs && (focused
+      ? <ThreadFocus item={item as LaterItem} threadTs={threadTs} onClose={() => setFocused(false)} />
+      : <button className="button reopen-thread" onClick={() => setFocused(true)}>View saved thread</button>)}
+  </>
 }
 
 function RetainedConversation({ id, active, view }: { id: string; active: boolean; view: View }) {
@@ -61,7 +70,7 @@ function RetainedConversation({ id, active, view }: { id: string; active: boolea
   return <ConversationDetail item={item} view={view} />
 }
 
-function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
+function ConversationDetail({ item, view, targetTs }: { item?: InboxItem; view: View; targetTs?: string }) {
   const headerRef = useRef<HTMLElement>(null)
   const context = useFormatContext()
   const session = useStore((state) => state.session)
@@ -144,7 +153,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
           )}
         </div>
       </header>
-      <MessageList item={item} fullHistory={isConversationView(view) || view === 'later'} targetTs={view === 'later' ? (item as LaterItem).ts : undefined} />
+      <MessageList item={item} fullHistory={isConversationView(view) || view === 'later'} targetTs={view === 'later' ? targetTs ?? (item as LaterItem).ts : undefined} />
       <div className="conversation-composer">
         <Toast />
         <TypingIndicator channel={item.conversation.id} />

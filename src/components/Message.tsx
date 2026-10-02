@@ -20,9 +20,10 @@ async function refreshReactions(channel: string, ts: string, reactions: Reaction
 }
 
 
-export function MessageView({ channel, message, continued, continues = false, webview = false }: {
+export function MessageView({ channel, message, continued, continues = false, webview = false, focusedThread = false }: {
   channel: string
   message: WebviewMessage
+  focusedThread?: boolean
   webview?: boolean
   continued: boolean
   continues?: boolean
@@ -31,7 +32,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   const session = useStore((state) => state.session)
   const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
-  const thread = useStore((state) => state.threads[threadKey(channel, message.ts)])
+  const thread = useStore((state) => focusedThread ? undefined : state.threads[threadKey(channel, message.ts)])
   const { toggleThread, replyInThread } = inboxStore.getState()
   const ref = useRef<HTMLElement>(null)
 
@@ -124,7 +125,7 @@ export function MessageView({ channel, message, continued, continues = false, we
           ) : null}
           <div className="message-footer">
             {message.classification && <ClassificationTag classification={message.classification} />}
-            {message.reply_count ? (
+            {!focusedThread && message.reply_count ? (
               <button
                 className="link-button"
                 onClick={(event) => {

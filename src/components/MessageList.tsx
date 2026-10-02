@@ -32,10 +32,10 @@ export function MessageList({ item, fullHistory, targetTs }: { item: InboxItem; 
   const position = useRef<{ top: number; atBottom: boolean; anchor?: { ts: string; offset: number } }>({ top: 0, atBottom: true })
   const [atBottom, setAtBottom] = useState(true)
 
-  const conversationMessages = fullHistory ? webview.snapshot?.messages ?? [] : item.messages
+  const conversationMessages = fullHistory ? webview.snapshot?.messages.filter((message) => !message.thread_ts || message.thread_ts === message.ts || message.subtype === 'thread_broadcast') ?? [] : item.messages
   const reachedTarget = targetTs && ((conversationMessages[0] && compareTs(conversationMessages[0].ts, targetTs) <= 0) || (webview.snapshot && !webview.snapshot.hasMore))
   const messages = targetTs && reachedTarget && !conversationMessages.some((message) => message.ts === targetTs)
-    ? [...conversationMessages, ...item.messages.filter((message) => message.ts === targetTs)].sort((a, b) => compareTs(a.ts, b.ts))
+    ? [...conversationMessages, ...item.messages.filter((message) => message.ts === targetTs && (!message.thread_ts || message.thread_ts === message.ts || message.subtype === 'thread_broadcast'))].sort((a, b) => compareTs(a.ts, b.ts))
     : conversationMessages
   useReadAtBottom(ref, channel, messages.at(-1)?.ts, atBottom, fullHistory && (!targetTs || jumped.current))
 

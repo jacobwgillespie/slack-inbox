@@ -157,12 +157,12 @@ async function start() {
     if (event.sender !== collectorView.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') || !validChannel(channel)) return
     collector.notify(channel)
   })
-  ipcMain.handle('slack:cache-read', (event, channel: unknown, options: { before?: string; after?: string } | null = {}) => {
+  ipcMain.handle('slack:cache-read', async (event, channel: unknown, options: { before?: string; after?: string } | null = {}) => {
     if (!ownRenderer(event) || (channel != null && !validChannel(channel))) throw new Error('Invalid conversation')
     options ??= {}
     if ([options.before, options.after].some((ts) => ts !== undefined && (typeof ts !== 'string' || !/^\d+\.\d+$/.test(ts)))) throw new Error('Invalid message cursor')
     const channels = channel ? [channel] : database.conversationSummaries().map((conversation) => conversation.id)
-    return channels.map((id) => ({ ...database.cachedConversation(id, options.before, options.after), syncing: collector.isSyncing(id) }))
+    return Promise.all(channels.map(async (id) => ({ ...await engine.cachedConversation(id, options.before, options.after), syncing: collector.isSyncing(id) })))
   })
   ipcMain.handle('slack:cache-watch', (event, channels: unknown, selected: unknown) => {
     if (!ownRenderer(event) || !Array.isArray(channels) || !channels.every(validChannel) || (selected !== undefined && !validChannel(selected))) throw new Error('Invalid conversations')

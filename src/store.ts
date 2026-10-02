@@ -787,12 +787,16 @@ export const inboxStore = create<InboxState>()(
           set({ threads: { ...state.threads, [key]: 'loading' } })
           localApi
             .threadReplies(item.conversation.id, targetTs)
-            .then(({ messages, users }) =>
+            .then(({ root, messages, users }) => {
               set((current) => ({
                 threads: { ...current.threads, [key]: messages },
                 users: { ...current.users, ...users },
-              })),
-            )
+              }))
+              if (root) {
+                const id = `${item.conversation.id}:${root.ts}`
+                reconcile(messageCollection, [{ ...messageCollection.get(id), ...root, id, channel: item.conversation.id }], false)
+              }
+            })
             .catch((error) => {
               set((current) => ({ threads: omit(current.threads, [key]) }))
               reportError(error)

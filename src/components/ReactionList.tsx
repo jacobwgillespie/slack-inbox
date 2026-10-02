@@ -90,6 +90,6 @@ export function ReactionList({ channel, message, onChange }: {
       <span className="reaction-tooltip-emoji">{renderEmoji(hover.name, context)}</span>
       <span>{names.length ? <>{names.join(', ')}{remaining > 0 && ` and ${remaining} ${remaining === 1 ? 'other' : 'others'}`} reacted</>
         : details && !reaction ? 'No one has reacted' : details || lookupFailed ? 'Could not load who reacted' : 'Loading…'}</span>
-    </div>, document.body)}
+    </div>, hover.button.closest('dialog') ?? document.body)}
   </div>
 }

@@ -142,6 +142,7 @@ export interface LegacyPreferences {
 }
 
 export interface ThreadPayload {
+  root?: Message
   messages: Message[]
   users: Record<string, User>
 }

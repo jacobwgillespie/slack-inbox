@@ -1,3 +1,4 @@
+import { inboxStore } from './store'
 import { loadImagePreview } from './imagePreview'
 import { useEffect, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
@@ -12,6 +13,7 @@ export async function readCachedConversation(channel: string, before?: string) {
   const after = before ? undefined : windows.get(channel)
   const [snapshot] = await bridge.readCache(channel, { before, after })
   if (!snapshot) return
+  if (snapshot.users) inboxStore.setState((state) => ({ users: { ...state.users, ...snapshot.users } }))
   applyCache(snapshot, after)
   const earliest = snapshot.messages[0]?.ts
   if (earliest && (!windows.get(channel) || earliest < windows.get(channel)!)) windows.set(channel, earliest)
