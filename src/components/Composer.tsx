@@ -16,6 +16,7 @@ import { useStore } from '../store'
 import { readDraft, saveDraft, clearSentDraft, useDraftSending } from '../composer-drafts'
 import { serializeMessage } from '../slack/rich-text'
 import emojiData from '../slack/emoji-data.json'
+import { prioritizeEmoji, recordEmojiAcceptance } from '../emoji-usage'
 import type { InboxItem } from '../slack/types'
 import type { Gif } from '../gifs'
 import { ArrowUpIcon, CloseIcon } from './Icons'
@@ -93,13 +94,16 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
           editor: this.editor, char: ':', allowSpaces: false,
           items: ({ query }) => {
             const custom = contextRef.current.emoji
-            return [...new Set([...Object.keys(custom), ...Object.keys(standardEmoji)])]
-              .filter((name) => name.includes(query.toLowerCase())).slice(0, 8)
+            return prioritizeEmoji([...new Set([...Object.keys(custom), ...Object.keys(standardEmoji)])], query)
+              .slice(0, 8)
               .map((name) => ({ id: name, label: `:${name}:`, ...emojiAppearance(name, custom) }))
           },
-          command: ({ editor, range, props }) => editor.chain().focus().insertContentAt(range, [
-            { type: 'emoji', attrs: { name: props.id, image: props.image, glyph: props.glyph } }, { type: 'text', text: ' ' },
-          ]).run(),
+          command: ({ editor, range, props }) => {
+            const inserted = editor.chain().focus().insertContentAt(range, [
+              { type: 'emoji', attrs: { name: props.id, image: props.image, glyph: props.glyph } }, { type: 'text', text: ' ' },
+            ]).run()
+            if (inserted) recordEmojiAcceptance(props.id)
+          },
           render,
         })]
       },
