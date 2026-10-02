@@ -1,5 +1,4 @@
 import { prepareConversation } from '../cacheConversationResource'
-import type { ReactNode } from 'react'
 import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
 import { dmCollection, channelCollection } from '../collections'
@@ -42,22 +41,16 @@ function DeferredDetail() {
           <RetainedConversation id={id} active={selected === id} view={view} />
         </Activity>
       ))}
-      {view === 'later' && item && <LaterConversation key={item.id} item={item} />}
-      {!isConversationView(view) && (view !== 'later' || !item) && <ConversationDetail key={`${view}:${item?.id}`} item={item} view={view} />}
+      {view === 'later' && item && <LoadedConversation key={item.id} item={item} view={view} />}
+      {!isConversationView(view) && (view !== 'later' || !item) && <LoadedConversation key={`${view}:${item?.id}`} item={item} view={view} />}
       {isConversationView(view) && !selected && <ConversationDetail view={view} />}
     </>
   )
 }
 
-function LaterConversation({ item }: { item: InboxItem }) {
-  use(prepareConversation(item.conversation.id))
-  const saved = item.messages.find((message) => message.ts === (item as LaterItem).ts)
-  const threadTs = saved?.thread_ts && saved.thread_ts !== saved.ts ? saved.thread_ts : undefined
-  const [focused, setFocused] = useState(true)
-  return <ConversationDetail item={item} view="later" targetTs={threadTs}
-    focusedThread={threadTs && focused ? <ThreadFocus item={item as LaterItem} threadTs={threadTs} onClose={() => setFocused(false)} /> : undefined}
-    onCloseThread={() => setFocused(false)}
-    threadAction={threadTs && !focused ? <button className="button reopen-thread" onClick={() => setFocused(true)}>View saved thread</button> : undefined} />
+function LoadedConversation({ item, view }: { item?: InboxItem; view: View }) {
+  if (item) use(prepareConversation(item.conversation.id))
+  return <ConversationDetail item={item} view={view} />
 }
 
 function RetainedConversation({ id, active, view }: { id: string; active: boolean; view: View }) {
@@ -69,8 +62,22 @@ function RetainedConversation({ id, active, view }: { id: string; active: boolea
   return <ConversationDetail item={item} view={view} />
 }
 
-function ConversationDetail({ item, view, targetTs, focusedThread, threadAction, onCloseThread }: { item?: InboxItem; view: View; targetTs?: string; focusedThread?: ReactNode; threadAction?: ReactNode; onCloseThread?: () => void }) {
+function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const headerRef = useRef<HTMLElement>(null)
+  const openedThread = useStore((state) => state.focusedThread)
+  const selectedId = useStore((state) => state.selectedId)
+  const [dismissedThread, setDismissedThread] = useState<string>()
+  const savedTs = view === 'later' ? (item as LaterItem | undefined)?.ts : undefined
+  const saved = item?.messages.find((message) => message.ts === savedTs)
+  const automaticThread = item?.thread?.ts ?? (saved?.thread_ts !== saved?.ts ? saved?.thread_ts : undefined)
+  const threadTs = selectedId === item?.id && openedThread?.channel === item?.conversation.id
+    ? openedThread?.ts : automaticThread !== dismissedThread ? automaticThread : undefined
+  const onCloseThread = () => {
+    setDismissedThread(automaticThread)
+    inboxStore.setState({ focusedThread: undefined, threadTarget: undefined })
+  }
+  const focusedThread = item && threadTs ? <ThreadFocus key={`${item.conversation.id}:${threadTs}`} item={item} threadTs={threadTs} savedTs={savedTs} onClose={onCloseThread} /> : undefined
+
   const context = useFormatContext()
   const session = useStore((state) => state.session)
   const reading = useStore((state) => state.mode === 'reading')
@@ -119,7 +126,7 @@ function ConversationDetail({ item, view, targetTs, focusedThread, threadAction,
         </div>
         <div className="detail-actions">
           {focusedThread && <button className="icon-button" onClick={onCloseThread} aria-label="Close thread" title="Close (Esc)"><CloseIcon /></button>}
-          {view !== 'later' && !isConversationView(view) && (
+          {!focusedThread && view !== 'later' && !isConversationView(view) && (
             <>
               <button
                 className="icon-button"
@@ -154,7 +161,7 @@ function ConversationDetail({ item, view, targetTs, focusedThread, threadAction,
         </div>
       </header>
       <div className="conversation-content" inert={Boolean(focusedThread)} aria-hidden={Boolean(focusedThread)}>
-        <MessageList item={item} fullHistory={isConversationView(view) || view === 'later'} targetTs={view === 'later' ? targetTs ?? (item as LaterItem).ts : undefined} />
+        <MessageList item={item} fullHistory={isConversationView(view) || view === 'later' || Boolean(item.thread)} targetTs={automaticThread ?? savedTs} />
         <div className="conversation-composer">
           <Toast />
           <TypingIndicator channel={item.conversation.id} />
@@ -162,7 +169,7 @@ function ConversationDetail({ item, view, targetTs, focusedThread, threadAction,
         </div>
       </div>
       {focusedThread}
-      {threadAction}
+      {automaticThread && !focusedThread && <button className="button reopen-thread" onClick={() => setDismissedThread(undefined)}>View thread</button>}
     </section>
   )
 }

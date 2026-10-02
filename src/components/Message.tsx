@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
-import { authorAvatar, authorName, formatMessageTime, renderMrkdwn, isSameAuthorGroup } from '../format'
+import { authorAvatar, authorName, formatMessageTime, renderMrkdwn } from '../format'
 import { useFormatContext } from '../hooks'
-import { inboxStore, threadKey, useStore } from '../store'
+import { inboxStore, useStore } from '../store'
 import type { WebviewMessage } from '../slack/webview'
 import { WebviewImage } from './WebviewImage'
 import type { Classification, Message, Reaction } from '../slack/types'
@@ -11,11 +11,11 @@ import { BookmarkIcon, ReplyIcon, ThreadIcon } from './Icons'
 import { ReactionPicker } from './ReactionPicker'
 import { ReactionList } from './ReactionList'
 import { readCachedConversation } from '../useCachedConversation'
+import { messageCollection } from '../collections'
 
 async function refreshReactions(channel: string, ts: string, reactions: Reaction[]) {
-  inboxStore.setState((state) => ({ threads: Object.fromEntries(Object.entries(state.threads).map(([key, replies]) => [key,
-    key.startsWith(`${channel}:`) && Array.isArray(replies) ? replies.map((reply) => reply.ts === ts ? { ...reply, reactions } : reply) : replies,
-  ])) }))
+  const id = `${channel}:${ts}`
+  if (messageCollection.has(id)) messageCollection.update(id, (message) => { message.reactions = reactions })
   await readCachedConversation(channel)
 }
 
@@ -32,7 +32,6 @@ export function MessageView({ channel, message, continued, continues = false, we
   const session = useStore((state) => state.session)
   const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
   const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
-  const thread = useStore((state) => focusedThread ? undefined : state.threads[threadKey(channel, message.ts)])
   const { toggleThread, replyInThread } = inboxStore.getState()
   const ref = useRef<HTMLElement>(null)
 
@@ -41,7 +40,7 @@ export function MessageView({ channel, message, continued, continues = false, we
   const webviewImages = message.images ?? []
   const images = webview && webviewImages.length ? [] : message.files?.filter(isImageFile) ?? []
   const files = message.files?.filter((file) => !isImageFile(file) && !message.attachments?.some((attachment) => attachment.title === file.name || attachment.title_link === file.permalink)) ?? []
-  const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count || thread)
+  const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count)
   useLayoutEffect(() => {
     const article = ref.current
     const row = article?.parentElement
@@ -137,20 +136,6 @@ export function MessageView({ channel, message, continued, continues = false, we
               </button>
             ) : null}
           </div>
-          {thread === 'loading' && <p className="muted thread-status">Loading replies…</p>}
-          {Array.isArray(thread) && (
-            <div className="thread">
-              {thread.map((reply, index) => (
-                <ThreadReply
-                  key={reply.ts}
-                  channel={channel}
-                  message={reply}
-                  compact={compact || (group && reply.user === session?.userId)}
-                  continued={isSameAuthorGroup(thread[index - 1], reply)}
-                />
-              ))}
-            </div>
-          )}
           {actions}
         </div>}
         {webview && message.images?.length ? <div className="message-images">{message.images.map((image) => <WebviewImage key={image.src} image={image} />)}</div> : null}
@@ -174,38 +159,6 @@ function ClassificationTag({ classification }: { classification: Classification 
     <span className={`classification classification-${classification.label}`} title={`${source}: ${classification.reason}`}>
       {label}
     </span>
-  )
-}
-
-function ThreadReply({ channel, message, continued, compact }: { channel: string; message: Message; continued: boolean; compact: boolean }) {
-  const context = useFormatContext(message.emoji)
-  const name = authorName(message, context.users)
-
-  return (
-    <div className={`thread-reply${continued ? ' continued' : ''}`}>
-      <div className="thread-save" role="toolbar" aria-label={`Actions for ${name}'s reply`}>
-        <SaveLaterButton channel={channel} message={message} />
-        <ReactionPicker channel={channel} ts={message.ts} onReact={(reactions) => refreshReactions(channel, message.ts, reactions)} />
-      </div>
-      <div className="message-gutter">
-        {!continued && <Avatar url={authorAvatar(message, context.users)} name={name} size="small" />}
-      </div>
-      <div className="message-body">
-        {!compact && !continued && (
-          <header className="message-header">
-            <span className="message-author">{name}</span>
-            <time className="message-time">{formatMessageTime(message.ts)}</time>
-          </header>
-        )}
-        <div className="mrkdwn">{renderMrkdwn(message.text, context)}</div>
-        <ReactionList channel={channel} message={message} onChange={(reactions) => refreshReactions(channel, message.ts, reactions)} />
-        {message.files?.length ? (
-          <div className="files">
-            {message.files.map((file) => <FileAttachment key={file.id} file={file} />)}
-          </div>
-        ) : null}
-      </div>
-    </div>
   )
 }
 

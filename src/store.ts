@@ -38,8 +38,6 @@ interface Override<T> {
   expiresAt: number
 }
 
-type ThreadState = Message[] | 'loading'
-
 export interface InboxState {
   status: 'loading' | 'ready' | 'error'
   error?: LocalApiError
@@ -63,7 +61,7 @@ export interface InboxState {
   selectedId?: string
   checked: Record<string, true>
   threadTarget?: string
-  threads: Record<string, ThreadState>
+  focusedThread?: { channel: string; ts: string }
   toast?: Toast
   helpOpen: boolean
   searchOpen: boolean
@@ -104,7 +102,6 @@ const OVERRIDE_LIFETIME = 2 * 60 * 1000
 const TOAST_DURATION = 7000
 
 export const latestTs = (item: InboxItem) => item.messages[item.messages.length - 1]?.ts ?? '0'
-export const threadKey = (channel: string, ts: string) => `${channel}:${ts}`
 
 export function mentionsSelf(item: InboxItem, session?: Session): boolean {
   if (!session) return false
@@ -289,6 +286,7 @@ export const inboxStore = create<InboxState>()(
         return {
           selectedId: id,
           threadTarget: undefined,
+          focusedThread: undefined,
           composerFocusChannel: undefined,
           mode: item ? state.mode : ('list' as const),
         }
@@ -478,7 +476,6 @@ export const inboxStore = create<InboxState>()(
         view: 'inbox',
         mode: 'list',
         checked: {},
-        threads: {},
         helpOpen: false,
         searchOpen: false,
         composerFocusRequest: 0,
@@ -550,7 +547,7 @@ export const inboxStore = create<InboxState>()(
         escape: () => {
           const state = get()
           if (state.helpOpen) set({ helpOpen: false })
-          else if (state.threadTarget) set({ threadTarget: undefined })
+          else if (state.focusedThread || state.threadTarget) set({ focusedThread: undefined, threadTarget: undefined })
           else if (Object.keys(state.checked).length) set({ checked: {} })
           else if (state.mode === 'reading') set({ mode: 'list' })
         },
@@ -753,6 +750,7 @@ export const inboxStore = create<InboxState>()(
           const message = findMessage(item, targetTs)
           set({
             threadTarget: message?.thread_ts ?? targetTs,
+            focusedThread: { channel: item.conversation.id, ts: message?.thread_ts ?? targetTs },
             composerFocusRequest: state.composerFocusRequest + 1,
             composerFocusChannel: item.conversation.id,
           })
@@ -779,28 +777,12 @@ export const inboxStore = create<InboxState>()(
           if (!targetTs) return
           const message = findMessage(item, targetTs)
           if (!message?.reply_count) return
-          const key = threadKey(item.conversation.id, targetTs)
-          if (state.threads[key]) {
-            set({ threads: omit(state.threads, [key]) })
-            return
-          }
-          set({ threads: { ...state.threads, [key]: 'loading' } })
-          localApi
-            .threadReplies(item.conversation.id, targetTs)
-            .then(({ root, messages, users }) => {
-              set((current) => ({
-                threads: { ...current.threads, [key]: messages },
-                users: { ...current.users, ...users },
-              }))
-              if (root) {
-                const id = `${item.conversation.id}:${root.ts}`
-                reconcile(messageCollection, [{ ...messageCollection.get(id), ...root, id, channel: item.conversation.id }], false)
-              }
-            })
-            .catch((error) => {
-              set((current) => ({ threads: omit(current.threads, [key]) }))
-              reportError(error)
-            })
+          const rootTs = message.thread_ts ?? targetTs
+          const focused = state.focusedThread
+          set({
+            focusedThread: focused?.channel === item.conversation.id && focused.ts === rootTs ? undefined : { channel: item.conversation.id, ts: rootTs },
+            threadTarget: undefined,
+          })
         },
 
         openInSlack: () => {

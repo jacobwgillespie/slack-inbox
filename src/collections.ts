@@ -38,6 +38,8 @@ export function applyCache(snapshot: CachedConversation, replaceFrom?: string) {
   if (replaceFrom) {
     const ids = new Set(rows.map((row) => row.id))
     for (const row of messageCollection.values()) {
+      // Channel history only includes top-level messages, so it cannot replace thread replies.
+      if (row.thread_ts && row.thread_ts !== row.ts && row.subtype !== 'thread_broadcast') continue
       if (row.channel === snapshot.channel && row.ts >= replaceFrom && !ids.has(row.id)) messageCollection.delete(row.id)
     }
   }

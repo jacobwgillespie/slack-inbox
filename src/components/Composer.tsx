@@ -24,15 +24,15 @@ function emojiAppearance(name: string, custom: Record<string, string>, depth = 0
   return value ? { image: value } : { glyph: standardEmoji[name] }
 }
 
-export function Composer({ item }: { item: InboxItem }) {
+export function Composer({ item, autoFocus = false }: { item: InboxItem; autoFocus?: boolean }) {
   const session = useStore((state) => state.session)
   const threadTarget = useStore((state) => state.threadTarget)
   const thread = threadTargetFor(item, threadTarget)
   const draftKey = `composer:${session?.teamId}:${session?.userId}:${item.conversation.id}:${thread ?? ''}`
-  return <RichComposer key={draftKey} item={item} thread={thread} draftKey={draftKey} />
+  return <RichComposer key={draftKey} item={item} thread={thread} draftKey={draftKey} autoFocus={autoFocus} />
 }
 
-function RichComposer({ item, thread, draftKey }: { item: InboxItem; thread?: string; draftKey: string }) {
+function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; thread?: string; draftKey: string; autoFocus: boolean }) {
   const context = useFormatContext()
   const session = useStore((state) => state.session)
   const focusRequest = useStore((state) => state.composerFocusRequest)
@@ -137,6 +137,10 @@ function RichComposer({ item, thread, draftKey }: { item: InboxItem; thread?: st
     placeholderRef.current = placeholder
     editor?.setOptions({ editorProps: { attributes: { 'aria-label': placeholder, role: 'textbox', 'aria-multiline': 'true' } } })
   }, [editor, placeholder])
+
+  useEffect(() => {
+    if (autoFocus) editor?.commands.focus()
+  }, [editor, autoFocus])
 
   useEffect(() => {
     if (focusRequest !== handledFocus.current && focusChannel === item.conversation.id) editor?.commands.focus()

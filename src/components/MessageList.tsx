@@ -158,12 +158,6 @@ export function MessageList({ item, fullHistory, targetTs }: { item: InboxItem; 
                   )}
                 </div>
               )}
-              {item.thread && (
-                <>
-                  <MessageView channel={item.conversation.id} message={item.thread.root} continued={false} />
-                  <div className="thread-divider">{item.messages.length} new {item.messages.length === 1 ? 'reply' : 'replies'}</div>
-                </>
-              )}
               {messages.map((message, index) => {
                 const previous = messages[index - 1]
                 return (
