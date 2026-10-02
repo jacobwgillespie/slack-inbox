@@ -125,6 +125,7 @@ export interface InboxPayload {
   done: Record<string, string>
   later: LaterItem[]
   muted: string[]
+  inboxMuted: string[]
   users: Record<string, User>
 }
 

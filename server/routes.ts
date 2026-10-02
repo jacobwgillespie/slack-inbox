@@ -179,6 +179,12 @@ export function localApi(engine: SyncEngine) {
       await engine.removeLater(...readReference(await readJson(request)))
       sendJson(response, 200, { ok: true })
     },
+    'POST /local/inbox-mute': async (request, response) => {
+      const body = await readJson(request)
+      if (typeof body.muted !== 'boolean') throw new RequestError(400, 'missing_muted')
+      engine.setInboxMuted(requireString(body.channel, 'channel'), body.muted)
+      sendJson(response, 200, { ok: true })
+    },
     'POST /local/mute': async (request, response) => {
       const body = await readJson(request)
       if (typeof body.muted !== 'boolean') throw new RequestError(400, 'missing_muted')

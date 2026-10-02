@@ -12,7 +12,7 @@ export const channelCollection = local<ConversationSummary>('channels')
 export const inboxCollection = local<InboxItem>('inbox')
 export const laterCollection = local<LaterItem>('later')
 export const userCollection = local<User>('users')
-export const preferenceCollection = local<{ id: string; done?: string; muted: boolean }>('preferences')
+export const preferenceCollection = local<{ id: string; done?: string; muted: boolean; inboxMuted?: boolean }>('preferences')
 export interface RuntimeData {
   id: string
   status: 'loading' | 'ready' | 'error'

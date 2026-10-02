@@ -1,5 +1,5 @@
 import { latestTs, mentionsSelf } from '../selectors'
-import { useRuntime, useConversation } from '../data'
+import { useRuntime, useConversation, useInboxMuted } from '../data'
 import { commands } from '../commands'
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { conversationLabel, formatListTime, messageSummary, authorName } from '../format'
@@ -7,6 +7,7 @@ import { useFormatContext, useVisibleItems, useViewCounts } from '../hooks'
 import { isConversationView, useStore, type View } from '../store'
 import { compareTs } from '../slack/timestamps'
 import type { InboxItem } from '../slack/types'
+import { ItemContextMenu } from './ItemContextMenu'
 import { ConversationIcon } from './Avatar'
 import { useTyping } from '../typing'
 import { TypingDots } from './TypingIndicator'
@@ -119,7 +120,9 @@ export function ItemList() {
 }
 
 function ItemRow({ item }: { item: InboxItem }) {
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number }>()
   const { id } = item
+  const muted = useInboxMuted(item.conversation.id)
   const typing = useTyping(item.conversation.id)
   const context = useFormatContext()
   const session = useRuntime().session
@@ -152,7 +155,9 @@ function ItemRow({ item }: { item: InboxItem }) {
   const doneLabel = view === 'done' ? 'Restore to inbox' : view === 'later' ? 'Complete' : 'Mark done'
 
   return (
-    <li data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}>
+    <li data-conversation-id={id} className={className} onClick={onClick} onDoubleClick={() => open(id)} aria-selected={selected}
+      onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY }) }}>
+      {contextMenu && <ItemContextMenu item={item} {...contextMenu} onClose={() => setContextMenu(undefined)} />}
       <button
         className="done-button"
         title={`${doneLabel} (E)`}
@@ -175,6 +180,7 @@ function ItemRow({ item }: { item: InboxItem }) {
       <div className="item-body">
         <div className="item-heading">
           <span className="item-title">{label}</span>
+          {muted && <span className="item-muted" title="Muted thread"><MuteIcon /></span>}
           {unread && <span className="unread-dot" aria-label="Unread" />}
           {!isConversationView(view) && item.messages.length > 1 && <span className="item-count">{item.messages.length}</span>}
           {item.thread && <span className="item-flag item-flag-thread">Thread</span>}

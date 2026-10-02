@@ -26,6 +26,7 @@ interface Commands {
   markDone: (ids?: string[], message?: string) => void
   saveForLater: (ids?: string[]) => void
   toggleMessageSaved: (channel: string, message: Message) => Promise<void>
+  toggleInboxMute: (item: InboxItem) => void
   toggleMute: (ids?: string[]) => void
   recategorize: (ids?: string[]) => void
   undo: () => void
@@ -260,8 +261,9 @@ const applyInbox = (payload: InboxPayload) => {
   reconcile(inboxCollection, items)
   reconcile(laterCollection, Object.values(later))
   reconcile(userCollection, Object.values(payload.users), false)
-  const preferenceIds = new Set([...Object.keys(done), ...Object.keys(muted)])
-  reconcile(preferenceCollection, [...preferenceIds].map((id) => ({ id, done: done[id], muted: Boolean(muted[id]) })))
+  const inboxMuted = new Set(payload.inboxMuted)
+  const preferenceIds = new Set([...Object.keys(done), ...Object.keys(muted), ...inboxMuted])
+  reconcile(preferenceCollection, [...preferenceIds].map((id) => ({ id, done: done[id], muted: Boolean(muted[id]), inboxMuted: inboxMuted.has(id) })))
   updateRuntime({
     status: payload.session ? 'ready' : payload.sync.error ? 'error' : 'loading',
     error: payload.sync.error && !payload.session ? new LocalApiError(payload.sync.error) : undefined,
@@ -347,7 +349,7 @@ export const commands: Commands = {
     const item = state.channels[id] ?? state.directMessages[id]
     if (!item) return
     const through = state.done[id]
-    const view = through !== undefined && compareTs(item.latestTs, through) <= 0 ? 'done' : 'inbox'
+    const view = state.inboxMuted[id] || through !== undefined && compareTs(item.latestTs, through) <= 0 ? 'done' : 'inbox'
     set({ ...selectionPatch(id), view, mode: 'reading', checked: {}, searchOpen: false })
   },
 
@@ -483,6 +485,18 @@ export const commands: Commands = {
         })
       },
     })
+  },
+
+  toggleInboxMute: (item) => {
+    const channel = item.conversation.id
+    const muted = !get().inboxMuted[channel]
+    run((async () => {
+      await localApi.setInboxMuted(channel, muted)
+      if (muted && !get().done[channel]) setDone(channel, latestTs(item))
+      await commands.load()
+      if (get().view === 'inbox' && muted) set(selectionPatch(computeVisible(get())[0]?.id))
+      showToast(muted ? 'Muted thread' : 'Unmuted thread')
+    })())
   },
 
   toggleMute: (ids = targetIds()) => {

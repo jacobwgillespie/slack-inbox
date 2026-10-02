@@ -115,6 +115,7 @@ const SCHEMA = `
 `
 
 const COLUMN_MIGRATIONS = [
+  { table: 'conversations', column: 'inbox_muted', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'conversations', column: 'done_ts', definition: 'TEXT' },
   { table: 'webview_history', column: 'oldest', definition: 'TEXT' },
   { table: 'webview_history', column: 'newest', definition: 'TEXT' },
@@ -402,6 +403,14 @@ export class Database {
          ON CONFLICT (id) DO UPDATE SET data = excluded.data`,
       )
       .run(conversation.id, JSON.stringify(conversation), isMember ? 1 : 0)
+  }
+
+  inboxMutedIds(): string[] {
+    return (this.db.prepare('SELECT id FROM conversations WHERE inbox_muted = 1').all() as { id: string }[]).map((row) => row.id)
+  }
+
+  setInboxMuted(id: string, muted: boolean) {
+    this.db.prepare('UPDATE conversations SET inbox_muted = ? WHERE id = ?').run(muted ? 1 : 0, id)
   }
 
   mutedConversationIds(): string[] {

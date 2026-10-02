@@ -190,6 +190,7 @@ export class SyncEngine {
       done: this.database.doneConversations(),
       later,
       muted: this.database.mutedConversationIds(),
+      inboxMuted: this.database.inboxMutedIds(),
       users,
     }
   }
@@ -295,6 +296,11 @@ export class SyncEngine {
 
   removeLater(channel: string, ts: string) {
     return this.preferences.remove(channel, ts)
+  }
+
+  setInboxMuted(channel: string, muted: boolean) {
+    this.database.setInboxMuted(channel, muted)
+    this.changed()
   }
 
   setMuted(channel: string, muted: boolean) {

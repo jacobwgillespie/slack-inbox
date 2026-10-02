@@ -2224,3 +2224,36 @@ a.message-time:hover {
 .composer-formatting { display: flex; gap: 2px; padding: 4px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-raised); box-shadow: var(--shadow); }
 .composer-formatting button { min-width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; cursor: default; }
 .composer-formatting button:hover { background: rgb(255 255 255 / 10%); }
+
+.item-context-menu {
+  position: fixed;
+  inset: auto;
+  width: 240px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #383838;
+  border-radius: 16px;
+  background: #191919;
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.item-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.item-context-menu button:hover, .item-context-menu button:focus-visible { background: #303030; outline: none; }
+.item-context-menu .icon { width: 20px; height: 20px; }
+.item-context-menu hr { margin: 6px 12px; border: 0; border-top: 1px solid #383838; }
+
+.item-muted { display: flex; color: var(--text-muted); }
+.item-muted .icon { width: 13px; height: 13px; }

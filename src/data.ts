@@ -7,21 +7,23 @@ export function updateRuntime(patch: Partial<Omit<RuntimeData, 'id'>>) {
   runtimeCollection.update('slack', (draft) => { Object.assign(draft, patch) })
 }
 
-export function setPreference(id: string, patch: { done?: string; muted?: boolean }) {
+export function setPreference(id: string, patch: { done?: string; muted?: boolean; inboxMuted?: boolean }) {
   const previous = preferenceCollection.get(id)
   if (previous) preferenceCollection.update(id, (draft) => { Object.assign(draft, patch) })
   else preferenceCollection.insert({ id, muted: false, ...patch })
 }
 
 export const keyed = <T extends { id: string }>(rows: Iterable<T>): Record<string, T> => Object.fromEntries([...rows].map((row) => [row.id, row]))
-export function preferenceMaps(rows: Iterable<{ id: string; done?: string; muted: boolean }>) {
+export function preferenceMaps(rows: Iterable<{ id: string; done?: string; muted: boolean; inboxMuted?: boolean }>) {
   const done: Record<string, string> = {}
   const muted: Record<string, true> = {}
+  const inboxMuted: Record<string, true> = {}
   for (const row of rows) {
     if (row.done !== undefined) done[row.id] = row.done
+    if (row.inboxMuted) inboxMuted[row.id] = true
     if (row.muted) muted[row.id] = true
   }
-  return { done, muted }
+  return { done, muted, inboxMuted }
 }
 
 export interface SlackData extends RuntimeData {
@@ -31,6 +33,7 @@ export interface SlackData extends RuntimeData {
   channels: Record<string, ConversationSummary>
   later: Record<string, LaterItem>
   done: Record<string, string>
+  inboxMuted: Record<string, true>
   muted: Record<string, true>
 }
 
@@ -66,4 +69,9 @@ export function useSavedMessage(channel: string, ts: string) {
   const id = `${channel}:${ts}`
   const { data } = useLiveQuery({ query: (q) => q.from({ saved: laterCollection }).where(({ saved }) => eq(saved.id, id)), queryKey: [id] })
   return data.length > 0
+}
+
+export function useInboxMuted(id: string) {
+  const { data } = useLiveQuery({ query: (q) => q.from({ preference: preferenceCollection }).where(({ preference }) => eq(preference.id, id)), queryKey: [id] })
+  return Boolean(data[0]?.inboxMuted)
 }

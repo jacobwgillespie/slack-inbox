@@ -56,6 +56,7 @@ export const localApi = {
   completeLater: (channel: string, ts: string) => post('/local/later/complete', { channel, ts }),
   reopenLater: (channel: string, ts: string) => post('/local/later/reopen', { channel, ts }),
   removeLater: (channel: string, ts: string) => post('/local/later/remove', { channel, ts }),
+  setInboxMuted: (channel: string, muted: boolean) => post('/local/inbox-mute', { channel, muted }),
   setMuted: (channel: string, muted: boolean) => post('/local/mute', { channel, muted }),
   importLegacyPreferences: (preferences: LegacyPreferences) => post('/local/import', preferences),
   setClassification: (messages: SavedItemReference[], label: ClassificationLabel) =>

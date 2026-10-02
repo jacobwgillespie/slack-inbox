@@ -4,7 +4,7 @@ import type { InboxItem, LaterItem, Message, Session } from './slack/types'
 import { isConversationView, VIEWS, type InboxState, type View } from './store'
 import type { SlackData } from './data'
 
-export type VisibleSource = Pick<SlackData, 'items' | 'directMessages' | 'channels' | 'done' | 'later' | 'muted' | 'session'> & { view: View }
+export type VisibleSource = Pick<SlackData, 'items' | 'directMessages' | 'channels' | 'done' | 'later' | 'muted' | 'inboxMuted' | 'session'> & { view: View }
 
 export const latestTs = (item: InboxItem) => item.messages[item.messages.length - 1]?.ts ?? '0'
 
@@ -47,7 +47,7 @@ export function computeVisible(state: VisibleSource): InboxItem[] {
   const summaries = { ...state.directMessages, ...state.channels }
   const archived = (item: InboxItem) => {
     const through = state.done[item.conversation.id]
-    return through !== undefined && compareTs(summaries[item.conversation.id]?.latestTs ?? latestTs(item), through) <= 0
+    return Boolean(state.inboxMuted[item.conversation.id]) || through !== undefined && compareTs(summaries[item.conversation.id]?.latestTs ?? latestTs(item), through) <= 0
   }
   const inbox = Object.values(state.items).filter((item) => !archived(item))
   switch (state.view) {
