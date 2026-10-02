@@ -130,17 +130,13 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
         <div className="conversation-heading">
           <div className="conversation-pill">
             <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
-            <div className="conversation-pill-label">
-              <div className="conversation-pill-name">
-                <h2>{focusedThread ? `Thread in ${label}` : label}</h2>
-                {item.conversation.kind === 'dm' && <PresenceDot presence={presence} />}
-              </div>
-              {hasStatus && <div className="conversation-status" title={dmUser?.statusText || 'Custom status'}>
-                {dmUser?.statusEmoji && renderEmoji(dmUser.statusEmoji.replace(/^:|:$/g, ''), context)}
-                {dmUser?.statusText && <span>{dmUser.statusText}</span>}
-              </div>}
-            </div>
+            <h2>{focusedThread ? `Thread in ${label}` : label}</h2>
+            {item.conversation.kind === 'dm' && <PresenceDot presence={presence} />}
           </div>
+          {hasStatus && <div className="conversation-pill conversation-status" title={dmUser?.statusText || 'Custom status'}>
+            {dmUser?.statusEmoji && renderEmoji(dmUser.statusEmoji.replace(/^:|:$/g, ''), context)}
+            {dmUser?.statusText && <span>{dmUser.statusText}</span>}
+          </div>}
         </div>
         <div className="detail-actions">
           {focusedThread && <button className="icon-button" onClick={onCloseThread} aria-label="Close thread" title="Close (Esc)"><CloseIcon /></button>}

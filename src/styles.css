@@ -781,7 +781,13 @@ kbd {
 
 .conversation-heading {
   grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-width: 0;
+  max-width: min(56vw, 660px);
 }
 
 .conversation-pill {
@@ -2420,23 +2426,12 @@ a.message-time:hover {
   background: #fff;
 }
 
-.conversation-pill-label {
-  min-width: 0;
-}
-
-.conversation-pill-name,
-.conversation-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.conversation-status {
-  margin-top: 2px;
+.conversation-pill.conversation-status {
+  min-height: 46px;
+  padding: 10px 15px;
   color: var(--text-muted);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 15px;
+  line-height: 24px;
 }
 
 .conversation-status > span {
@@ -2449,4 +2444,10 @@ a.message-time:hover {
   flex-shrink: 0;
   width: 14px;
   height: 14px;
+}
+
+@media (max-width: 760px) {
+  .conversation-heading {
+    max-width: calc(100vw - 130px);
+  }
 }
