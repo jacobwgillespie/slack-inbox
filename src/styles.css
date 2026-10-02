@@ -1567,10 +1567,6 @@ a.message-time:hover {
   color: #939393;
 }
 
-.composer-row:focus-within {
-  border-color: #747474;
-}
-
 .composer-connecting {
   min-height: 36px;
   padding: 6px 10px;
