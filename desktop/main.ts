@@ -237,7 +237,18 @@ async function start() {
   })
   const savedTeam = database.getMetadata<boolean>('signed-out') ? undefined : database.getMetadata<{ teamId: string }>('session')?.teamId
   await slackContents.loadURL('about:blank')
-  const stopObservingSlack = await observeSlack(slack, credentials, engine, () => Boolean(savedTeam || credentials.sessionToken) && !slackVisible && !quitting)
+  await collectorContents.loadURL('about:blank')
+  // Either embedded Slack view can maintain the realtime connection.
+  const connectedViews = new Set<number>()
+  const connectionChanged = (id: number) => (connected: boolean) => {
+    const wasConnected = connectedViews.size > 0
+    if (connected) connectedViews.add(id)
+    else connectedViews.delete(id)
+    if (wasConnected !== (connectedViews.size > 0)) engine.setExternalRealtime(connectedViews.size > 0)
+  }
+  const canRecover = () => !connectedViews.size && Boolean(savedTeam || credentials.sessionToken) && !slackVisible && !quitting
+  const stopObservingSlack = await observeSlack(slack, credentials, engine, canRecover, connectionChanged(slackContentsId))
+  const stopObservingCollector = await observeSlack(collectorView, credentials, engine, canRecover, connectionChanged(collectorContentsId))
   await ui.webContents.loadURL(origin)
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })
@@ -252,6 +263,7 @@ async function start() {
   })
   async function shutdown() {
     stopObservingSlack()
+    stopObservingCollector()
     collector.stop()
     unsubscribeCache()
     if (!collectorContents.isDestroyed()) collectorContents.close()

@@ -9,7 +9,7 @@ function slackUrl(source: string) {
 }
 
 /** Observe Slack's own connection without opening a second realtime socket. */
-export async function observeSlack(view: WebContentsView, credentials: SlackCredentials, engine: SyncEngine, canRecover: () => boolean) {
+export async function observeSlack(view: WebContentsView, credentials: SlackCredentials, engine: SyncEngine, canRecover: () => boolean, connectionChanged: (connected: boolean) => void) {
   const contents = view.webContents
   const debuggerClient = contents.debugger
   const sockets = new Set<string>()
@@ -24,7 +24,7 @@ export async function observeSlack(view: WebContentsView, credentials: SlackCred
     if (next === connected) return
     connected = next
     disconnectedAt = Date.now()
-    engine.setExternalRealtime(connected)
+    connectionChanged(connected)
   }
   const enable = async () => {
     if (stopped || enabling) return
