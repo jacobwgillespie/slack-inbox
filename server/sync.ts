@@ -245,6 +245,19 @@ export class SyncEngine {
     return this.refreshReactions(channel, ts)
   }
 
+  async reactionDetails(channel: string, ts: string) {
+    const { reactions } = await this.refreshReactions(channel, ts)
+    const ids = [...new Set(reactions.flatMap((reaction) => reaction.users ?? []))]
+    const users = this.database.usersById(ids)
+    await Promise.allSettled(ids.filter((id) => !users[id]).map(async (id) => {
+      const result = await this.client.call<{ user: RawUser }>('users.info', { user: id })
+      const user = toUser(result.user)
+      this.database.upsertUser(user)
+      users[id] = user
+    }))
+    return { reactions, users }
+  }
+
   private refreshReactions(channel: string, ts: string) {
     const key = `${channel}:${ts}`
     const previous = this.reactionRequests.get(key) ?? Promise.resolve()

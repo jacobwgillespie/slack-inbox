@@ -152,6 +152,11 @@ export function localApi(engine: SyncEngine) {
     'POST /local/later': async (request, response) => {
       sendJson(response, 200, await engine.saveForLater(...readReference(await readJson(request))))
     },
+    'GET /local/reactions': async (_, response, url) => {
+      const channel = requireString(url.searchParams.get('channel'), 'channel')
+      const ts = requireString(url.searchParams.get('ts'), 'ts')
+      sendJson(response, 200, await engine.reactionDetails(channel, ts))
+    },
     'POST /local/reaction': async (request, response) => {
       const body = await readJson(request)
       const [channel, ts] = readReference(body)

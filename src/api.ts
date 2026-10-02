@@ -9,6 +9,7 @@ import type {
   ThreadPayload,
   TypingEvent,
   Reaction,
+  User,
 } from './slack/types'
 
 export class LocalApiError extends Error {
@@ -49,6 +50,7 @@ export const localApi = {
     post('/local/thread/mark', { channel, threadTs, ts }),
   postMessage: (channel: string, message: OutgoingMessage, threadTs?: string) => post<{ ts?: string }>('/local/post', { channel, ...message, threadTs }),
   saveForLater: (channel: string, ts: string) => post<{ created: boolean }>('/local/later', { channel, ts }),
+  reactionDetails: (channel: string, ts: string) => request<{ reactions: Reaction[]; users: Record<string, User> }>(`/local/reactions?${new URLSearchParams({ channel, ts })}`),
   addReaction: (channel: string, ts: string, name: string) => post<{ reactions: Reaction[] }>('/local/reaction', { channel, ts, name }),
   removeReaction: (channel: string, ts: string, name: string) => post<{ reactions: Reaction[] }>('/local/reaction/remove', { channel, ts, name }),
   completeLater: (channel: string, ts: string) => post('/local/later/complete', { channel, ts }),

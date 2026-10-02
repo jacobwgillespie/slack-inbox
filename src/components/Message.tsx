@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react'
-import { authorAvatar, authorName, formatMessageTime, renderEmoji, renderMrkdwn, isSameAuthorGroup } from '../format'
+import { useLayoutEffect, useRef } from 'react'
+import { authorAvatar, authorName, formatMessageTime, renderMrkdwn, isSameAuthorGroup } from '../format'
 import { useFormatContext } from '../hooks'
 import { inboxStore, threadKey, useStore } from '../store'
 import type { WebviewMessage } from '../slack/webview'
@@ -9,7 +9,7 @@ import { Avatar } from './Avatar'
 import { FileAttachment, isImageFile } from './FileAttachment'
 import { BookmarkIcon, ReplyIcon, ThreadIcon } from './Icons'
 import { ReactionPicker } from './ReactionPicker'
-import { localApi } from '../api'
+import { ReactionList } from './ReactionList'
 import { readCachedConversation } from '../useCachedConversation'
 
 async function refreshReactions(channel: string, ts: string, reactions: Reaction[]) {
@@ -19,31 +19,6 @@ async function refreshReactions(channel: string, ts: string, reactions: Reaction
   await readCachedConversation(channel)
 }
 
-function ReactionList({ channel, message }: { channel: string; message: Message }) {
-  const context = useFormatContext(message.emoji)
-  const self = useStore((state) => state.session?.userId)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string>()
-  if (!message.reactions?.length) return null
-  return <div className="reactions">
-    {message.reactions.map((reaction) => {
-      const mine = reaction.users ? Boolean(self && reaction.users.includes(self)) : Boolean(reaction.mine)
-      return <button key={reaction.name} className={`reaction${mine ? ' reaction-own' : ''}`} aria-pressed={mine}
-        aria-label={`${mine ? 'Remove' : 'Add'} ${reaction.name} reaction, ${reaction.count}`} disabled={busy}
-        title={`${mine ? 'Remove' : 'Add'} :${reaction.name}:`} onClick={async (event) => {
-          event.stopPropagation()
-          setBusy(true)
-          setError(undefined)
-          try {
-            const result = await (mine ? localApi.removeReaction : localApi.addReaction)(channel, message.ts, reaction.name)
-            await refreshReactions(channel, message.ts, result.reactions)
-          } catch (error) { setError(error instanceof Error ? error.message : 'Could not update reaction') }
-          finally { setBusy(false) }
-        }}>{renderEmoji(reaction.name, context)} {reaction.count}</button>
-    })}
-    {error && <span className="reaction-picker-error" role="alert">{error}</span>}
-  </div>
-}
 
 export function MessageView({ channel, message, continued, continues = false, webview = false }: {
   channel: string
@@ -183,7 +158,7 @@ export function MessageView({ channel, message, continued, continues = false, we
             {images.map((file) => <FileAttachment key={file.id} file={file} />)}
           </div>
         )}
-        <ReactionList channel={channel} message={message} />
+        <ReactionList channel={channel} message={message} onChange={(reactions) => refreshReactions(channel, message.ts, reactions)} />
         {!hasBubble && actions}
       </article>
       <time className="message-timestamp">{formatMessageTime(message.ts)}</time>
@@ -222,7 +197,7 @@ function ThreadReply({ channel, message, continued, compact }: { channel: string
           </header>
         )}
         <div className="mrkdwn">{renderMrkdwn(message.text, context)}</div>
-        <ReactionList channel={channel} message={message} />
+        <ReactionList channel={channel} message={message} onChange={(reactions) => refreshReactions(channel, message.ts, reactions)} />
         {message.files?.length ? (
           <div className="files">
             {message.files.map((file) => <FileAttachment key={file.id} file={file} />)}
