@@ -965,12 +965,12 @@ kbd {
 }
 
 .message-row-group:not(.message-row-own) {
-  padding-left: 34px;
+  padding-left: 19px;
 }
 
 .group-message-avatar {
   position: absolute;
-  left: 0;
+  left: -15px;
   bottom: 0;
 }
 
