@@ -98,5 +98,6 @@ function fallback(node: JSONContent): string {
 }
 
 export function serializeMessage(document: JSONContent): Pick<OutgoingMessage, 'text' | 'blocks'> {
-  return { text: fallback(document), blocks: [{ type: 'rich_text', elements: sections(document.content) }] }
+  const text = fallback(document)
+  return { text, blocks: text.trim() ? [{ type: 'rich_text', elements: sections(document.content) }] : undefined }
 }

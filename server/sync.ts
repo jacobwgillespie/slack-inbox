@@ -329,12 +329,14 @@ export class SyncEngine {
   }
 
   async postMessage(channel: string, message: OutgoingMessage, threadTs?: string) {
+    const blocks = message.gif
+      ? [...(message.blocks ?? []), { type: 'image', image_url: message.gif.url, alt_text: message.gif.title }]
+      : message.blocks
     const result = await this.client.call<{ message?: Message }>('chat.postMessage', {
       channel,
       text: message.text,
       thread_ts: threadTs,
-      blocks: message.blocks ? JSON.stringify(message.blocks) : undefined,
-      attachments: message.gif ? JSON.stringify([{ fallback: message.gif.title, image_url: message.gif.url }]) : undefined,
+      blocks: blocks ? JSON.stringify(blocks) : undefined,
       client_msg_id: message.clientMsgId,
     })
     if (result.message) {

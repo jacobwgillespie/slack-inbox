@@ -53,13 +53,14 @@ export function toFile(raw: SlackFile): SlackFile {
 export function toMessage(raw: Message): Message {
   return {
     ts: raw.ts,
-    text: raw.text ?? '',
+    text: raw.blocks?.length && raw.blocks.every((block) => block.type === 'image') ? '' : raw.text ?? '',
     user: raw.user,
     username: raw.username,
     subtype: raw.subtype,
     thread_ts: raw.thread_ts,
     reply_count: raw.reply_count,
     files: raw.files?.map(toFile),
+    blocks: raw.blocks?.map(({ type, image_url, alt_text }) => ({ type, image_url, alt_text })),
     attachments: raw.attachments?.map(({ fallback, pretext, title, title_link, text, image_url }) => ({
       fallback,
       pretext,

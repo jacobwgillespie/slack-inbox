@@ -5,6 +5,7 @@ import { authorAvatar, authorName, formatMessageTime, renderMrkdwn } from '../fo
 import { useFormatContext } from '../hooks'
 import type { WebviewMessage } from '../slack/webview'
 import { WebviewImage } from './WebviewImage'
+import { openImageLightbox } from './ImageLightbox'
 import type { Classification, Message, Reaction } from '../slack/types'
 import { Avatar } from './Avatar'
 import { FileAttachment, isImageFile } from './FileAttachment'
@@ -39,7 +40,8 @@ export function MessageView({ channel, message, continued, continues = false, we
 
   const name = authorName(message, context.users)
   const own = Boolean(session && message.user === session.userId)
-  const webviewImages = message.images ?? []
+  const blockImages = message.blocks?.filter((block) => block.type === 'image' && block.image_url) ?? []
+  const webviewImages = message.images?.filter((image) => !blockImages.some((block) => block.image_url === image.src)) ?? []
   const images = webview && webviewImages.length ? [] : message.files?.filter(isImageFile) ?? []
   const files = message.files?.filter((file) => !isImageFile(file) && !message.attachments?.some((attachment) => attachment.title === file.name || attachment.title_link === file.permalink)) ?? []
   const hasBubble = Boolean(message.text.trim() || message.attachments?.length || files.length || message.classification || message.reply_count)
@@ -141,7 +143,13 @@ export function MessageView({ channel, message, continued, continues = false, we
           </div>
           {actions}
         </div>}
-        {webview && message.images?.length ? <div className="message-images">{message.images.map((image) => <WebviewImage key={image.src} image={image} />)}</div> : null}
+        {blockImages.length > 0 && <div className="message-images">{blockImages.map((image, index) => (
+          <button key={`${image.image_url}:${index}`} className="file-image" aria-label={`Open image: ${image.alt_text || 'Image attachment'}`}
+            onClick={(event) => { event.stopPropagation(); openImageLightbox(image.image_url!, image.alt_text || '') }}>
+            <img className="attachment-image" src={image.image_url} alt={image.alt_text || 'Image attachment'} loading="lazy" />
+          </button>
+        ))}</div>}
+        {webview && webviewImages.length ? <div className="message-images">{webviewImages.map((image) => <WebviewImage key={image.src} image={image} />)}</div> : null}
         {images.length > 0 && (
           <div className="message-images">
             {images.map((file) => <FileAttachment key={file.id} file={file} />)}

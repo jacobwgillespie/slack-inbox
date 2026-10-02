@@ -53,6 +53,7 @@ export interface Message {
   thread_ts?: string
   reply_count?: number
   files?: SlackFile[]
+  blocks?: { type: string; image_url?: string; alt_text?: string }[]
   attachments?: SlackAttachment[]
   reactions?: Reaction[]
   emoji?: Record<string, string>
