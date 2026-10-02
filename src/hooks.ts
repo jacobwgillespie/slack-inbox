@@ -72,6 +72,7 @@ const BINDINGS: Record<string, Binding> = {
   R: (state) => state.refresh(),
   Tab: (state, event) => state.cycleView(event.shiftKey ? -1 : 1),
   '?': (state) => state.toggleHelp(),
+  '/': (state) => state.setSearchOpen(true),
   ...Object.fromEntries(VIEWS.map((view, index) => [String(index + 1), (state: InboxState) => state.setView(view)])),
 }
 
@@ -85,6 +86,7 @@ export function useKeyboardShortcuts(enabled = true) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || isEditable(event.target)) return
       const state = useStore.getState()
+      if (state.searchOpen) return
       if (state.helpOpen && event.key !== 'Escape' && event.key !== '?') return
       const binding = BINDINGS[event.key]
       if (!binding) return
@@ -128,8 +130,12 @@ export function useInboxSync() {
 export function useSelectionRepair() {
   const visible = useVisibleItems()
   const selectedId = useStore((state) => state.selectedId)
+  const mode = useStore((state) => state.mode)
   useEffect(() => {
     if (visible.some((item) => item.id === selectedId)) return
+    // Search can open a completed conversation whose latest message is saved for Later.
+    const state = useStore.getState()
+    if (mode === 'reading' && isConversationView(state.view) && selectedId && (state.channels[selectedId] || state.directMessages[selectedId])) return
     useStore.getState().select(visible[0]?.id)
-  }, [visible, selectedId])
+  }, [visible, selectedId, mode])
 }

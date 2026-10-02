@@ -65,6 +65,7 @@ export interface InboxState {
   threads: Record<string, ThreadState>
   toast?: Toast
   helpOpen: boolean
+  searchOpen: boolean
   composerFocusRequest: number
   composerFocusChannel?: string
 
@@ -76,6 +77,8 @@ export interface InboxState {
   select: (id: string | undefined) => void
   move: (delta: number) => void
   open: (id?: string) => void
+  openConversation: (id: string) => void
+  setSearchOpen: (open: boolean) => void
   escape: () => void
   toggleChecked: (id?: string) => void
   markDone: (ids?: string[], message?: string) => void
@@ -476,6 +479,7 @@ export const inboxStore = create<InboxState>()(
         checked: {},
         threads: {},
         helpOpen: false,
+        searchOpen: false,
         composerFocusRequest: 0,
 
         load: async () => {
@@ -530,6 +534,17 @@ export const inboxStore = create<InboxState>()(
           if (id && id !== get().selectedId) set(selectionPatch(id))
           if (currentItem(get())) set({ mode: 'reading' })
         },
+
+        openConversation: (id) => {
+          const state = get()
+          const item = state.channels[id] ?? state.directMessages[id]
+          if (!item) return
+          const through = state.done[id]
+          const view = through !== undefined && compareTs(item.latestTs, through) <= 0 ? 'done' : 'inbox'
+          set({ ...selectionPatch(id), view, mode: 'reading', checked: {}, searchOpen: false })
+        },
+
+        setSearchOpen: (searchOpen) => set({ searchOpen, helpOpen: false }),
 
         escape: () => {
           const state = get()

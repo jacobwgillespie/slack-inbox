@@ -7,6 +7,7 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
       [['J', '↓'], 'Next conversation'],
       [['K', '↑'], 'Previous conversation'],
       [['Enter', 'O'], 'Read conversation'],
+      [['/'], 'Search DMs and channels'],
       [['Esc'], 'Return to list, clear selection, or cancel'],
       [['Tab', '⇧ Tab'], 'Next or previous view'],
       [['1', '2', '3'], 'Inbox, Later, Done'],

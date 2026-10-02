@@ -4,6 +4,7 @@ import { DesktopSlack } from './components/DesktopSlack'
 import { Detail } from './components/Detail'
 import { Header } from './components/Header'
 import { HelpOverlay } from './components/HelpOverlay'
+import { ThreadSearch } from './components/ThreadSearch'
 import { SidebarFooter } from './components/SidebarFooter'
 import { ItemList } from './components/ItemList'
 import { ImageLightbox } from './components/ImageLightbox'
@@ -15,6 +16,7 @@ import { useStore } from './store'
 export function App() {
   const status = useStore((state) => state.status)
   const helpOpen = useStore((state) => state.helpOpen)
+  const searchOpen = useStore((state) => state.searchOpen)
   const [onboardingOpen, setOnboardingOpen] = useState(
     () => localStorage.getItem('slack-inbox-onboarding-complete') !== 'true',
   )
@@ -37,6 +39,7 @@ export function App() {
         <Detail />
       </main>
       {helpOpen && <HelpOverlay />}
+      {searchOpen && <ThreadSearch />}
       <ImageLightbox />
       {status === 'ready' && onboardingOpen && <OnboardingScreen onGetStarted={() => {
         localStorage.setItem('slack-inbox-onboarding-complete', 'true')
