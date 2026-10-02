@@ -782,12 +782,12 @@ kbd {
 .conversation-heading {
   grid-column: 2;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
-  max-width: min(56vw, 660px);
+  max-width: min(28vw, 360px);
 }
 
 .conversation-pill {
@@ -2427,11 +2427,11 @@ a.message-time:hover {
 }
 
 .conversation-pill.conversation-status {
-  min-height: 46px;
-  padding: 10px 15px;
+  padding: 4px 10px;
+  gap: 6px;
   color: var(--text-muted);
-  font-size: 15px;
-  line-height: 24px;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .conversation-status > span {
