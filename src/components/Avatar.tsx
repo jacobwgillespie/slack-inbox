@@ -1,5 +1,5 @@
 import type { Conversation } from '../slack/types'
-import { HashIcon, LockIcon, PeopleIcon } from './Icons'
+import { HashIcon, LockIcon, PeopleIcon, ThreadIcon } from './Icons'
 
 export function Avatar({ url, name, size = 'medium' }: { url?: string; name: string; size?: 'small' | 'medium' }) {
   if (url) return <img className={`avatar avatar-${size}`} src={url} alt="" />
@@ -14,9 +14,11 @@ interface ConversationIconProps {
   conversation: Conversation
   label: string
   avatar?: string
+  thread?: boolean
 }
 
-export function ConversationIcon({ conversation, label, avatar }: ConversationIconProps) {
+export function ConversationIcon({ conversation, label, avatar, thread = false }: ConversationIconProps) {
+  if (thread) return <span className="avatar avatar-medium avatar-symbol" role="img" aria-label="Thread"><ThreadIcon /></span>
   if (conversation.kind === 'dm') return <Avatar url={avatar} name={label} />
   const icon = { channel: <HashIcon />, private: <LockIcon />, group: <PeopleIcon /> }[conversation.kind]
   return <span className="avatar avatar-medium avatar-symbol">{icon}</span>

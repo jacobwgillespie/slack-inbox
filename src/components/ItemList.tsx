@@ -1,4 +1,4 @@
-import { latestTs, mentionsSelf } from '../selectors'
+import { latestTs } from '../selectors'
 import { useRuntime, useConversation, useInboxMuted } from '../data'
 import { commands } from '../commands'
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
@@ -136,7 +136,6 @@ function ItemRow({ item }: { item: InboxItem }) {
   const latest = item.messages[item.messages.length - 1]
   const label = conversationLabel(item.conversation, context.users, session)
   const avatar = item.conversation.userId ? context.users[item.conversation.userId]?.avatar : undefined
-  const mentioned = item.conversation.kind !== 'dm' && mentionsSelf(item, session)
   const unread = Boolean(item.thread) || isConversationView(view) && conversation && compareTs(conversation.latestTs, conversation.lastRead ?? '0') > 0
 
   const onClick = (event: MouseEvent) => {
@@ -185,15 +184,13 @@ function ItemRow({ item }: { item: InboxItem }) {
           onDoubleClick={(event) => event.stopPropagation()}
         ><ClockIcon /></button>
       )}
-      <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
+      <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} thread={Boolean(item.thread)} />
       <div className="item-body">
         <div className="item-heading">
           <span className="item-title">{label}</span>
           {muted && <span className="item-muted" title="Muted thread"><MuteIcon /></span>}
           {unread && <span className="unread-dot" aria-label="Unread" />}
           {!isConversationView(view) && item.messages.length > 1 && <span className="item-count">{item.messages.length}</span>}
-          {item.thread && <span className="item-flag item-flag-thread">Thread</span>}
-          {mentioned && <span className="item-flag">Mention</span>}
           <time className="item-time">{latestTs(item) !== '0' && formatListTime(latestTs(item))}</time>
         </div>
         {item.thread && (

@@ -6,12 +6,9 @@
   --border-strong: #404040;
   --text: #eeeeee;
   --text-muted: #929292;
-  --accent: #83d5be;
   --link: #3297ff;
-  --accent-soft: #20352e;
-  --accent-text: #10261f;
   --selected: #303030;
-  --checked: #273c34;
+  --checked: #3a3a3a;
   --mention: #dfc18c;
   --mention-soft: #3b3020;
   --danger: #f2877f;
@@ -194,7 +191,7 @@ kbd {
   height: 6px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--text);
 }
 
 .tab {
@@ -556,8 +553,8 @@ kbd {
   place-items: center;
   font-size: 17px;
   font-weight: 500;
-  color: #b5d8ce;
-  background: #25443a;
+  color: #c6c6c6;
+  background: #383838;
 }
 
 .avatar-small.avatar-initial {
@@ -577,7 +574,7 @@ kbd {
 
 .item-title {
   overflow: hidden;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -593,28 +590,20 @@ kbd {
   background: #444444;
 }
 
-.item-flag {
-  padding: 0 6px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
-  color: var(--mention);
-  background: var(--mention-soft);
-}
 
 .item-time {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   white-space: nowrap;
 }
 
-.item-preview {
+.item-preview,
+.item-context {
   margin: 2px 0 0;
   overflow: hidden;
-  color: var(--text-muted);
+  color: #b5b5b5;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 15px;
@@ -666,19 +655,7 @@ kbd {
   .typing-label { transition: none; }
 }
 
-.item-flag-thread {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
 
-.item-context {
-  margin: 2px 0 0;
-  overflow: hidden;
-  font-size: 12px;
-  color: var(--text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .thread-divider {
   display: flex;
@@ -687,7 +664,7 @@ kbd {
   margin: 6px 20px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text);
 }
 
 .thread-divider::after {
@@ -897,9 +874,9 @@ kbd {
 }
 
 .button.primary {
-  border-color: var(--accent);
-  color: var(--accent-text);
-  background: var(--accent);
+  border-color: var(--text);
+  color: #171717;
+  background: var(--text);
   font-weight: 600;
 }
 
