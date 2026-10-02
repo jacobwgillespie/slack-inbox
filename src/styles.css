@@ -2419,3 +2419,34 @@ a.message-time:hover {
 .status-save:hover:not(:disabled) {
   background: #fff;
 }
+
+.conversation-pill-label {
+  min-width: 0;
+}
+
+.conversation-pill-name,
+.conversation-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.conversation-status {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.conversation-status > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-status .emoji {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}

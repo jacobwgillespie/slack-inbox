@@ -6,12 +6,13 @@ import { eq, useLiveQuery } from '@tanstack/react-db'
 import { dmCollection, channelCollection, inboxCollection } from '../collections'
 import type { InboxItem, LaterItem } from '../slack/types'
 import type { View } from '../store'
-import { conversationLabel } from '../format'
+import { conversationLabel, renderEmoji } from '../format'
 import { useCurrentItem, useFormatContext, useInboxEmpty } from '../hooks'
 import { inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
 import { PresenceDot } from './PresenceDot'
 import { usePresence } from '../presence'
+import { useCustomStatus } from '../custom-status'
 import { Composer } from './Composer'
 import { TypingIndicator } from './TypingIndicator'
 import { Toast } from './Toast'
@@ -84,6 +85,8 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const focusedThread = item && threadTs ? <ThreadFocus key={`${item.conversation.id}:${threadTs}`} item={item} threadTs={threadTs} savedTs={savedTs} onClose={onCloseThread} /> : undefined
 
   const context = useFormatContext()
+  const dmUser = item?.conversation.kind === 'dm' ? context.users[item.conversation.userId ?? ''] : undefined
+  const hasStatus = useCustomStatus(dmUser)
   const { session } = useRuntime()
   const reading = useStore((state) => state.mode === 'reading')
   const pending = useStore((state) => isConversationView(view) && state.selectedId !== item?.id)
@@ -127,8 +130,16 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
         <div className="conversation-heading">
           <div className="conversation-pill">
             <ConversationIcon conversation={item.conversation} label={label} avatar={avatar} />
-            <h2>{focusedThread ? `Thread in ${label}` : label}</h2>
-            {item.conversation.kind === 'dm' && <PresenceDot presence={presence} />}
+            <div className="conversation-pill-label">
+              <div className="conversation-pill-name">
+                <h2>{focusedThread ? `Thread in ${label}` : label}</h2>
+                {item.conversation.kind === 'dm' && <PresenceDot presence={presence} />}
+              </div>
+              {hasStatus && <div className="conversation-status" title={dmUser?.statusText || 'Custom status'}>
+                {dmUser?.statusEmoji && renderEmoji(dmUser.statusEmoji.replace(/^:|:$/g, ''), context)}
+                {dmUser?.statusText && <span>{dmUser.statusText}</span>}
+              </div>}
+            </div>
           </div>
         </div>
         <div className="detail-actions">

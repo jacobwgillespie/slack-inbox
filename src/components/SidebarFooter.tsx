@@ -10,6 +10,7 @@ import { localApi } from '../api'
 import { presenceCollection, userCollection, reconcile } from '../collections'
 import { renderEmoji } from '../format'
 import { useFormatContext } from '../hooks'
+import { useCustomStatus } from '../custom-status'
 import { StatusEditor } from './StatusEditor'
 import { BugIcon, CloseIcon, DownloadIcon, HelpIcon, LogoutIcon, PresenceIcon, ReactionIcon, RefreshIcon, ThreadIcon } from './Icons'
 
@@ -20,8 +21,7 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const context = useFormatContext()
   const [editingStatus, setEditingStatus] = useState(false)
   const [clearingStatus, setClearingStatus] = useState(false)
-  const [now, setNow] = useState(Date.now())
-  const hasStatus = Boolean(self && (self.statusText || self.statusEmoji) && (!self.statusExpiration || self.statusExpiration * 1000 > now))
+  const hasStatus = useCustomStatus(self)
   const presence = usePresence(session?.userId)
   const [settingPresence, setSettingPresence] = useState(false)
   const refreshing = useStore((state) => state.refreshing)
@@ -32,12 +32,6 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
   const [error, setError] = useState<string>()
   const [updateVersion, setUpdateVersion] = useState<string>()
   const [restarting, setRestarting] = useState(false)
-
-  useEffect(() => {
-    if (!self?.statusExpiration || self.statusExpiration * 1000 <= now) return
-    const timer = setTimeout(() => setNow(Date.now()), Math.min(2_147_483_647, Math.max(0, self.statusExpiration * 1000 - Date.now())))
-    return () => clearTimeout(timer)
-  }, [self?.statusExpiration, now])
 
   const clearStatus = async () => {
     setClearingStatus(true)
