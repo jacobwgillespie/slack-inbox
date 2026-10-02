@@ -82,7 +82,8 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const session = useStore((state) => state.session)
   const reading = useStore((state) => state.mode === 'reading')
   const pending = useStore((state) => isConversationView(view) && state.selectedId !== item?.id)
-  const inboxEmpty = useStore((state) => view === 'inbox' && !item && computeVisible({ ...state, view: 'inbox' }).length === 0)
+  const inboxEmpty = useStore((state) => view === 'inbox' && !item && state.status === 'ready' && Boolean(state.sync?.lastCompletedAt)
+    && computeVisible({ ...state, view: 'inbox' }).length === 0)
   const { saveForLater, toggleMute, recategorize } = inboxStore.getState()
 
   useLayoutEffect(() => {
