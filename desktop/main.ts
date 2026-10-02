@@ -124,13 +124,20 @@ async function start() {
     if (!uiContents.isDestroyed()) uiContents.send('slack:self-presence', result.presence)
     return { presence: result.presence }
   }
-  ipcMain.handle('slack:activity', async (event) => {
-    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+  const recordActivity = () => {
     if (!window.isFocused() || slackVisible) return
     lastUserActivity = Date.now()
     if (!credentials.sessionToken || Date.now() - lastPresenceActivity < 30_000) return
     lastPresenceActivity = Date.now()
     return reportActivity()
+  }
+  ipcMain.handle('slack:activity', async (event) => {
+    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    return recordActivity()
+  })
+  window.on('focus', () => {
+    if (!slackVisible) uiContents.focus()
+    void recordActivity()?.catch((error) => console.warn('Could not report Slack activity', error))
   })
   const lastTyping = new Map<string, number>()
   ipcMain.handle('slack:typing', async (event, channel: unknown) => {
@@ -254,10 +261,13 @@ async function start() {
     }
   })
   await ui.webContents.loadURL(origin)
+  if (window.isFocused()) {
+    uiContents.focus()
+    void recordActivity()?.catch((error) => console.warn('Could not report Slack activity', error))
+  }
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })
   slack.webContents.on('dom-ready', () => slack.webContents.send('slack:read-markers-enabled', slackVisible))
-  slack.webContents.on('did-finish-load', () => { if (!slackVisible) ui.webContents.focus() })
   if (!savedTeam) engine.start()
   app.once('before-quit', (event) => {
     event.preventDefault()

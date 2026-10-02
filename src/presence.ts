@@ -12,7 +12,7 @@ export function usePresenceActivity(user?: string) {
       reconcile(presenceCollection, [{ id: user, presence }], false)
     })
     const report = async (event?: Event) => {
-      if ((event && !event.isTrusted) || !document.hasFocus() || document.visibilityState === 'hidden' || Date.now() - lastActivity < 30_000) return
+      if ((event && !event.isTrusted) || document.visibilityState === 'hidden' || Date.now() - lastActivity < 30_000) return
       lastActivity = Date.now()
       try {
         const result = await window.slackDesktop.reportActivity()
