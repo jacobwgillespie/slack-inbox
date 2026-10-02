@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useRuntime, useConversation, useSavedMessage } from '../data'
+import { commands } from '../commands'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { authorAvatar, authorName, formatMessageTime, renderMrkdwn } from '../format'
 import { useFormatContext } from '../hooks'
-import { inboxStore, useStore } from '../store'
 import type { WebviewMessage } from '../slack/webview'
 import { WebviewImage } from './WebviewImage'
 import type { Classification, Message, Reaction } from '../slack/types'
@@ -29,10 +30,11 @@ export function MessageView({ channel, message, continued, continues = false, we
   continues?: boolean
 }) {
   const context = useFormatContext(message.emoji)
-  const session = useStore((state) => state.session)
-  const compact = useStore((state) => state.directMessages[channel]?.conversation.kind === 'dm')
-  const group = useStore((state) => state.directMessages[channel]?.conversation.kind === 'group' || Boolean(state.channels[channel]))
-  const { toggleThread, replyInThread } = inboxStore.getState()
+  const session = useRuntime().session
+  const conversation = useConversation(channel)
+  const compact = conversation?.conversation.kind === 'dm'
+  const group = Boolean(conversation && !compact)
+  const { toggleThread, replyInThread } = commands
   const ref = useRef<HTMLElement>(null)
 
   const name = authorName(message, context.users)
@@ -163,15 +165,21 @@ function ClassificationTag({ classification }: { classification: Classification 
 }
 
 function SaveLaterButton({ channel, message, className = '' }: { channel: string; message: Message; className?: string }) {
-  const saved = useStore((state) => Boolean(state.later[`${channel}:${message.ts}`]))
-  const label = saved ? 'Saved for later' : 'Save message for later'
+  const saved = useSavedMessage(channel, message.ts)
+  const [saving, setSaving] = useState(false)
+  const label = saved ? 'Remove message from Later' : 'Save message for later'
   return (
     <button
       className={`icon-button save-later-button${saved ? ' is-saved' : ''} ${className}`}
       aria-label={label}
       title={label}
-      disabled={saved}
-      onClick={(event) => { event.stopPropagation(); inboxStore.getState().saveMessageForLater(channel, message) }}
+      aria-pressed={saved}
+      disabled={saving}
+      onClick={(event) => {
+        event.stopPropagation()
+        setSaving(true)
+        void commands.toggleMessageSaved(channel, message).finally(() => setSaving(false))
+      }}
     ><BookmarkIcon /></button>
   )
 }

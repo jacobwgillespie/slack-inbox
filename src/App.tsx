@@ -1,3 +1,4 @@
+import { useRuntime } from './data'
 import { useState } from 'react'
 import { useCacheSync } from './useCachedConversation'
 import { DesktopSlack } from './components/DesktopSlack'
@@ -14,7 +15,7 @@ import { useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
 import { useStore } from './store'
 
 export function App() {
-  const status = useStore((state) => state.status)
+  const status = useRuntime().status
   const helpOpen = useStore((state) => state.helpOpen)
   const searchOpen = useStore((state) => state.searchOpen)
   const [onboardingOpen, setOnboardingOpen] = useState(

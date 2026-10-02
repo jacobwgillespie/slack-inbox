@@ -1,4 +1,4 @@
-import { useStore } from '../store'
+import { commands } from '../commands'
 
 const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
   {
@@ -34,7 +34,7 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: [string[], string][] }[] = [
 ]
 
 export function HelpOverlay() {
-  const toggleHelp = useStore((state) => state.toggleHelp)
+  const toggleHelp = commands.toggleHelp
 
   return (
     <div className="overlay" onClick={toggleHelp}>

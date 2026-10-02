@@ -1,6 +1,8 @@
+import { useRuntime } from '../data'
+import { commands } from '../commands'
 import type { CSSProperties } from 'react'
 import { useViewCounts } from '../hooks'
-import { inboxStore, useStore, VIEWS, type View } from '../store'
+import { useStore, VIEWS, type View } from '../store'
 import { CheckIcon, ClockIcon, ThreadIcon } from './Icons'
 
 const VIEW_ICONS: Partial<Record<View, typeof CheckIcon>> = { inbox: ThreadIcon, later: ClockIcon, done: CheckIcon }
@@ -17,10 +19,10 @@ const VIEW_LABELS: Record<View, string> = {
 export function Header() {
   const counts = useViewCounts()
   const view = useStore((state) => state.view)
-  const sync = useStore((state) => state.sync)
+  const sync = useRuntime().sync
   const scanning = Boolean(sync?.running)
   const showProgress = scanning && (Boolean(sync?.total) || !sync?.lastCompletedAt)
-  const { setView } = inboxStore.getState()
+  const { setView } = commands
 
   return (
     <header className="header">

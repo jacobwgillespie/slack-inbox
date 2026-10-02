@@ -1,9 +1,9 @@
-import { useStore } from '../store'
+import { useRuntime } from '../data'
 import { BrowserSigninButton } from './BrowserSigninButton'
 import { useEffect, useState } from 'react'
 
 export function DesktopSlack() {
-  const status = useStore((state) => state.status)
+  const status = useRuntime().status
   const [visible, setVisible] = useState(false)
   useEffect(() => {
     const show = () => setVisible(true)

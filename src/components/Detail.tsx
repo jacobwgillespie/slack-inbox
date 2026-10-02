@@ -1,3 +1,5 @@
+import { useRuntime } from '../data'
+import { commands } from '../commands'
 import { prepareConversation } from '../cacheConversationResource'
 import { Activity, Suspense, use, useDeferredValue, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
@@ -5,8 +7,8 @@ import { dmCollection, channelCollection } from '../collections'
 import type { InboxItem, LaterItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
-import { useCurrentItem, useFormatContext } from '../hooks'
-import { computeVisible, inboxStore, useStore, isConversationView } from '../store'
+import { useCurrentItem, useFormatContext, useInboxEmpty } from '../hooks'
+import { inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
 import { Composer } from './Composer'
 import { TypingIndicator } from './TypingIndicator'
@@ -79,12 +81,11 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const focusedThread = item && threadTs ? <ThreadFocus key={`${item.conversation.id}:${threadTs}`} item={item} threadTs={threadTs} savedTs={savedTs} onClose={onCloseThread} /> : undefined
 
   const context = useFormatContext()
-  const session = useStore((state) => state.session)
+  const { session } = useRuntime()
   const reading = useStore((state) => state.mode === 'reading')
   const pending = useStore((state) => isConversationView(view) && state.selectedId !== item?.id)
-  const inboxEmpty = useStore((state) => view === 'inbox' && !item && state.status === 'ready' && Boolean(state.sync?.lastCompletedAt)
-    && computeVisible({ ...state, view: 'inbox' }).length === 0)
-  const { saveForLater, toggleMute, recategorize } = inboxStore.getState()
+  const inboxEmpty = useInboxEmpty()
+  const { saveForLater, toggleMute, recategorize } = commands
 
   useLayoutEffect(() => {
     const header = headerRef.current
@@ -98,7 +99,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
 
   if (!item) {
     return (
-      <section className={`detail detail-empty${inboxEmpty ? ' detail-empty-inbox' : ''}`}>
+      <section className={`detail detail-empty${view === 'inbox' && inboxEmpty ? ' detail-empty-inbox' : ''}`}>
         <header className="detail-header" />
         <Toast />
       </section>

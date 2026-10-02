@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { TypingEvent } from './slack/types'
-import { useStore } from './store'
+import { runtime } from './data'
 
 const EMPTY: string[] = []
 const useTypingState = create<{ channels: Record<string, string[]> }>(() => ({ channels: {} }))
@@ -11,7 +11,7 @@ export function useTyping(channel: string) {
 }
 
 export function updateTyping(event: TypingEvent) {
-  if (event.user === useStore.getState().session?.userId) return
+  if (event.user === runtime().session?.userId) return
   const key = `${event.channel}:${event.user}`
   clearTimeout(timers.get(key))
   timers.delete(key)

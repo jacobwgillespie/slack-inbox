@@ -1,11 +1,12 @@
+import { useRuntime } from '../data'
+import { commands } from '../commands'
 import { BrowserSigninButton } from './BrowserSigninButton'
-import { useStore } from '../store'
 
 const AUTH_ERRORS = new Set(['session_not_ready', 'not_authed', 'invalid_auth', 'token_revoked', 'token_expired', 'account_inactive'])
 
 export function SetupScreen() {
-  const error = useStore((state) => state.error)
-  const refresh = useStore((state) => state.refresh)
+  const error = useRuntime().error
+  const refresh = commands.refresh
   const needsSignIn = error !== undefined && AUTH_ERRORS.has(error.code)
 
   return (

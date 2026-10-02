@@ -1,15 +1,17 @@
+import { useRuntime, useUsers } from '../data'
+import { commands } from '../commands'
 import { useEffect, useRef, useState } from 'react'
 import { openDesktopSlack } from '../desktop'
-import { useStore } from '../store'
 import { Avatar } from './Avatar'
 import { BugIcon, DownloadIcon, HelpIcon, LogoutIcon, RefreshIcon, ThreadIcon } from './Icons'
 
 export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
-  const session = useStore((state) => state.session)
-  const self = useStore((state) => state.session ? state.users[state.session.userId] : undefined)
-  const scanning = useStore((state) => Boolean(state.sync?.running))
-  const refresh = useStore((state) => state.refresh)
-  const toggleHelp = useStore((state) => state.toggleHelp)
+  const session = useRuntime().session
+  const users = useUsers()
+  const self = session ? users[session.userId] : undefined
+  const scanning = Boolean(useRuntime().sync?.running)
+  const refresh = commands.refresh
+  const toggleHelp = commands.toggleHelp
   const menu = useRef<HTMLDivElement>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const [error, setError] = useState<string>()

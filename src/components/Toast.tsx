@@ -1,8 +1,9 @@
-import { inboxStore, useStore } from '../store'
+import { commands } from '../commands'
+import { useStore } from '../store'
 
 export function Toast() {
   const toast = useStore((state) => state.toast)
-  const { undo, dismissToast } = inboxStore.getState()
+  const { undo, dismissToast } = commands
   if (!toast) return null
 
   return (

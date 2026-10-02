@@ -1,10 +1,10 @@
+import { useRuntime } from '../data'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { localApi } from '../api'
 import { renderEmoji } from '../format'
 import { useFormatContext } from '../hooks'
 import type { Message, Reaction } from '../slack/types'
-import { useStore } from '../store'
 
 export function ReactionList({ channel, message, onChange }: {
   channel: string
@@ -12,7 +12,7 @@ export function ReactionList({ channel, message, onChange }: {
   onChange: (reactions: Reaction[]) => Promise<void>
 }) {
   const context = useFormatContext(message.emoji)
-  const self = useStore((state) => state.session?.userId)
+  const self = useRuntime().session?.userId
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [hover, setHover] = useState<{ name: string; button: HTMLButtonElement }>()

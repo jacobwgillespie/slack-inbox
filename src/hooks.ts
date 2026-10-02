@@ -1,32 +1,29 @@
 import { useLiveQuery } from '@tanstack/react-db'
-import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection } from './collections'
+import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection, preferenceCollection } from './collections'
 import { useEffect, useMemo } from 'react'
-import { useShallow } from 'zustand/react/shallow'
 import { subscribeToChanges } from './api'
 import { updateTyping, clearTyping } from './typing'
 import type { FormatContext } from './format'
-import { computeCounts, computeVisible, isConversationView, useStore, VIEWS, type InboxState } from './store'
+import { isConversationView, useStore, VIEWS } from './store'
+import { computeCounts, computeVisible } from './selectors'
+import { commands, readState } from './commands'
+import { preferenceMaps, useRuntime } from './data'
 
 export function useFormatContext(renderedEmoji?: Record<string, string>): FormatContext {
   const { data: users } = useLiveQuery(userCollection)
-  const emoji = useStore((state) => state.emoji)
+  const { emoji } = useRuntime()
   return { users: Object.fromEntries(users.map((user) => [user.id, user])), emoji: renderedEmoji ? { ...emoji, ...renderedEmoji } : emoji }
 }
 
 function useVisibleSource() {
-  const { data: items } = useLiveQuery(inboxCollection)
-  const { data: dms } = useLiveQuery(dmCollection)
-  const { data: channels } = useLiveQuery(channelCollection)
-  const { data: later } = useLiveQuery(laterCollection)
-  const controls = useStore(
-    useShallow((state) => ({
-      muted: state.muted,
-      done: state.done,
-      view: state.view,
-      session: state.session,
-    })),
-  )
-  return { ...controls, items: Object.fromEntries(items.map((row) => [row.id, row])), channels: Object.fromEntries(channels.map((row) => [row.id, row])), directMessages: Object.fromEntries(dms.map((row) => [row.id, row])), later: Object.fromEntries(later.map((row) => [row.id, row])) }
+  const { data: items, isReady: itemsReady } = useLiveQuery(inboxCollection)
+  const { data: dms, isReady: dmsReady } = useLiveQuery(dmCollection)
+  const { data: channels, isReady: channelsReady } = useLiveQuery(channelCollection)
+  const { data: later, isReady: laterReady } = useLiveQuery(laterCollection)
+  const { data: preferences, isReady: preferencesReady } = useLiveQuery(preferenceCollection)
+  const view = useStore((state) => state.view)
+  const { session } = useRuntime()
+  return { ready: itemsReady && dmsReady && channelsReady && laterReady && preferencesReady, ...preferenceMaps(preferences), view, session, items: Object.fromEntries(items.map((row) => [row.id, row])), channels: Object.fromEntries(channels.map((row) => [row.id, row])), directMessages: Object.fromEntries(dms.map((row) => [row.id, row])), later: Object.fromEntries(later.map((row) => [row.id, row])) }
 }
 
 export function useVisibleItems() {
@@ -37,6 +34,12 @@ export function useVisibleItems() {
 export function useViewCounts() {
   const source = useVisibleSource()
   return useMemo(() => computeCounts(source), [source])
+}
+
+export function useInboxEmpty() {
+  const source = useVisibleSource()
+  const { status, sync } = useRuntime()
+  return source.ready && status === 'ready' && Boolean(sync?.lastCompletedAt) && computeVisible({ ...source, view: 'inbox' }).length === 0
 }
 
 export function useCurrentItem() {
@@ -50,30 +53,30 @@ export function useCurrentItem() {
   return source.view === 'later' ? source.later[id] : source.items[id]
 }
 
-type Binding = (state: InboxState, event: KeyboardEvent) => void
+type Binding = (event: KeyboardEvent) => void
 
 const BINDINGS: Record<string, Binding> = {
-  j: (state) => state.move(1),
-  ArrowDown: (state) => state.move(1),
-  k: (state) => state.move(-1),
-  ArrowUp: (state) => state.move(-1),
-  Enter: (state) => state.open(),
-  o: (state) => state.open(),
-  Escape: (state) => state.escape(),
-  e: (state) => state.markDone(),
-  l: (state) => state.saveForLater(),
-  m: (state) => state.toggleMute(),
-  c: (state) => state.recategorize(),
-  x: (state) => state.toggleChecked(),
-  r: (state) => state.reply(),
-  t: (state) => state.replyInThread(),
-  u: (state) => state.openInSlack(),
-  z: (state) => state.undo(),
-  R: (state) => state.refresh(),
-  Tab: (state, event) => state.cycleView(event.shiftKey ? -1 : 1),
-  '?': (state) => state.toggleHelp(),
-  '/': (state) => state.setSearchOpen(true),
-  ...Object.fromEntries(VIEWS.map((view, index) => [String(index + 1), (state: InboxState) => state.setView(view)])),
+  j: () => commands.move(1),
+  ArrowDown: () => commands.move(1),
+  k: () => commands.move(-1),
+  ArrowUp: () => commands.move(-1),
+  Enter: () => commands.open(),
+  o: () => commands.open(),
+  Escape: () => commands.escape(),
+  e: () => commands.markDone(),
+  l: () => commands.saveForLater(),
+  m: () => commands.toggleMute(),
+  c: () => commands.recategorize(),
+  x: () => commands.toggleChecked(),
+  r: () => commands.reply(),
+  t: () => commands.replyInThread(),
+  u: () => commands.openInSlack(),
+  z: () => commands.undo(),
+  R: () => commands.refresh(),
+  Tab: (event) => commands.cycleView(event.shiftKey ? -1 : 1),
+  '?': () => commands.toggleHelp(),
+  '/': () => commands.setSearchOpen(true),
+  ...Object.fromEntries(VIEWS.map((view, index) => [String(index + 1), () => commands.setView(view)])),
 }
 
 function isEditable(target: EventTarget | null) {
@@ -85,13 +88,13 @@ export function useKeyboardShortcuts(enabled = true) {
     if (!enabled) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || isEditable(event.target)) return
-      const state = useStore.getState()
+      const state = readState()
       if (state.searchOpen) return
       if (state.helpOpen && event.key !== 'Escape' && event.key !== '?') return
       const binding = BINDINGS[event.key]
       if (!binding) return
       event.preventDefault()
-      binding(state, event)
+      binding(event)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -100,7 +103,7 @@ export function useKeyboardShortcuts(enabled = true) {
 
 export function useInboxSync() {
   useEffect(() => {
-    const { load, loadEmoji } = useStore.getState()
+    const { load, loadEmoji } = commands
     let loading = false
     let stale = false
     const reload = async () => {
@@ -112,7 +115,7 @@ export function useInboxSync() {
       do {
         stale = false
         await load()
-        const state = useStore.getState()
+        const state = readState()
         if (state.sync?.realtime !== 'connected') clearTyping()
       } while (stale)
       loading = false
@@ -121,7 +124,7 @@ export function useInboxSync() {
     void reload()
     const unsubscribe = subscribeToChanges(() => {
       void reload()
-      if (!Object.keys(useStore.getState().emoji).length) void loadEmoji()
+      if (!Object.keys(readState().emoji).length) void loadEmoji()
     }, updateTyping, clearTyping)
     return () => { unsubscribe(); clearTyping() }
   }, [])
@@ -131,7 +134,7 @@ export function useSelectionRepair() {
   const visible = useVisibleItems()
   const selectedId = useStore((state) => state.selectedId)
   useEffect(() => {
-    const state = useStore.getState()
+    const state = readState()
     const currentVisible = computeVisible(state)
     if (currentVisible.some((item) => item.id === state.selectedId)) return
     if (state.selectedId && VIEWS.includes(state.view)) {
@@ -146,6 +149,6 @@ export function useSelectionRepair() {
         return
       }
     }
-    state.select(currentVisible[0]?.id)
+    commands.select(currentVisible[0]?.id)
   }, [visible, selectedId])
 }

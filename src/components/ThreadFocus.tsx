@@ -1,10 +1,11 @@
+import { useRuntime } from '../data'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
-import { messageCollection, reconcile } from '../collections'
+import { messageCollection, userCollection, reconcile } from '../collections'
 import { LocalApiError, localApi } from '../api'
 import { isSameAuthorGroup } from '../format'
 import type { InboxItem, ThreadPayload } from '../slack/types'
-import { inboxStore, useStore } from '../store'
+import { useStore } from '../store'
 import { readCachedConversation } from '../useCachedConversation'
 import { Composer } from './Composer'
 import { MessageView } from './Message'
@@ -17,7 +18,7 @@ export function ThreadFocus({ item, threadTs, savedTs, onClose }: { item: InboxI
   const [attempt, setAttempt] = useState(0)
   const { data: cachedMessages } = useLiveQuery({ query: (q) => q.from({ message: messageCollection })
     .where(({ message }) => eq(message.channel, item.conversation.id)), queryKey: [item.conversation.id] })
-  const lastSync = useStore((state) => state.sync?.lastCompletedAt)
+  const lastSync = useRuntime().sync?.lastCompletedAt
   const replying = useStore((state) => state.threadTarget === threadTs)
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function ThreadFocus({ item, threadTs, savedTs, onClose }: { item: InboxI
     setError(undefined)
     void localApi.threadReplies(item.conversation.id, threadTs).then((result) => {
       if (disposed) return
-      inboxStore.setState((state) => ({ users: { ...state.users, ...result.users } }))
+      reconcile(userCollection, Object.values(result.users), false)
       const messages = [...(result.root ? [result.root] : []), ...result.messages]
       const timestamps = new Set(messages.map((message) => message.ts))
       for (const message of messageCollection.values()) {

@@ -1,3 +1,6 @@
+import { findMessage, threadTargetFor } from '../selectors'
+import { useRuntime } from '../data'
+import { commands } from '../commands'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Node, mergeAttributes } from '@tiptap/core'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
@@ -8,7 +11,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Suggestion from '@tiptap/suggestion'
 import { authorName, conversationLabel } from '../format'
 import { useFormatContext } from '../hooks'
-import { inboxStore, findMessage, threadTargetFor, useStore } from '../store'
+import { useStore } from '../store'
 import { readDraft, saveDraft, clearSentDraft, useDraftSending } from '../composer-drafts'
 import { serializeMessage } from '../slack/rich-text'
 import emojiData from '../slack/emoji-data.json'
@@ -25,7 +28,7 @@ function emojiAppearance(name: string, custom: Record<string, string>, depth = 0
 }
 
 export function Composer({ item, autoFocus = false }: { item: InboxItem; autoFocus?: boolean }) {
-  const session = useStore((state) => state.session)
+  const session = useRuntime().session
   const threadTarget = useStore((state) => state.threadTarget)
   const thread = threadTargetFor(item, threadTarget)
   const draftKey = `composer:${session?.teamId}:${session?.userId}:${item.conversation.id}:${thread ?? ''}`
@@ -34,7 +37,7 @@ export function Composer({ item, autoFocus = false }: { item: InboxItem; autoFoc
 
 function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; thread?: string; draftKey: string; autoFocus: boolean }) {
   const context = useFormatContext()
-  const session = useStore((state) => state.session)
+  const session = useRuntime().session
   const focusRequest = useStore((state) => state.composerFocusRequest)
   const focusChannel = useStore((state) => state.composerFocusChannel)
   const handledFocus = useRef(focusRequest)
@@ -110,7 +113,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
           return true
         }
         if (event.key === 'Escape') {
-          inboxStore.getState().clearThreadTarget()
+          commands.clearThreadTarget()
           view.dom.blur()
           return true
         }
@@ -158,7 +161,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
       setError(undefined)
       editor.setEditable(false, false)
       try {
-        await inboxStore.getState().send({ ...message, clientMsgId }, item, thread)
+        await commands.send({ ...message, clientMsgId }, item, thread)
         clearSentDraft(draftKey, clientMsgId)
         useDraftSending.getState().markSent(draftKey, clientMsgId)
       } catch (failure) {
@@ -182,7 +185,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
   return <form className="composer" onSubmit={(event) => { event.preventDefault(); void submitRef.current() }}>
     {thread && <div className="composer-context">
       Replying in thread{parent ? ` to ${authorName(parent, context.users)}` : ''}
-      {!item.thread && <button type="button" className="link-button" onClick={() => inboxStore.getState().clearThreadTarget()}>Cancel</button>}
+      {!item.thread && <button type="button" className="link-button" onClick={() => commands.clearThreadTarget()}>Cancel</button>}
     </div>}
     <div className="composer-row">
       <EditorContent editor={editor} className="rich-composer" />

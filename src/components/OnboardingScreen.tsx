@@ -1,12 +1,12 @@
+import { useRuntime, useUsers } from '../data'
 import { useEffect, useRef } from 'react'
-import { useStore } from '../store'
 import { CheckIcon, ClockIcon, ThreadIcon } from './Icons'
 
 export function OnboardingScreen({ onGetStarted }: { onGetStarted: () => void }) {
-  const name = useStore((state) => {
-    const user = state.session ? state.users[state.session.userId] : undefined
-    return user?.firstName || user?.displayName.trim()
-  })
+  const { session } = useRuntime()
+  const users = useUsers()
+  const user = session ? users[session.userId] : undefined
+  const name = user?.firstName || user?.displayName.trim()
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const element = dialog.current!

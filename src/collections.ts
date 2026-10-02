@@ -1,7 +1,8 @@
 import { createCollection, localOnlyCollectionOptions } from '@tanstack/react-db'
 import type { CachedConversation } from './slack/dm-cache'
 import type { WebviewMessage } from './slack/webview'
-import type { DirectMessage, ConversationSummary, InboxItem, LaterItem, User } from './slack/types'
+import type { DirectMessage, ConversationSummary, InboxItem, LaterItem, User, Session, SyncStatus } from './slack/types'
+import type { LocalApiError } from './api'
 
 function local<T extends { id: string }>(id: string) {
   return createCollection(localOnlyCollectionOptions<T, string>({ id, getKey: (row) => row.id }))
@@ -11,6 +12,17 @@ export const channelCollection = local<ConversationSummary>('channels')
 export const inboxCollection = local<InboxItem>('inbox')
 export const laterCollection = local<LaterItem>('later')
 export const userCollection = local<User>('users')
+export const preferenceCollection = local<{ id: string; done?: string; muted: boolean }>('preferences')
+export interface RuntimeData {
+  id: string
+  status: 'loading' | 'ready' | 'error'
+  error?: LocalApiError
+  session?: Session
+  sync?: SyncStatus
+  emoji: Record<string, string>
+}
+export const runtimeCollection = local<RuntimeData>('runtime')
+runtimeCollection.insert({ id: 'slack', status: 'loading', emoji: {} })
 export const messageCollection = local<WebviewMessage & { id: string; channel: string }>('messages')
 export const cacheCollection = local<Omit<CachedConversation, 'messages'> & { id: string }>('dm-cache')
 

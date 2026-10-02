@@ -1,3 +1,6 @@
+import { commands } from './commands'
+import { channelCollection, dmCollection } from './collections'
+import { useConversation } from './data'
 import { useEffect, useRef, type RefObject } from 'react'
 import { localApi } from './api'
 import { compareTs } from './slack/timestamps'
@@ -5,7 +8,7 @@ import { inboxStore, useStore } from './store'
 
 export function useReadAtBottom(ref: RefObject<HTMLDivElement | null>, channel: string, latest: string | undefined, atBottom: boolean, enabled: boolean) {
   const selected = useStore((state) => state.selectedId === channel)
-  const conversation = useStore((state) => state.directMessages[channel] ?? state.channels[channel])
+  const conversation = useConversation(channel)
   const acknowledged = useRef('0')
   const pending = useRef(false)
 
@@ -17,7 +20,7 @@ export function useReadAtBottom(ref: RefObject<HTMLDivElement | null>, channel: 
       timer = setTimeout(() => {
         const element = ref.current
         const state = inboxStore.getState()
-        const current = state.directMessages[channel] ?? state.channels[channel]
+        const current = channelCollection.get(channel) ?? dmCollection.get(channel)
         if (!element?.clientHeight || !document.hasFocus() || document.hidden || state.selectedId !== channel || !current || pending.current) return
         if (element.scrollHeight - element.scrollTop - element.clientHeight > 8) return
         // A cached older page's bottom is not the end of the conversation.
@@ -25,7 +28,7 @@ export function useReadAtBottom(ref: RefObject<HTMLDivElement | null>, channel: 
         pending.current = true
         void localApi.markRead(channel, latest).then(async () => {
           acknowledged.current = latest
-          await inboxStore.getState().load()
+          await commands.load()
         }).catch(console.error).finally(() => { pending.current = false })
       }, 350)
     }

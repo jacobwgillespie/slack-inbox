@@ -1,7 +1,10 @@
+import { latestTs, mentionsSelf } from '../selectors'
+import { useRuntime, useConversation } from '../data'
+import { commands } from '../commands'
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { conversationLabel, formatListTime, messageSummary, authorName } from '../format'
 import { useFormatContext, useVisibleItems, useViewCounts } from '../hooks'
-import { inboxStore, latestTs, mentionsSelf, isConversationView, useStore, type View } from '../store'
+import { isConversationView, useStore, type View } from '../store'
 import { compareTs } from '../slack/timestamps'
 import type { InboxItem } from '../slack/types'
 import { ConversationIcon } from './Avatar'
@@ -22,7 +25,7 @@ export function ItemList() {
   const items = useVisibleItems()
   const counts = useViewCounts()
   const view = useStore((state) => state.view)
-  const status = useStore((state) => state.status)
+  const status = useRuntime().status
   const selected = useStore((state) => state.selectedId)
   const listRef = useRef<HTMLElement>(null)
   const [scrolled, setScrolled] = useState(false)
@@ -119,13 +122,13 @@ function ItemRow({ item }: { item: InboxItem }) {
   const { id } = item
   const typing = useTyping(item.conversation.id)
   const context = useFormatContext()
-  const session = useStore((state) => state.session)
+  const session = useRuntime().session
   const view = useStore((state) => state.view)
   const selected = useStore((state) => state.selectedId === id)
   const checked = useStore((state) => Boolean(state.checked[id]))
   const reading = useStore((state) => state.mode === 'reading')
-  const conversation = useStore((state) => state.directMessages[id] ?? state.channels[id])
-  const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = inboxStore.getState()
+  const conversation = useConversation(id)
+  const { select, open, markDone, saveForLater, toggleMute, toggleChecked } = commands
 
   const latest = item.messages[item.messages.length - 1]
   const label = conversationLabel(item.conversation, context.users, session)
