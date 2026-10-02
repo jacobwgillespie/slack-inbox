@@ -62,13 +62,13 @@ export function toMessage(raw: Message): Message {
     files: raw.files?.map(toFile),
     blocks: raw.blocks?.map(({ type, image_url, alt_text }) => ({ type, image_url, alt_text })),
     attachments: raw.attachments?.map(({ fallback, pretext, title, title_link, text, image_url }) => ({
-      fallback,
+      fallback: fallback?.trim() === '[no preview available]' ? undefined : fallback,
       pretext,
       title,
       title_link,
       text,
       image_url,
-    })),
+    })).filter((attachment) => attachment.fallback || attachment.pretext || attachment.title || attachment.text || attachment.image_url),
     reactions: raw.reactions?.map(({ name, count, users }) => ({ name, count, users })),
     bot_profile: raw.bot_profile && { name: raw.bot_profile.name, icons: { image_48: raw.bot_profile.icons?.image_48 } },
   }
