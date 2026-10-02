@@ -1430,7 +1430,7 @@ a.message-time:hover {
   box-shadow: 0 1px 3px #00000040;
 }
 
-.reaction:hover { background: rgb(255 255 255 / 10%); }
+.reaction:hover { background: #484848; }
 .reaction-own { background: #3a3a3a; }
 
 .reaction-tooltip {
