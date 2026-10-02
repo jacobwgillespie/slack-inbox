@@ -100,6 +100,11 @@ async function start() {
   }
 
   const ownRenderer = (event: Electron.IpcMainInvokeEvent) => event.sender === ui.webContents && event.senderFrame?.url.startsWith(origin + '/')
+  ipcMain.handle('slack:inbox-count', (event, count: unknown) => {
+    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) throw new Error('Invalid inbox count')
+    app.dock?.setBadge(count > 0 ? String(count) : '')
+  })
   const updates = setupUpdates((version) => {
     if (!uiContents.isDestroyed()) uiContents.send('slack:update-ready', version)
   })

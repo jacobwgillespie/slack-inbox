@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('slackDesktop', {
   platform: process.platform,
+  setInboxCount: (count: number) => ipcRenderer.invoke('slack:inbox-count', count),
   reportActivity: () => ipcRenderer.invoke('slack:activity'),
   onSelfPresence: (callback: (presence: 'active' | 'away') => void) => {
     const listener = (_event: Electron.IpcRendererEvent, presence: 'active' | 'away') => callback(presence)

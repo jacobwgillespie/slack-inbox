@@ -36,6 +36,15 @@ export function useViewCounts() {
   return useMemo(() => computeCounts(source), [source])
 }
 
+export function useDockBadge() {
+  const source = useVisibleSource()
+  const count = !source.session ? 0 : source.ready ? computeVisible({ ...source, view: 'inbox' }).length : undefined
+  useEffect(() => {
+    if (window.slackDesktop.platform !== 'darwin' || count === undefined) return
+    void window.slackDesktop.setInboxCount(count).catch((error) => console.warn('Could not update dock badge', error))
+  }, [count])
+}
+
 export function useInboxEmpty() {
   const source = useVisibleSource()
   const { status, sync } = useRuntime()

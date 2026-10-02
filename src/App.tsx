@@ -11,7 +11,7 @@ import { ItemList } from './components/ItemList'
 import { ImageLightbox } from './components/ImageLightbox'
 import { SetupScreen } from './components/SetupScreen'
 import { OnboardingScreen } from './components/OnboardingScreen'
-import { useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
+import { useDockBadge, useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
 import { useStore } from './store'
 import { usePresenceActivity } from './presence'
 
@@ -25,6 +25,7 @@ export function App() {
   useCacheSync()
   usePresenceActivity(session?.userId)
   useInboxSync()
+  useDockBadge()
   useKeyboardShortcuts(!onboardingOpen)
   useSelectionRepair()
 

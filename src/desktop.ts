@@ -5,6 +5,7 @@ declare global {
   interface Window {
     slackDesktop: {
       platform: string
+      setInboxCount(count: number): Promise<void>
       reportActivity(): Promise<{ presence: Presence } | undefined>
       onSelfPresence(callback: (presence: Presence) => void): () => void
       updateVersion(): Promise<string | undefined>
