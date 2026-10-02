@@ -34,8 +34,7 @@ export function AvatarStatus({ children, user, context }: { children: ReactNode;
       onFocus={show} onBlur={hide} onClick={show} onKeyDown={(event) => { if (event.key === 'Escape') { overlay.current?.hidePopover(); event.stopPropagation() } }}>
       {renderEmoji(name, context)}
     </button>
-    <div ref={overlay} id={id} className="conversation-status-overlay" role="tooltip" popover="manual"
-      onMouseEnter={show} onMouseLeave={hide}>
+    <div ref={overlay} id={id} className="conversation-status-overlay" role="tooltip" popover="manual">
       {renderEmoji(name, context)}{user.statusText && <span>{user.statusText}</span>}
     </div>
   </span>

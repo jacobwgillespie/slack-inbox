@@ -2458,6 +2458,7 @@ a.message-time:hover {
 
 .conversation-status-overlay {
   position: fixed;
+  pointer-events: none;
   inset: auto;
   display: none;
   align-items: center;
