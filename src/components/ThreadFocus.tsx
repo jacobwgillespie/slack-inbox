@@ -1,9 +1,9 @@
 import { useRuntime } from '../data'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { eq, useLiveQuery } from '@tanstack/react-db'
 import { messageCollection, userCollection, reconcile, reconcileMessages } from '../collections'
 import { LocalApiError, localApi } from '../api'
-import { isSameAuthorGroup } from '../format'
+import { formatMessageDivider, hasMessageTimeGap, isSameAuthorGroup } from '../format'
 import type { InboxItem, ThreadPayload } from '../slack/types'
 import { useStore } from '../store'
 import { readCachedConversation } from '../useCachedConversation'
@@ -80,10 +80,16 @@ export function ThreadFocus({ item, threadTs, savedTs, onClose }: { item: InboxI
     <div ref={list} className="message-list thread-focus-messages">
       {!payload && <p className="muted" role="status">{error || 'Loading thread…'}</p>}
       {error && <button className="link-button" onClick={() => setAttempt((value) => value + 1)}>Retry</button>}
-      <div className="message-track">{messages.map((message, index) => <MessageView key={message.ts}
-        channel={item.conversation.id} message={message} focusedThread
-        continued={index > 1 && isSameAuthorGroup(messages[index - 1], message)}
-        continues={Boolean(index > 0 && messages[index + 1] && isSameAuthorGroup(message, messages[index + 1]!))} />)}</div>
+      <div className="message-track">{messages.map((message, index) => {
+        const previous = messages[index - 1]
+        const next = messages[index + 1]
+        return <Fragment key={message.ts}>
+          {hasMessageTimeGap(previous, message) && <div className="date-divider">{formatMessageDivider(message.ts)}</div>}
+          <MessageView channel={item.conversation.id} message={message} focusedThread
+            continued={index > 1 && !hasMessageTimeGap(previous, message) && isSameAuthorGroup(previous, message)}
+            continues={Boolean(index > 0 && next && !hasMessageTimeGap(message, next) && isSameAuthorGroup(message, next))} />
+        </Fragment>
+      })}</div>
     </div>
     {threadItem && <Composer item={threadItem} autoFocus={replying} />}
   </section>

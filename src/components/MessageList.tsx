@@ -1,24 +1,12 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { compareTs } from '../slack/timestamps'
-import { isSameAuthorGroup } from '../format'
+import { formatMessageDivider, hasMessageTimeGap, isSameAuthorGroup } from '../format'
 import type { InboxItem, Message } from '../slack/types'
 import { useTimestampReveal } from '../useTimestampReveal'
 import { useCachedConversation } from '../useCachedConversation'
 import { useReadAtBottom } from '../useReadAtBottom'
 import { MessageView } from './Message'
 import { ArrowUpIcon } from './Icons'
-
-function messageDay(ts: string): string {
-  const date = new Date(Number(ts) * 1000)
-  const today = new Date()
-  const currentYear = today.getFullYear()
-  if (date.toDateString() === today.toDateString()) return 'Today'
-  today.setDate(today.getDate() - 1)
-  if (date.toDateString() === today.toDateString()) return 'Yesterday'
-  return date.toLocaleDateString(undefined, {
-    month: 'short', day: 'numeric', year: date.getFullYear() === currentYear ? undefined : 'numeric',
-  })
-}
 
 export function MessageList({ item, fullHistory, targetTs }: { item: InboxItem; fullHistory: boolean; targetTs?: string }) {
   const channel = item.conversation.id
@@ -126,7 +114,7 @@ export function MessageList({ item, fullHistory, targetTs }: { item: InboxItem; 
   }
 
   const sameGroup = (previous: Message | undefined, message: Message) =>
-    Boolean(previous && messageDay(previous.ts) === messageDay(message.ts) &&
+    Boolean(previous && !hasMessageTimeGap(previous, message) &&
       isSameAuthorGroup(previous, message, fullHistory ? Infinity : undefined))
 
   return (
@@ -162,8 +150,8 @@ export function MessageList({ item, fullHistory, targetTs }: { item: InboxItem; 
                 const previous = messages[index - 1]
                 return (
                   <Fragment key={message.ts}>
-                    {(!previous || messageDay(previous.ts) !== messageDay(message.ts)) && (
-                      <div className="date-divider">{messageDay(message.ts)}</div>
+                    {hasMessageTimeGap(previous, message) && (
+                      <div className="date-divider">{formatMessageDivider(message.ts)}</div>
                     )}
                     <MessageView
                       webview={fullHistory}

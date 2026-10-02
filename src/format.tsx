@@ -194,6 +194,28 @@ export function formatMessageTime(ts: string): string {
   return `${dateFormat.format(date)}, ${timeFormat.format(date)}`
 }
 
+export function hasMessageTimeGap(previous: Message | undefined, message: Message): boolean {
+  if (!previous) return true
+  const date = tsDate(message.ts)
+  const before = tsDate(previous.ts)
+  return date.toDateString() !== before.toDateString() || date.getTime() - before.getTime() >= 30 * 60 * 1000
+}
+
+export function formatMessageDivider(ts: string): string {
+  const date = tsDate(ts)
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  let day: string
+  if (date.toDateString() === today.toDateString()) day = 'Today'
+  else {
+    today.setDate(today.getDate() - 1)
+    day = date.toDateString() === today.toDateString() ? 'Yesterday' : date.toLocaleDateString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric', year: date.getFullYear() === currentYear ? undefined : 'numeric',
+    })
+  }
+  return `${day} ${timeFormat.format(date)}`
+}
+
 export function isSameAuthorGroup(previous: Message | undefined, message: Message, maxGapMs = 5 * 60 * 1000): boolean {
   if (!previous) return false
   const sameAuthor = previous.user === message.user && previous.username === message.username
