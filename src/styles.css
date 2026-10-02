@@ -1089,6 +1089,7 @@ kbd {
 }
 
 .message-bubble {
+  max-width: 100%;
   padding: 12px 16px 10px;
   border-radius: 20px;
   background: var(--surface-raised);

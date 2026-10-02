@@ -111,7 +111,7 @@ export function MessageView({ channel, message, continued, continues = false, we
                     {attachment.title}
                   </a>
                 ) : (
-                  <div className="attachment-title">{attachment.title}</div>
+                  <div className="attachment-title mrkdwn">{renderMrkdwn(attachment.title, context)}</div>
                 ))}
               {attachment.text && <div className="mrkdwn">{renderMrkdwn(attachment.text, context)}</div>}
               {!attachment.title && !attachment.text && !attachment.image_url && attachment.fallback && (
