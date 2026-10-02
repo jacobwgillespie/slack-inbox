@@ -145,6 +145,7 @@ export class ConversationCollector {
             snapshot = await this.waitForSnapshot(job.channel, undefined, this.latest.get(job.channel))
           }
           if (this.database.cacheWebview(snapshot)) this.engine.webviewChanged()
+          await this.reconcile(snapshot, !job.older ? cached.newest : undefined)
           this.changed(job.channel)
           // Read contiguous overlapping windows; yield to other jobs after four.
           const overlap = job.until ?? (!job.older ? cached.newest : undefined)
@@ -157,6 +158,7 @@ export class ConversationCollector {
             await scrollConversation(this.contents, 'older')
             snapshot = await this.waitForSnapshot(job.channel, before)
             if (this.database.cacheWebview(snapshot)) this.engine.webviewChanged()
+            await this.reconcile(snapshot)
             this.changed(job.channel)
             pages++
             stalled = before === snapshot.messages[0]?.ts ? stalled + 1 : 0
@@ -173,5 +175,17 @@ export class ConversationCollector {
         } finally { this.active = undefined; if (!this.stopped) this.changed(job.channel) }
       }
     } finally { this.running = false }
+  }
+
+  private async reconcile(snapshot: WebviewConversation, previousNewest?: string) {
+    const oldest = snapshot.hasMore ? snapshot.messages[0]?.ts : '0'
+    const renderedNewest = snapshot.messages.at(-1)?.ts
+    const newest = previousNewest && compareTs(previousNewest, renderedNewest ?? '0') > 0 ? previousNewest : renderedNewest
+    if (!snapshot.ready || !oldest || !newest) return
+    try {
+      await this.engine.reconcileHistory(snapshot.channel, oldest, newest)
+    } catch (error) {
+      console.warn('Could not reconcile Slack history', error)
+    }
   }
 }

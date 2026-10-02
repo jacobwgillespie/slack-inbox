@@ -44,7 +44,11 @@ export function reconcile<T extends { id: string }>(collection: ReturnType<typeo
 }
 
 export function applyCache(snapshot: CachedConversation, replaceFrom?: string) {
-  const { messages, ...state } = snapshot
+  const { messages, deletedTs = [], ...state } = snapshot
+  for (const ts of deletedTs) {
+    const id = `${snapshot.channel}:${ts}`
+    if (messageCollection.has(id)) messageCollection.delete(id)
+  }
   reconcile(cacheCollection, [{ ...state, id: snapshot.channel }], false)
   const rows = messages.map((message) => ({ ...message, id: `${snapshot.channel}:${message.ts}`, channel: snapshot.channel }))
   if (replaceFrom) {

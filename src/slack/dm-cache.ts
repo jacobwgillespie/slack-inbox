@@ -4,6 +4,7 @@ import type { WebviewMessage } from './webview'
 export interface CachedConversation {
   channel: string
   messages: WebviewMessage[]
+  deletedTs?: string[]
   users?: Record<string, User>
   hasMore: boolean
   collected: boolean

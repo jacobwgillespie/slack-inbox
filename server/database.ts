@@ -61,6 +61,11 @@ const SCHEMA = `
     PRIMARY KEY (conversation_id, ts)
   );
   CREATE INDEX IF NOT EXISTS messages_by_thread ON messages (conversation_id, thread_ts);
+  CREATE TABLE IF NOT EXISTS deleted_messages (
+    conversation_id TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    PRIMARY KEY (conversation_id, ts)
+  );
   CREATE TABLE IF NOT EXISTS history_ranges (
     conversation_id TEXT NOT NULL,
     oldest TEXT NOT NULL,
@@ -230,6 +235,7 @@ export class Database {
         'emoji',
         'conversations',
         'messages',
+        'deleted_messages',
         'files',
         'image_previews',
         'history_ranges',
@@ -438,6 +444,7 @@ export class Database {
   }
 
   setSavedItem(item: SavedItemRecord) {
+    if (this.isMessageDeleted(item.channel, item.ts)) return
     this.db
       .prepare(
         `INSERT INTO saved_items (conversation_id, ts, state, date_created) VALUES (?, ?, ?, ?)
@@ -629,7 +636,23 @@ export class Database {
   }
 
   deleteMessage(conversationId: string, ts: string) {
+    this.db.prepare('INSERT OR IGNORE INTO deleted_messages (conversation_id, ts) VALUES (?, ?)').run(conversationId, ts)
     this.db.prepare('DELETE FROM messages WHERE conversation_id = ? AND ts = ?').run(conversationId, ts)
+    this.deleteSavedItem(conversationId, ts)
+    this.deleteThread(conversationId, ts)
+  }
+
+  isMessageDeleted(conversationId: string, ts: string): boolean {
+    return Boolean(this.db.prepare('SELECT 1 FROM deleted_messages WHERE conversation_id = ? AND ts = ?').get(conversationId, ts))
+  }
+
+  reconcileMessages(conversationId: string, messages: Message[], oldest: string, newest?: string, threadTs?: string) {
+    const returned = new Set(messages.map((message) => message.ts))
+    const cached = this.db.prepare(`SELECT ts FROM messages WHERE conversation_id = ? AND ts >= ? ${newest ? 'AND ts <= ?' : ''}
+      AND ${threadTs ? '(ts = ? OR thread_ts = ?)' : topLevel()}`)
+      .all(conversationId, oldest, ...(newest ? [newest] : []), ...(threadTs ? [threadTs, threadTs] : [])) as { ts: string }[]
+    for (const { ts } of cached) if (!returned.has(ts)) this.deleteMessage(conversationId, ts)
+    this.upsertMessages(conversationId, messages)
   }
 
   upsertMessages(conversationId: string, messages: Message[]) {
@@ -643,6 +666,7 @@ export class Database {
     let changed = false
     this.transaction(() => {
       for (const message of snapshot.messages) {
+        if (this.isMessageDeleted(snapshot.channel, message.ts)) continue
         const previous = this.message(snapshot.channel, message.ts)
         // API reaction snapshots include users. Keep them when a rendered Slack
         // timeline still shows the old reaction state.
@@ -677,7 +701,8 @@ export class Database {
     const oldest = this.db.prepare(`SELECT MIN(ts) AS ts FROM messages WHERE conversation_id = ? AND ${topLevel()}`)
       .get(channel) as { ts: string | null }
     const page = (after ? messages : messages.slice(0, 100)).reverse()
-    return { channel, messages: page, hasMore: (!after && messages.length > 100) || !state?.complete || Boolean(after && this.historyMessages(channel, '0', after, 1).length),
+    const deletedTs = (this.db.prepare('SELECT ts FROM deleted_messages WHERE conversation_id = ?').all(channel) as { ts: string }[]).map((row) => row.ts)
+    return { channel, messages: page, deletedTs, hasMore: (!after && messages.length > 100) || !state?.complete || Boolean(after && this.historyMessages(channel, '0', after, 1).length),
       collected: Boolean(state?.updated_at), complete: Boolean(state?.complete), newest: state?.newest ?? undefined, updatedAt: state?.updated_at, oldest: state?.oldest ?? oldest.ts ?? undefined, error: state?.error ?? undefined, syncing: false }
   }
 
@@ -757,6 +782,7 @@ export class Database {
          thread_ts = excluded.thread_ts, user_id = excluded.user_id, subtype = excluded.subtype, data = excluded.data`,
     )
     for (const message of messages) {
+      if (this.isMessageDeleted(conversationId, message.ts)) continue
       upsert.run(
         conversationId,
         message.ts,

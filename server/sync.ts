@@ -348,11 +348,27 @@ export class SyncEngine {
 
   async threadReplies(channel: string, ts: string): Promise<ThreadPayload> {
     const raw = await this.client.paginate<Message>('conversations.replies', 'messages', { channel, ts, limit: 200 })
-    const all = raw.map(toMessage)
-    this.database.upsertMessages(channel, all)
+    const normalized = raw.map(toMessage)
+    this.database.reconcileMessages(channel, normalized, ts, undefined, ts)
+    const all = normalized.filter((message) => !this.database.isMessageDeleted(channel, message.ts))
     const messages = all.filter((message) => message.ts !== ts)
     const users = await this.resolveUsers([...messageUserIds(all)])
     return { root: all.find((message) => message.ts === ts), messages, users }
+  }
+
+  async reconcileHistory(channel: string, oldest: string, newest: string) {
+    const messages: Message[] = []
+    let cursor: string | undefined
+    do {
+      const page = await this.client.call<{ messages: Message[]; has_more?: boolean; response_metadata?: { next_cursor?: string } }>(
+        'conversations.history', { channel, oldest, latest: newest, inclusive: true, limit: HISTORY_LIMIT, cursor },
+      )
+      messages.push(...page.messages.map(toMessage))
+      cursor = page.response_metadata?.next_cursor || undefined
+      if (page.has_more && !cursor) throw new Error('Slack returned an incomplete history window.')
+    } while (cursor)
+    this.database.reconcileMessages(channel, messages, oldest, newest)
+    this.changed()
   }
 
   imagePreview(id: string) {
@@ -395,14 +411,15 @@ export class SyncEngine {
   }
 
   private handleMessageEvent(channel: string, event: RealtimeEvent) {
+    if (event.subtype === 'message_deleted') {
+      if (typeof event.deleted_ts === 'string') this.database.deleteMessage(channel, event.deleted_ts)
+      return
+    }
     if (!this.database.hasConversation(channel)) {
       this.invalidateDirectory('conversations')
       return
     }
     switch (event.subtype) {
-      case 'message_deleted':
-        if (typeof event.deleted_ts === 'string') this.database.deleteMessage(channel, event.deleted_ts)
-        return
       case 'message_changed':
       case 'message_replied':
         if (event.message && typeof event.message === 'object') {
