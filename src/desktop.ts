@@ -1,9 +1,12 @@
 import type { CachedConversation } from './slack/dm-cache'
+import type { Presence } from './slack/types'
 
 declare global {
   interface Window {
     slackDesktop: {
       platform: string
+      reportActivity(): Promise<{ presence: Presence } | undefined>
+      onSelfPresence(callback: (presence: Presence) => void): () => void
       updateVersion(): Promise<string | undefined>
       installUpdate(): Promise<void>
       onUpdateReady(callback: (version: string) => void): () => void

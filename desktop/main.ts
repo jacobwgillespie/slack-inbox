@@ -117,6 +117,21 @@ async function start() {
     return showSlack(channel as string | undefined)
   })
   const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[CDG][A-Z0-9]+$/.test(channel)
+  let lastPresenceActivity = 0
+  let lastUserActivity = 0
+  const reportActivity = async () => {
+    const result = await engine.reportActivity()
+    if (!uiContents.isDestroyed()) uiContents.send('slack:self-presence', result.presence)
+    return { presence: result.presence }
+  }
+  ipcMain.handle('slack:activity', async (event) => {
+    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
+    if (!window.isFocused() || slackVisible) return
+    lastUserActivity = Date.now()
+    if (!credentials.sessionToken || Date.now() - lastPresenceActivity < 30_000) return
+    lastPresenceActivity = Date.now()
+    return reportActivity()
+  })
   const lastTyping = new Map<string, number>()
   ipcMain.handle('slack:typing', async (event, channel: unknown) => {
     if (!ownRenderer(event) || !validChannel(channel)) throw new Error('Invalid typing conversation')
@@ -231,7 +246,13 @@ async function start() {
   const savedTeam = database.getMetadata<boolean>('signed-out') ? undefined : database.getMetadata<{ teamId: string }>('session')?.teamId
   await slackContents.loadURL('about:blank')
   const canRecover = () => Boolean(savedTeam || credentials.sessionToken) && !slackVisible && !quitting
-  const stopObservingSlack = await observeSlack(slack, credentials, engine, canRecover, (connected) => engine.setExternalRealtime(connected))
+  const stopObservingSlack = await observeSlack(slack, credentials, engine, canRecover, (connected) => {
+    engine.setExternalRealtime(connected)
+    // Collection can replace Slack's connection; restore recent app activity on the new connection.
+    if (connected && credentials.sessionToken && window.isFocused() && !slackVisible && Date.now() - lastUserActivity < 60_000) {
+      void reportActivity().catch((error) => console.warn('Could not restore Slack activity', error))
+    }
+  })
   await ui.webContents.loadURL(origin)
   void slack.webContents.loadURL(savedTeam ? `https://app.slack.com/client/${savedTeam}` : 'https://slack.com/signin')
     .catch((error) => { if (error.code !== 'ERR_ABORTED') console.warn('Could not load Slack', error.message) })

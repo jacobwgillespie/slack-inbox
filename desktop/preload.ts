@@ -2,6 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('slackDesktop', {
   platform: process.platform,
+  reportActivity: () => ipcRenderer.invoke('slack:activity'),
+  onSelfPresence: (callback: (presence: 'active' | 'away') => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, presence: 'active' | 'away') => callback(presence)
+    ipcRenderer.on('slack:self-presence', listener)
+    return () => ipcRenderer.removeListener('slack:self-presence', listener)
+  },
   updateVersion: () => ipcRenderer.invoke('slack:update-version'),
   installUpdate: () => ipcRenderer.invoke('slack:update-install'),
   onUpdateReady: (callback: (version: string) => void) => {

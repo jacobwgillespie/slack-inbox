@@ -81,6 +81,8 @@ export class SyncEngine {
   private status: SyncStatus
   private session?: Session
   private sessionVerified = false
+  private presenceUpdate: Promise<unknown> = Promise.resolve()
+  private lastConfirmedActive = 0
   private running?: Promise<void>
   private pending = false
   private stopped = false
@@ -149,12 +151,40 @@ export class SyncEngine {
   webviewChanged() { this.changed() }
 
   async presence(user: string) {
-    return this.client.call<{ presence: Presence }>('users.getPresence', { user })
+    const result = await this.client.call<{ presence: Presence; online?: boolean; manual_away?: boolean; auto_away?: boolean }>('users.getPresence', { user })
+    // Channel collection briefly disconnects the shared Slack view during navigation.
+    if (user === this.session?.userId && result.online === false && result.manual_away === false && result.auto_away === false && Date.now() - this.lastConfirmedActive < 60_000) {
+      return { ...result, presence: 'active' as const }
+    }
+    return result
   }
 
   async setPresence(presence: 'auto' | 'away') {
-    await this.client.call('users.setPresence', { presence })
-    return this.client.call<{ presence: Presence }>('users.getPresence')
+    return this.updatePresence(async () => {
+      await this.client.call('users.setPresence', { presence })
+      // Slack's web client uses presence.set to register activity, rather than only clearing manual away.
+      if (presence === 'auto') await this.client.call('presence.set', { presence: 'active' })
+      const result = await this.client.call<{ presence: Presence }>('users.getPresence')
+      this.lastConfirmedActive = presence === 'auto' && result.presence === 'active' ? Date.now() : 0
+      return result
+    })
+  }
+
+  async reportActivity() {
+    return this.updatePresence(async () => {
+      const current = await this.client.call<{ presence: Presence; manual_away?: boolean }>('users.getPresence')
+      if (current.manual_away) { this.lastConfirmedActive = 0; return current }
+      await this.client.call('presence.set', { presence: 'active' })
+      const result = await this.client.call<{ presence: Presence }>('users.getPresence')
+      if (result.presence === 'active') this.lastConfirmedActive = Date.now()
+      return result
+    })
+  }
+
+  private updatePresence<T>(update: () => Promise<T>) {
+    const result = this.presenceUpdate.catch(() => {}).then(update)
+    this.presenceUpdate = result
+    return result
   }
 
   requestSync() {

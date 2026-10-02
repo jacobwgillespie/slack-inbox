@@ -13,15 +13,17 @@ import { SetupScreen } from './components/SetupScreen'
 import { OnboardingScreen } from './components/OnboardingScreen'
 import { useInboxSync, useKeyboardShortcuts, useSelectionRepair } from './hooks'
 import { useStore } from './store'
+import { usePresenceActivity } from './presence'
 
 export function App() {
-  const status = useRuntime().status
+  const { status, session } = useRuntime()
   const helpOpen = useStore((state) => state.helpOpen)
   const searchOpen = useStore((state) => state.searchOpen)
   const [onboardingOpen, setOnboardingOpen] = useState(
     () => localStorage.getItem('slack-inbox-onboarding-complete') !== 'true',
   )
   useCacheSync()
+  usePresenceActivity(session?.userId)
   useInboxSync()
   useKeyboardShortcuts(!onboardingOpen)
   useSelectionRepair()
