@@ -1,3 +1,4 @@
+import type { RichTextBlock } from '../src/slack/rich-text.ts'
 import type {
   InboxItem,
   ClassificationEntry,
@@ -298,16 +299,19 @@ export class SyncEngine {
     this.changed()
   }
 
-  async postMessage(channel: string, text: string, threadTs?: string) {
+  async postMessage(channel: string, text: string, threadTs?: string, blocks?: RichTextBlock[], clientMsgId?: string) {
     const result = await this.client.call<{ message?: Message }>('chat.postMessage', {
       channel,
       text,
       thread_ts: threadTs,
+      blocks: blocks ? JSON.stringify(blocks) : undefined,
+      client_msg_id: clientMsgId,
     })
     if (result.message) {
       this.database.upsertMessages(channel, [toMessage(result.message)])
     }
     this.changed()
+    return result.message?.ts
   }
 
   async threadReplies(channel: string, ts: string): Promise<ThreadPayload> {

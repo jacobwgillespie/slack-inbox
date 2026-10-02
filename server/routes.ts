@@ -1,3 +1,4 @@
+import type { RichTextBlock } from '../src/slack/rich-text.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { SlackError } from './slack-client.ts'
 import type { Classification, LegacyPreferences } from '../src/slack/types.ts'
@@ -186,8 +187,10 @@ export function localApi(engine: SyncEngine) {
     'POST /local/post': async (request, response) => {
       const body = await readJson(request)
       const threadTs = typeof body.threadTs === 'string' ? body.threadTs : undefined
-      await engine.postMessage(requireString(body.channel, 'channel'), requireString(body.text, 'text'), threadTs)
-      sendJson(response, 200, { ok: true })
+      if (body.blocks !== undefined && (!Array.isArray(body.blocks) || body.blocks.some((block) => block?.type !== 'rich_text' || !Array.isArray(block.elements)))) throw new RequestError(400, 'invalid_blocks')
+      const clientMsgId = typeof body.clientMsgId === 'string' ? body.clientMsgId : undefined
+      const ts = await engine.postMessage(requireString(body.channel, 'channel'), requireString(body.text, 'text'), threadTs, body.blocks as RichTextBlock[] | undefined, clientMsgId)
+      sendJson(response, 200, { ok: true, ts })
     },
   }
 

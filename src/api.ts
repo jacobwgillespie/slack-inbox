@@ -1,3 +1,4 @@
+import type { OutgoingMessage } from './slack/rich-text'
 import type {
   ClassificationEntry,
   ClassificationLabel,
@@ -46,7 +47,7 @@ export const localApi = {
   setDone: (channel: string, ts?: string, markRead = true) => post('/local/done', { channel, ts: ts ?? null, markRead }),
   markThreadRead: (channel: string, threadTs: string, ts: string) =>
     post('/local/thread/mark', { channel, threadTs, ts }),
-  postMessage: (channel: string, text: string, threadTs?: string) => post('/local/post', { channel, text, threadTs }),
+  postMessage: (channel: string, message: OutgoingMessage, threadTs?: string) => post<{ ts?: string }>('/local/post', { channel, ...message, threadTs }),
   saveForLater: (channel: string, ts: string) => post<{ created: boolean }>('/local/later', { channel, ts }),
   addReaction: (channel: string, ts: string, name: string) => post<{ reactions: Reaction[] }>('/local/reaction', { channel, ts, name }),
   removeReaction: (channel: string, ts: string, name: string) => post<{ reactions: Reaction[] }>('/local/reaction/remove', { channel, ts, name }),

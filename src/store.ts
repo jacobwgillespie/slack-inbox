@@ -1,3 +1,4 @@
+import type { OutgoingMessage } from './slack/rich-text'
 import { dmCollection, channelCollection, inboxCollection, laterCollection, userCollection, messageCollection, reconcile } from './collections'
 import { openDesktopSlack } from './desktop'
 import { create } from 'zustand'
@@ -90,7 +91,7 @@ export interface InboxState {
   reply: () => void
   replyInThread: (ts?: string) => void
   clearThreadTarget: () => void
-  send: (text: string) => Promise<boolean>
+  send: (message: OutgoingMessage, item: InboxItem, threadTs?: string) => Promise<void>
   toggleThread: (ts?: string) => void
   openInSlack: () => void
   toggleHelp: () => void
@@ -759,24 +760,15 @@ export const inboxStore = create<InboxState>()(
 
         clearThreadTarget: () => set({ threadTarget: undefined }),
 
-        send: async (text) => {
+        send: async (message, item, threadTs) => {
           const state = get()
-          const item = currentItem(state)
-          if (!item || !text.trim()) return false
-          try {
-            await localApi.postMessage(item.conversation.id, text, threadTargetFor(item, state.threadTarget))
-          } catch (error) {
-            reportError(error)
-            return false
-          }
-          set({ threadTarget: undefined })
+          const result = await localApi.postMessage(item.conversation.id, message, threadTs)
+          if (get().selectedId === item.id && get().threadTarget === state.threadTarget) set({ threadTarget: undefined })
           if (isConversationView(state.view)) {
-            const updated = currentItem(get()) ?? item
-            run(localApi.markRead(item.conversation.id, latestTs(updated)).then(() => get().load()))
-            return true
+            run(localApi.markRead(item.conversation.id, maxTs(latestTs(item), result.ts ?? '0')).then(() => get().load()))
+          } else {
+            get().markDone([item.id], 'Reply sent')
           }
-          get().markDone([item.id], 'Reply sent')
-          return true
         },
 
         toggleThread: (ts) => {

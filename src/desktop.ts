@@ -1,4 +1,3 @@
-import type { ComposerAction, ComposerSnapshot } from './slack/composer'
 import type { CachedConversation } from './slack/dm-cache'
 
 declare global {
@@ -8,10 +7,7 @@ declare global {
       updateVersion(): Promise<string | undefined>
       installUpdate(): Promise<void>
       onUpdateReady(callback: (version: string) => void): () => void
-      followComposer(channel: string): Promise<number | undefined>
-      stopComposer(generation: number): Promise<void>
-      composerAction(generation: number, action: ComposerAction): Promise<void>
-      onComposerChange(callback: (draft: ComposerSnapshot) => void): () => void
+      sendTyping(channel: string): Promise<boolean>
       readCache(channel?: string, options?: { before?: string; after?: string }): Promise<CachedConversation[]>
       watchConversations(channels: string[], selected?: string): Promise<void>
       refreshConversation(channel: string, older?: boolean): Promise<void>

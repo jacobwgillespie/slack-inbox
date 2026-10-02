@@ -125,50 +125,23 @@ async function start() {
     return showSlack(channel as string | undefined)
   })
   const validChannel = (channel: unknown): channel is string => typeof channel === 'string' && /^[CDG][A-Z0-9]+$/.test(channel)
-  let composer: { channel: string; generation: number } | undefined
-  let composerGeneration = 0
-  const bindComposer = () => {
-    if (!slackContents.isDestroyed()) slackContents.send('slack:composer-bind', composer)
-  }
-  ipcMain.handle('slack:composer-follow', (event, channel: unknown) => {
-    if (!ownRenderer(event) || !validChannel(channel)) throw new Error('Invalid composer')
-    const team = database.getMetadata<{ teamId: string }>('session')?.teamId
-    if (!team) return
-    composer = { channel, generation: ++composerGeneration }
-    const destination = `https://app.slack.com/client/${team}/${channel}`
-    const generation = composer.generation
-    bindComposer()
-    if (slack.webContents.getURL().split('?')[0] !== destination) void (async () => {
-      const clicked = slack.webContents.getURL().startsWith('https://app.slack.com/client/') && await slack.webContents.executeJavaScript(`(() => {
-        const destination = ${JSON.stringify(destination)};
-        const link = [...document.querySelectorAll('.p-channel_sidebar a[href]')].find(link => link.href.split('?')[0] === destination);
-        if (!link) return false;
-        link.click(); return true;
+  const lastTyping = new Map<string, number>()
+  ipcMain.handle('slack:typing', async (event, channel: unknown) => {
+    if (!ownRenderer(event) || !validChannel(channel)) throw new Error('Invalid typing conversation')
+    if (slackContents.isDestroyed()) return false
+    if (Date.now() - (lastTyping.get(channel) ?? 0) < 3000) return true
+    lastTyping.set(channel, Date.now())
+    try {
+      return await slackContents.executeJavaScript(`(() => {
+        const socket = window.__inboxTypingSocket;
+        if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+        socket.send(JSON.stringify({ type: 'typing', channel: ${JSON.stringify(channel)} }));
+        return true;
       })()`)
-      if (!clicked && composer?.generation === generation) await slack.webContents.loadURL(destination)
-    })().catch((error) => {
-      if (error.code !== 'ERR_ABORTED') console.warn('Could not follow Slack composer', error.message)
-    })
-    return generation
+    } catch {
+      return false
+    }
   })
-  ipcMain.handle('slack:composer-stop', (event, generation: unknown) => {
-    if (!ownRenderer(event)) throw new Error('Invalid IPC sender')
-    if (composer?.generation !== generation) return
-    composer = undefined
-    bindComposer()
-  })
-  ipcMain.handle('slack:composer-action', (event, generation: unknown, action: import('../src/slack/composer').ComposerAction) => {
-    if (!ownRenderer(event) || !action || !['input', 'key', 'click'].includes(action.type)) throw new Error('Invalid composer action')
-    if (!composer || composer.generation !== generation) return
-    slack.webContents.send('slack:composer-action', generation, action)
-  })
-  ipcMain.on('slack:composer-changed', (event, draft: import('../src/slack/composer').ComposerSnapshot) => {
-    if (event.sender !== slack.webContents || !event.senderFrame?.url.startsWith('https://app.slack.com/client/') ||
-        !composer || draft?.generation !== composer.generation || draft.channel !== composer.channel || typeof draft.html !== 'string') return
-    if (!slackVisible && draft.source === 'inbox') ui.webContents.focus()
-    ui.webContents.send('slack:composer-changed', draft)
-  })
-  slack.webContents.on('dom-ready', bindComposer)
   const cacheChanged = (channel?: string) => {
     if (!uiContents.isDestroyed()) uiContents.send('slack:cache-changed', channel)
   }
