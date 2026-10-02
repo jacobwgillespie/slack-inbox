@@ -106,14 +106,9 @@ export function SidebarFooter({ onWelcome }: { onWelcome: () => void }) {
             <span className="account-status-label">{hasStatus ? self?.statusText || 'Edit status' : 'Set a status'}</span>
           </button>
           {hasStatus && <button onClick={() => void clearStatus()} disabled={clearingStatus}><CloseIcon /><span>{clearingStatus ? 'Clearing…' : 'Clear status'}</span></button>}
-          <hr />
-          <div className="account-presence"><PresenceDot presence={presence} /><span>{presence === 'active' ? 'Active' : presence === 'away' ? 'Away' : 'Checking status…'}</span></div>
-          <button onClick={() => void setPresence('auto')} disabled={settingPresence}>
-            <PresenceDot presence="active" /><span>Set yourself active</span>
-          </button>
-          <button onClick={() => void setPresence('away')} disabled={settingPresence}>
-            <PresenceDot presence="away" /><span>Set yourself away</span>
-          </button>
+          {presence && <button onClick={() => void setPresence(presence === 'active' ? 'away' : 'auto')} disabled={settingPresence}>
+            <PresenceDot presence={presence === 'active' ? 'away' : 'active'} /><span>Set yourself {presence === 'active' ? 'away' : 'active'}</span>
+          </button>}
           <hr />
         </>}
         <button onClick={() => { menu.current?.hidePopover(); onWelcome() }}>
