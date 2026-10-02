@@ -18,7 +18,7 @@ import { serializeMessage } from '../slack/rich-text'
 import emojiData from '../slack/emoji-data.json'
 import type { InboxItem } from '../slack/types'
 import { ArrowUpIcon } from './Icons'
-import { suggestionMenu, type ComposerSuggestion } from './composer-suggestions'
+import { GIF_COMMAND, suggestionMenu, type ComposerSuggestion } from './composer-suggestions'
 import { GifPicker } from './GifPicker'
 
 const standardEmoji: Record<string, string> = emojiData
@@ -68,7 +68,7 @@ function RichComposer({ item, thread, draftKey, autoFocus }: { item: InboxItem; 
           pluginKey: new PluginKey('slashCommands'),
           editor: this.editor, char: '/', startOfLine: true,
           allow: ({ range }) => range.from === 1,
-          items: ({ query }) => 'gif'.startsWith(query.toLowerCase()) ? [{ id: 'gif', label: 'gif', detail: 'Find and send a GIF', glyph: 'GIF', kind: 'Action' }] : [],
+          items: ({ query }) => 'gif'.startsWith(query.toLowerCase()) ? [GIF_COMMAND] : [],
           command: ({ editor, range }) => {
             editor.chain().focus().deleteRange(range).run()
             openGif.current()

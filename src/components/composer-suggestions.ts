@@ -9,6 +9,8 @@ export interface ComposerSuggestion {
   kind?: string
 }
 
+export const GIF_COMMAND: ComposerSuggestion = { id: 'gif', label: 'gif', detail: 'Find and send a GIF', glyph: 'GIF', kind: 'Action' }
+
 /** Shared keyboard navigation for composer suggestions. */
 export function suggestionMenu(onOpen: (open: boolean) => void, variant: 'autocomplete' | 'commands' = 'autocomplete'): SuggestionOptions<ComposerSuggestion>['render'] {
   return () => {

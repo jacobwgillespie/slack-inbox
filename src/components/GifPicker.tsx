@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { browseGifs, gifsConfigured, type Gif } from '../gifs'
 import { ArrowLeftIcon, CloseIcon, PlusIcon } from './Icons'
+import { GIF_COMMAND } from './composer-suggestions'
 
 export function GifPicker({ request, disabled, destination, onSend, onClose }: {
   request?: { query: string }
@@ -30,8 +31,9 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
 
   const position = (panel: HTMLDivElement, width: number) => {
     const bounds = trigger.current!.getBoundingClientRect()
-    panel.style.left = `${Math.max(8, Math.min(bounds.left, window.innerWidth - width - 8))}px`
-    panel.style.bottom = `${Math.max(8, window.innerHeight - bounds.top + 12)}px`
+    const commandMenu = panel === menu.current
+    panel.style.left = `${Math.max(8, Math.min(commandMenu ? bounds.right + 10 : bounds.left, window.innerWidth - width - 8))}px`
+    panel.style.bottom = `${Math.max(8, window.innerHeight - bounds.top + (commandMenu ? 8 : 12))}px`
   }
 
   const showBrowser = (initialQuery: string) => {
@@ -82,9 +84,19 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
 
   return <>
     <button ref={trigger} type="button" className="composer-add-button" aria-label="Add to message" title="Add to message" disabled={disabled} popoverTarget={menuId}
-      onClick={() => position(menu.current!, 180)}><PlusIcon /></button>
-    <div ref={menu} id={menuId} popover="auto" className="composer-add-menu" aria-label="Add to message" onKeyDown={(event) => event.stopPropagation()}>
-      <button type="button" onClick={() => showBrowser('')}><span className="gif-label" aria-hidden="true">GIF</span> GIF</button>
+      onClick={() => position(menu.current!, menu.current!.offsetWidth || 480)}><PlusIcon /></button>
+    <div ref={menu} id={menuId} popover="auto" className="composer-suggestions composer-command-suggestions composer-command-popover" role="menu" aria-label="Commands"
+      onToggle={(event) => { if (event.newState === 'open') menu.current?.querySelector<HTMLButtonElement>('button')?.focus() }}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') event.preventDefault()
+      }}>
+      <button type="button" role="menuitem" onClick={() => showBrowser('')}>
+        <span className="suggestion-glyph" aria-hidden="true">{GIF_COMMAND.glyph}</span>
+        <span className="suggestion-label">{GIF_COMMAND.label}</span>
+        <small>{GIF_COMMAND.detail}</small>
+        <span className="suggestion-kind">{GIF_COMMAND.kind}</span>
+      </button>
     </div>
     <div ref={browser} id={browserId} popover="auto" role="dialog" aria-label="Choose a GIF" className="gif-picker"
       onKeyDown={(event) => event.stopPropagation()}
