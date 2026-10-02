@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { conversationLabel } from '../format'
 import { useStore } from '../store'
+import { compareTs } from '../slack/timestamps'
 import { ConversationIcon } from './Avatar'
 import { CloseIcon } from './Icons'
 
@@ -23,7 +24,7 @@ export function ThreadSearch() {
       return { item, label, user, searchable }
     })
     .filter(({ searchable }) => terms.every((term) => searchable.includes(term)))
-    .sort((a, b) => a.label.localeCompare(b.label))
+    .sort((a, b) => compareTs(b.item.latestTs, a.item.latestTs) || a.label.localeCompare(b.label))
   const index = Math.min(selectedIndex, Math.max(0, results.length - 1))
   const selected = results[index]
 
