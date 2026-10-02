@@ -2212,11 +2212,11 @@ a.message-time:hover {
 .item-context-menu {
   position: fixed;
   inset: auto;
-  width: 240px;
+  width: 210px;
   margin: 0;
-  padding: 8px;
+  padding: 5px;
   border: 1px solid #383838;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #191919;
   color: var(--text);
   box-shadow: var(--shadow);
@@ -2224,20 +2224,22 @@ a.message-time:hover {
 .item-context-menu button {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding: 11px 12px;
+  padding: 6px 9px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 5px;
   background: transparent;
   color: inherit;
   font: inherit;
+  font-size: 13px;
+  line-height: 18px;
   text-align: left;
   cursor: default;
 }
 .item-context-menu button:hover, .item-context-menu button:focus-visible { background: #303030; outline: none; }
-.item-context-menu .icon { width: 20px; height: 20px; }
-.item-context-menu hr { margin: 6px 12px; border: 0; border-top: 1px solid #383838; }
+.item-context-menu .icon { width: 15px; height: 15px; }
+.item-context-menu hr { margin: 4px 9px; border: 0; border-top: 1px solid #383838; }
 
 .item-muted { display: flex; color: var(--text-muted); }
 .item-muted .icon { width: 13px; height: 13px; }
