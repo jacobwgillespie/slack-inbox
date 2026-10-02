@@ -18,8 +18,8 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
   const search = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [offset, setOffset] = useState(0)
-  const [nextOffset, setNextOffset] = useState(0)
+  const [page, setPage] = useState(1)
+  const [nextPage, setNextPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [gifs, setGifs] = useState<Gif[]>([])
   const [loading, setLoading] = useState(false)
@@ -39,7 +39,7 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
   const showBrowser = (initialQuery: string) => {
     menu.current?.hidePopover()
     setQuery(initialQuery)
-    setOffset(0)
+    setPage(1)
     setGifs([])
     setSelection(undefined)
     setError(undefined)
@@ -57,17 +57,17 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
     setLoading(true)
     setError(undefined)
     const timer = setTimeout(() => {
-      void browseGifs(query.trim(), offset, abort.signal).then((result) => {
+      void browseGifs(query.trim(), page, abort.signal).then((result) => {
         if (abort.signal.aborted) return
-        setGifs((previous) => offset ? [...previous, ...result.gifs] : result.gifs)
-        setNextOffset(result.nextOffset)
+        setGifs((previous) => page > 1 ? [...previous, ...result.gifs] : result.gifs)
+        setNextPage(result.nextPage)
         setHasMore(result.hasMore)
       }).catch((error) => {
         if (!abort.signal.aborted) setError(error instanceof Error ? error.message : 'Could not load GIFs. Please try again.')
       }).finally(() => { if (!abort.signal.aborted) setLoading(false) })
     }, query ? 350 : 0)
     return () => { clearTimeout(timer); abort.abort() }
-  }, [open, query, offset, retry])
+  }, [open, query, page, retry])
 
   const send = async () => {
     if (!selection || busy.current || disabled) return
@@ -116,7 +116,7 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
         <p className="gif-destination">{destination}</p>
         <button type="button" className="gif-send button primary" disabled={sending || disabled} onClick={() => void send()}>{sending ? 'Sending…' : 'Send GIF'}</button>
       </> : <>
-        <input ref={search} aria-label="Search GIFs" placeholder="Search GIFs" value={query} onChange={(event) => { setQuery(event.target.value); setOffset(0); setGifs([]); setHasMore(false) }} />
+        <input ref={search} aria-label="Search GIFs" placeholder="Search KLIPY" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); setGifs([]); setHasMore(false) }} />
         <div className="gif-picker-results" aria-busy={loading}>
           <div className="gif-picker-grid">
             {gifs.map((gif) => <button key={gif.id} type="button" aria-label={`Preview ${gif.title}`} onClick={() => { setSelection({ gif, clientMsgId: crypto.randomUUID() }); setError(undefined) }}>
@@ -125,11 +125,11 @@ export function GifPicker({ request, disabled, destination, onSend, onClose }: {
           </div>
           {loading && <p className="muted" role="status">Loading GIFs…</p>}
           {!loading && !error && !gifs.length && <p className="muted">No GIFs found. Try another search.</p>}
-          {hasMore && !error && <button type="button" className="link-button gif-load-more" disabled={loading} onClick={() => setOffset(nextOffset)}>Load more</button>}
+          {hasMore && !error && <button type="button" className="link-button gif-load-more" disabled={loading} onClick={() => setPage(nextPage)}>Load more</button>}
         </div>
       </>}
       {error && <p className="gif-error" role="alert">{error} {!selection && gifsConfigured && <button type="button" className="link-button" onClick={() => setRetry((value) => value + 1)}>Retry</button>}</p>}
-      <img className="giphy-attribution" src="/powered-by-giphy.png" alt="Powered by GIPHY" />
+      <p className="gif-attribution">Powered by KLIPY</p>
     </div>
   </>
 }

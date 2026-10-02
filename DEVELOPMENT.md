@@ -38,7 +38,7 @@ Only add tests for critical behavior.
 
 The composer supports `/gif`, `/gif search terms`, and **+ → GIF**. The browser shows trending GIFs, search results, and a preview before sending an image attachment to the current conversation or thread. Sending a GIF keeps any text draft.
 
-Create a [GIPHY API key](https://developers.giphy.com/dashboard/) for the app and set `VITE_GIPHY_API_KEY` in `.env.local` before building. This is a client API key: Vite includes it in the renderer so requests go directly to GIPHY, as required by its integration guidelines. The release workflow reads the key from the `GIPHY_API_KEY` repository secret. Beta keys are limited to 100 API calls per hour; request production access before wider distribution. The picker includes GIPHY's official attribution mark.
+Create a [KLIPY API key](https://partner.klipy.com/) for the app and set `VITE_KLIPY_API_KEY` in `.env.local` before building. Vite includes this client key in the renderer so requests go directly to KLIPY. The release workflow reads the key from the `KLIPY_API_KEY` repository secret. Testing keys are limited to 100 API requests per hour; request production access before wider distribution. The picker uses the required “Search KLIPY” placeholder and displays attribution. Content filtering is configured in the KLIPY Partner Panel.
 
 ## Architecture
 

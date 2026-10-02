@@ -204,7 +204,7 @@ export function localApi(engine: SyncEngine) {
       if (body.gif !== undefined) {
         const value = body.gif as Record<string, unknown>
         const url = requireString(value?.url, 'gif_url')
-        if (!/^https:\/\/[^/]+\.giphy\.com\//i.test(url)) throw new RequestError(400, 'invalid_gif_url')
+        if (!/^https:\/\/[^/]+\.klipy\.com\//i.test(url)) throw new RequestError(400, 'invalid_gif_url')
         gif = { url, title: requireString(value.title, 'gif_title') }
       }
       const ts = await engine.postMessage(requireString(body.channel, 'channel'), {
