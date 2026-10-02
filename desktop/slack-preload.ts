@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-// Both embedded views start in the background. Only the manual Slack view
-// receives permission to write read markers when the user reveals it.
+// Background collection cannot write read markers; revealing Slack enables them.
 contextBridge.executeInMainWorld({ func: () => {
   const state = window as typeof window & { __inboxReadMarkers?: boolean; __inboxTypingSocket?: WebSocket }
   state.__inboxReadMarkers = false
@@ -18,7 +17,6 @@ contextBridge.executeInMainWorld({ func: () => {
   }
 } })
 ipcRenderer.on('slack:read-markers-enabled', (_event, enabled: boolean) => {
-  if (process.argv.includes('--slack-background-collector')) return
   contextBridge.executeInMainWorld({ func: (enabled: boolean) => {
     (window as typeof window & { __inboxReadMarkers?: boolean }).__inboxReadMarkers = enabled
   }, args: [enabled] })

@@ -9,7 +9,8 @@ interface Job { channel: string; older: boolean; priority: number; before?: stri
 
 export class ConversationCollector {
   private queue = new Map<string, Job>()
-  private running = false
+  private pumping?: Promise<void>
+  private paused = false
   private stopped = false
   private visible = new Set<string>()
   private latest = new Map<string, string>()
@@ -49,6 +50,20 @@ export class ConversationCollector {
     if (this.active?.channel === channel) for (const listener of this.listeners) listener()
   }
 
+  async pause() {
+    this.paused = true
+    for (const listener of this.listeners) listener()
+    if (this.pumping) {
+      this.contents.stop()
+      await this.pumping
+    }
+  }
+
+  resume() {
+    this.paused = false
+    this.startPump()
+  }
+
   stop() {
     this.stopped = true
     this.unsubscribe()
@@ -62,7 +77,19 @@ export class ConversationCollector {
     if (this.active?.channel === channel && this.active.older === older) return
     const existing = this.queue.get(key)
     if (!existing || existing.priority > priority) this.queue.set(key, { channel, older, priority })
-    void this.pump()
+    this.startPump()
+  }
+
+  private startPump() {
+    if (this.pumping || this.paused || this.stopped) return
+    this.pumping = Promise.resolve().then(() => this.pump()).finally(() => {
+      this.pumping = undefined
+      if (this.queue.size) this.startPump()
+    })
+  }
+
+  private ensureActive() {
+    if (this.paused || this.stopped) throw new Error('Collection paused')
   }
 
   private async navigate(channel: string, before?: string) {
@@ -72,6 +99,7 @@ export class ConversationCollector {
     if (this.contents.getURL().split('/')[5]?.split('?')[0] === channel) {
       if (!before) return
       const current = await readConversation(this.contents)
+      this.ensureActive()
       if (!current.hasMore || (current.messages[0] && compareTs(current.messages[0].ts, before) <= 0)) return
     }
     if (before) {
@@ -84,6 +112,7 @@ export class ConversationCollector {
       if (!link) return false;
       link.click(); return true;
     })()`)
+    this.ensureActive()
     if (!clicked) await this.contents.loadURL(destination)
   }
 
@@ -102,7 +131,7 @@ export class ConversationCollector {
       }
       const read = async () => {
         if (finished) return
-        if (this.stopped) { finish(new Error('Collector stopped.')); return }
+        if (this.stopped || this.paused) { finish(new Error('Collection paused')); return }
         if (busy) { dirty = true; return }
         busy = true
         try {
@@ -111,7 +140,9 @@ export class ConversationCollector {
             const tab = [...document.querySelectorAll('[role="tab"]')].find(tab => tab.textContent.trim() === 'Messages');
             if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click();
           })()`)
+          this.ensureActive()
           const snapshot = await readConversation(this.contents)
+          this.ensureActive()
           if (snapshot.channel === channel && snapshot.ready) {
             latest = snapshot
             const reachedOlder = !before || !snapshot.hasMore || (snapshot.messages[0] && compareTs(snapshot.messages[0].ts, before) < 0)
@@ -128,53 +159,56 @@ export class ConversationCollector {
   }
 
   private async pump() {
-    if (this.running || this.stopped) return
-    this.running = true
-    try {
-      while (this.queue.size && !this.stopped) {
-        const [key, job] = [...this.queue.entries()].sort((a, b) => a[1].priority - b[1].priority)[0]!
-        this.queue.delete(key)
-        this.active = job
+    while (this.queue.size && !this.stopped && !this.paused) {
+      const [key, job] = [...this.queue.entries()].sort((a, b) => a[1].priority - b[1].priority)[0]!
+      this.queue.delete(key)
+      this.active = job
+      this.changed(job.channel)
+      try {
+        const cached = this.database.cachedConversation(job.channel)
+        await this.navigate(job.channel, job.before ?? (job.older ? cached.oldest : undefined))
+        this.ensureActive()
+        let snapshot = await this.waitForSnapshot(job.channel)
+        if (!job.older) {
+          this.ensureActive()
+          await scrollConversation(this.contents, 'latest')
+          this.ensureActive()
+          snapshot = await this.waitForSnapshot(job.channel, undefined, this.latest.get(job.channel))
+        }
+        this.ensureActive()
+        if (this.database.cacheWebview(snapshot)) this.engine.webviewChanged()
+        await this.reconcile(snapshot, !job.older ? cached.newest : undefined)
         this.changed(job.channel)
-        try {
-          const cached = this.database.cachedConversation(job.channel)
-          await this.navigate(job.channel, job.before ?? (job.older ? cached.oldest : undefined))
-          let snapshot = await this.waitForSnapshot(job.channel)
-          if (!job.older) {
-            await scrollConversation(this.contents, 'latest')
-            snapshot = await this.waitForSnapshot(job.channel, undefined, this.latest.get(job.channel))
-          }
+        // Read contiguous overlapping windows; yield to other jobs after four.
+        const overlap = job.until ?? (!job.older ? cached.newest : undefined)
+        let pages = 0
+        let stalled = 0
+        while (snapshot.hasMore && pages < 4 && !this.stopped && !this.paused &&
+          (!overlap || compareTs(snapshot.messages[0]?.ts ?? '0', overlap) > 0)) {
+          if ([...this.queue.values()].some((next) => next.priority < job.priority)) break
+          const before = snapshot.messages[0]?.ts
+          await scrollConversation(this.contents, 'older')
+          this.ensureActive()
+          snapshot = await this.waitForSnapshot(job.channel, before)
           if (this.database.cacheWebview(snapshot)) this.engine.webviewChanged()
-          await this.reconcile(snapshot, !job.older ? cached.newest : undefined)
+          await this.reconcile(snapshot)
           this.changed(job.channel)
-          // Read contiguous overlapping windows; yield to other jobs after four.
-          const overlap = job.until ?? (!job.older ? cached.newest : undefined)
-          let pages = 0
-          let stalled = 0
-          while (snapshot.hasMore && pages < 4 && !this.stopped &&
-            (!overlap || compareTs(snapshot.messages[0]?.ts ?? '0', overlap) > 0)) {
-            if ([...this.queue.values()].some((next) => next.priority < job.priority)) break
-            const before = snapshot.messages[0]?.ts
-            await scrollConversation(this.contents, 'older')
-            snapshot = await this.waitForSnapshot(job.channel, before)
-            if (this.database.cacheWebview(snapshot)) this.engine.webviewChanged()
-            await this.reconcile(snapshot)
-            this.changed(job.channel)
-            pages++
-            stalled = before === snapshot.messages[0]?.ts ? stalled + 1 : 0
-            if (stalled >= 2) break
-          }
-          const gap = overlap && snapshot.messages[0] && compareTs(snapshot.messages[0].ts, overlap) > 0
-          if (snapshot.hasMore && stalled < 2 && gap) {
-            this.queue.set(`${job.channel}:gap`, { channel: job.channel, older: true, priority: 1, before: snapshot.messages[0]!.ts, until: overlap })
-          } else if (snapshot.hasMore && stalled < 2 && !cached.complete && this.visible.has(job.channel)) {
-            this.queue.set(`${job.channel}:true`, { channel: job.channel, older: true, priority: 2 })
-          }
-        } catch (error) {
-          if (!this.stopped) this.database.webviewFailure(job.channel, error instanceof Error ? error.message : String(error))
-        } finally { this.active = undefined; if (!this.stopped) this.changed(job.channel) }
-      }
-    } finally { this.running = false }
+          pages++
+          stalled = before === snapshot.messages[0]?.ts ? stalled + 1 : 0
+          if (stalled >= 2) break
+        }
+        this.ensureActive()
+        const gap = overlap && snapshot.messages[0] && compareTs(snapshot.messages[0].ts, overlap) > 0
+        if (snapshot.hasMore && stalled < 2 && gap) {
+          this.queue.set(`${job.channel}:gap`, { channel: job.channel, older: true, priority: 1, before: snapshot.messages[0]!.ts, until: overlap })
+        } else if (snapshot.hasMore && stalled < 2 && !cached.complete && this.visible.has(job.channel)) {
+          this.queue.set(`${job.channel}:true`, { channel: job.channel, older: true, priority: 2 })
+        }
+      } catch (error) {
+        if (this.paused && !this.stopped) this.queue.set(key, job)
+        else if (!this.stopped) this.database.webviewFailure(job.channel, error instanceof Error ? error.message : String(error))
+      } finally { this.active = undefined; if (!this.stopped) this.changed(job.channel) }
+    }
   }
 
   private async reconcile(snapshot: WebviewConversation, previousNewest?: string) {
