@@ -66,6 +66,10 @@ export function ThreadFocus({ item, threadTs, savedTs, onClose }: { item: InboxI
     .sort((a, b) => a.ts.localeCompare(b.ts)) : []
   const threadItem = payload?.root ? { ...item, thread: { ts: threadTs, root: payload.root }, messages: payload.messages } : undefined
   return <section ref={section} className="thread-focus" aria-label="Thread" tabIndex={-1}
+    onClick={(event) => {
+      const target = event.target as HTMLElement
+      if (target === event.currentTarget || target === list.current || target.matches('.message-track, .message-row')) onClose()
+    }}
     onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Escape' && !event.defaultPrevented) onClose() }}>
     <div ref={list} className="message-list thread-focus-messages">
       {!payload && <p className="muted" role="status">{error || 'Loading thread…'}</p>}

@@ -826,6 +826,7 @@ kbd {
 .message-own > .message-bubble {
   position: relative;
   background: #565656;
+  --link: #fff;
 }
 
 .message-own .message-author,
