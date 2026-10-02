@@ -6,7 +6,7 @@ import type { InboxItem, LaterItem } from '../slack/types'
 import type { View } from '../store'
 import { conversationLabel } from '../format'
 import { useCurrentItem, useFormatContext } from '../hooks'
-import { inboxStore, useStore, isConversationView } from '../store'
+import { computeVisible, inboxStore, useStore, isConversationView } from '../store'
 import { ConversationIcon } from './Avatar'
 import { Composer } from './Composer'
 import { TypingIndicator } from './TypingIndicator'
@@ -82,6 +82,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
   const session = useStore((state) => state.session)
   const reading = useStore((state) => state.mode === 'reading')
   const pending = useStore((state) => isConversationView(view) && state.selectedId !== item?.id)
+  const inboxEmpty = useStore((state) => view === 'inbox' && !item && computeVisible({ ...state, view: 'inbox' }).length === 0)
   const { saveForLater, toggleMute, recategorize } = inboxStore.getState()
 
   useLayoutEffect(() => {
@@ -96,7 +97,7 @@ function ConversationDetail({ item, view }: { item?: InboxItem; view: View }) {
 
   if (!item) {
     return (
-      <section className={`detail detail-empty${view === 'inbox' ? ' detail-empty-inbox' : ''}`}>
+      <section className={`detail detail-empty${inboxEmpty ? ' detail-empty-inbox' : ''}`}>
         <header className="detail-header" />
         <Toast />
       </section>
